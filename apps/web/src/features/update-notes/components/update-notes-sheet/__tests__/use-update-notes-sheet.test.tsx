@@ -2,12 +2,16 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	UpdateNotesProvider,
+	useUpdateNotesSheet,
+} from "@/features/update-notes/components/update-notes-sheet/use-update-notes-sheet";
 
 const state = vi.hoisted(() => ({
-	latestVersion: "v3.2.2" as string | null,
-	viewedVersions: new Set<string>(),
 	isViewedListLoaded: true,
+	latestVersion: "v3.2.2" as string | null,
 	markViewed: vi.fn(),
+	viewedVersions: new Set<string>(),
 }));
 
 vi.mock("@/features/update-notes/constants", () => ({
@@ -19,16 +23,11 @@ vi.mock("@/features/update-notes/constants", () => ({
 
 vi.mock("@/features/update-notes/hooks/use-update-notes-viewed", () => ({
 	useUpdateNotesViewed: () => ({
-		viewedVersions: state.viewedVersions,
 		isViewedListLoaded: state.isViewedListLoaded,
 		markViewed: state.markViewed,
+		viewedVersions: state.viewedVersions,
 	}),
 }));
-
-import {
-	UpdateNotesProvider,
-	useUpdateNotesSheet,
-} from "@/features/update-notes/components/update-notes-sheet/use-update-notes-sheet";
 
 function Probe() {
 	const { isOpen, close, viewedVersions } = useUpdateNotesSheet();

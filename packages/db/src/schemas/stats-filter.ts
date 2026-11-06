@@ -8,16 +8,16 @@ const STATS_VALUATIONS = ["real", "virtual"] as const;
 export type StatsValuation = (typeof STATS_VALUATIONS)[number];
 
 export const statsFilterShape = {
-	kind: z.enum(ENTRY_KINDS).optional(),
-	roomId: idSchema.optional(),
+	assetId: idSchema.optional(),
+	baseAssetId: idSchema.optional(),
 	dateFrom: dateOnlySchema.optional(),
 	dateTo: dateOnlySchema.optional(),
 	entryTagIds: tagIdsSchema.optional(),
-	tournamentTagIds: tagIdsSchema.optional(),
-	assetId: idSchema.optional(),
-	valuation: z.enum(STATS_VALUATIONS).optional(),
-	baseAssetId: idSchema.optional(),
+	kind: z.enum(ENTRY_KINDS).optional(),
 	normalized: z.boolean().optional(),
+	roomId: idSchema.optional(),
+	tournamentTagIds: tagIdsSchema.optional(),
+	valuation: z.enum(STATS_VALUATIONS).optional(),
 };
 
 interface StatsFilterFields {

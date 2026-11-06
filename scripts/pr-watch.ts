@@ -12,18 +12,19 @@ const ALLOWED_ACTORS = ["HIRO15254", "claude[bot]", "github-actions[bot]"];
 const TRUNCATED_REVIEW_NOTICE = "<!-- pre-merge-review:truncated -->";
 const STATE_CHANGES: Record<string, string> = {
 	ConvertToDraftEvent: "converted to draft",
-	ReadyForReviewEvent: "marked ready for review",
 	LabeledEvent: "label added:",
-	UnlabeledEvent: "label removed:",
+	ReadyForReviewEvent: "marked ready for review",
 	ReopenedEvent: "reopened",
+	UnlabeledEvent: "label removed:",
 };
 const POLL_MS = 30_000;
 const DEBOUNCE_MS = 60_000;
 const MAX_BATCH_MS = 240_000;
 const MAX_POLL_FAILURES = 10;
-const ISSUE_BRANCH = /^feature\/sa2-(\d+)$/i;
-const PR_URL = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/\d+$/;
-const PR_NUMBER = /^\d+$/;
+const ISSUE_BRANCH = /^feature\/sa2-(?<number>\d+)$/iu;
+const PR_URL =
+	/^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<name>[^/]+)\/pull\/\d+$/u;
+const PR_NUMBER = /^\d+$/u;
 const CI_KEY = "ci:";
 const FAILED_CHECK = [
 	"FAILURE",
@@ -87,37 +88,14 @@ function connection<T extends z.ZodType>(
 }
 
 const postSchema = z.object({
+	author: actorSchema,
+	body: z.string(),
 	id: z.string(),
 	url: z.string(),
-	body: z.string(),
-	author: actorSchema,
 });
 type Post = z.infer<typeof postSchema>;
 const snapshotSchema = z.object({
-	state: z.enum(["OPEN", "CLOSED", "MERGED"]),
-	url: z.string(),
-	headRefName: z.string(),
 	comments: connection(postSchema),
-	reviews: connection(postSchema.extend({ state: z.string() })),
-	reviewThreads: connection(
-		z.object({
-			comments: connection(
-				postSchema.extend({
-					path: z.string(),
-					line: z.number().nullable(),
-					originalLine: z.number().nullable(),
-				})
-			),
-		})
-	),
-	timelineItems: connection(
-		z.object({
-			__typename: z.string(),
-			id: z.string(),
-			actor: actorSchema,
-			label: z.object({ name: z.string() }).optional(),
-		})
-	),
 	commits: connection(
 		z.object({
 			commit: z.object({
@@ -127,10 +105,6 @@ const snapshotSchema = z.object({
 						contexts: connection(
 							z.object({
 								__typename: z.string(),
-								name: z.string().optional(),
-								status: z.string().optional(),
-								conclusion: z.string().nullish(),
-								detailsUrl: z.string().nullish(),
 								checkSuite: z
 									.object({
 										workflowRun: z
@@ -138,8 +112,12 @@ const snapshotSchema = z.object({
 											.nullable(),
 									})
 									.nullish(),
+								conclusion: z.string().nullish(),
 								context: z.string().optional(),
+								detailsUrl: z.string().nullish(),
+								name: z.string().optional(),
 								state: z.string().optional(),
+								status: z.string().optional(),
 								targetUrl: z.string().nullish(),
 							})
 						),
@@ -148,6 +126,29 @@ const snapshotSchema = z.object({
 			}),
 		})
 	),
+	headRefName: z.string(),
+	reviews: connection(postSchema.extend({ state: z.string() })),
+	reviewThreads: connection(
+		z.object({
+			comments: connection(
+				postSchema.extend({
+					line: z.number().nullable(),
+					originalLine: z.number().nullable(),
+					path: z.string(),
+				})
+			),
+		})
+	),
+	state: z.enum(["OPEN", "CLOSED", "MERGED"]),
+	timelineItems: connection(
+		z.object({
+			__typename: z.string(),
+			actor: actorSchema,
+			id: z.string(),
+			label: z.object({ name: z.string() }).optional(),
+		})
+	),
+	url: z.string(),
 });
 export type Snapshot = z.infer<typeof snapshotSchema>;
 const responseSchema = z.object({
@@ -156,9 +157,9 @@ const responseSchema = z.object({
 	}),
 });
 const prViewSchema = z.object({
+	headRefName: z.string(),
 	number: z.number(),
 	url: z.string(),
-	headRefName: z.string(),
 });
 const seenSchema = z.record(z.string(), z.string());
 type Seen = z.infer<typeof seenSchema>;
@@ -203,14 +204,14 @@ function postEntry(post: Post, summary: string, version: string): Entry[] {
 	const allowed = actor !== null && ALLOWED_ACTORS.includes(actor);
 	return [
 		{
-			key: post.id,
-			version,
 			actor,
-			url: post.url,
+			body: allowed ? post.body : null,
+			key: post.id,
 			summary: allowed
 				? summary
 				: `${summary} (text not shown: author outside the allow-list)`,
-			body: allowed ? post.body : null,
+			url: post.url,
+			version,
 			wakes: allowed,
 		},
 	];
@@ -263,12 +264,12 @@ function stateChangeEntries(snapshot: Snapshot): Entry[] {
 		}
 		return [
 			{
-				key: event.id,
-				version: "1",
 				actor: login(event.actor),
-				url: snapshot.url,
-				summary: event.label ? `${change} ${event.label.name}` : change,
 				body: null,
+				key: event.id,
+				summary: event.label ? `${change} ${event.label.name}` : change,
+				url: snapshot.url,
+				version: "1",
 				wakes: false,
 			},
 		];
@@ -291,10 +292,10 @@ function ciEntries(snapshot: Snapshot): Entry[] {
 					: !PENDING_STATUS.includes(check.state ?? "PENDING");
 			const result = check.conclusion ?? check.state ?? "";
 			return {
+				failed: finished && FAILED_CHECK.includes(result),
+				finished,
 				name: check.name ?? check.context ?? "unknown check",
 				url: check.detailsUrl ?? check.targetUrl ?? snapshot.url,
-				finished,
-				failed: finished && FAILED_CHECK.includes(result),
 			};
 		});
 	if (!commit || checks.length === 0) {
@@ -307,15 +308,15 @@ function ciEntries(snapshot: Snapshot): Entry[] {
 	}
 	return [
 		{
-			key: `${CI_KEY}${commit.oid}`,
-			version: failed.length > 0 ? "failure" : "success",
 			actor: null,
-			url: failed[0]?.url ?? snapshot.url,
+			body: null,
+			key: `${CI_KEY}${commit.oid}`,
 			summary:
 				failed.length > 0
 					? `CI failed on ${sha}: ${failed.map((check) => check.name).join(", ")}`
 					: `CI passed on ${sha}`,
-			body: null,
+			url: failed[0]?.url ?? snapshot.url,
+			version: failed.length > 0 ? "failure" : "success",
 			wakes: true,
 		},
 	];
@@ -348,7 +349,7 @@ export function formatBatch(
 	items: WatchItem[],
 	state: Snapshot["state"]
 ): string {
-	const issue = ISSUE_BRANCH.exec(target.branch)?.[1];
+	const issue = ISSUE_BRANCH.exec(target.branch)?.groups?.number;
 	const next =
 		state === "OPEN"
 			? "Handle the items under AGENTS.md > PR Review Loop, then start `bun run pr-watch` in the background again."
@@ -385,8 +386,8 @@ function run(
 	});
 	return {
 		ok: result.status === 0,
-		stdout: result.stdout ?? "",
 		stderr: result.stderr ?? "",
+		stdout: result.stdout ?? "",
 	};
 }
 
@@ -402,15 +403,15 @@ function resolveTarget(pr: string | undefined): WatchTarget {
 		? prViewSchema.safeParse(JSON.parse(view.stdout)).data
 		: undefined;
 	const match = parsed ? PR_URL.exec(parsed.url) : null;
-	const owner = match?.[1];
-	const name = match?.[2];
+	const owner = match?.groups?.owner;
+	const name = match?.groups?.name;
 	if (!(parsed && owner && name)) {
 		console.error(
 			"pr-watch: no PR found. Run it in the PR's worktree, or pass --pr <number>."
 		);
 		process.exit(2);
 	}
-	return { number: parsed.number, branch: parsed.headRefName, owner, name };
+	return { branch: parsed.headRefName, name, number: parsed.number, owner };
 }
 
 function fetchSnapshot(target: WatchTarget): Snapshot | string {
@@ -530,6 +531,7 @@ async function watch(target: WatchTarget): Promise<string> {
 				return output;
 			}
 		}
+		// biome-ignore lint/performance/noAwaitInLoops: Polling requires a delay between successive requests.
 		await sleep(POLL_MS);
 	}
 }

@@ -28,13 +28,13 @@ export function AuthFormLayout({
 	return (
 		<main className="mx-auto flex w-full max-w-[440px] flex-col gap-5 px-3.5 pt-12 pb-6 text-[length:var(--m-text-secondary)]">
 			<div className="flex flex-col gap-1.5">
-				<span className="font-semibold text-[length:var(--m-text-title)] tracking-[var(--tracking-heading)]">
+				<span className="font-semibold tracking-[var(--tracking-heading)] text-[length:var(--m-text-title)]">
 					Sapphire 2
 				</span>
-				<h1 className="m-0 font-semibold text-[length:var(--m-text-title-lg)] leading-[1.25] tracking-[var(--tracking-heading)]">
+				<h1 className="m-0 leading-[1.25] font-semibold tracking-[var(--tracking-heading)] text-[length:var(--m-text-title-lg)]">
 					{title}
 				</h1>
-				<p className="m-0 text-muted-foreground leading-normal">
+				<p className="text-muted-foreground m-0 leading-normal">
 					{description}
 				</p>
 			</div>
@@ -42,7 +42,7 @@ export function AuthFormLayout({
 			<FieldSeparator>or</FieldSeparator>
 			{alert}
 			{children}
-			<p className="m-0 text-center text-muted-foreground">
+			<p className="text-muted-foreground m-0 text-center">
 				{switchPrompt}{" "}
 				<Button
 					className="text-[length:inherit] hover:no-underline"

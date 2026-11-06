@@ -12,12 +12,12 @@ import { guardStatement } from "../lib/write-guard";
 const blindAmountSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 export const stakeInputSchema = z.object({
-	gameGroupId: idSchema,
+	ante: blindAmountSchema.nullable().optional(),
+	anteType: anteTypeSchema.nullable().optional(),
 	blind1: blindAmountSchema.nullable().optional(),
 	blind2: blindAmountSchema.nullable().optional(),
 	blind3: blindAmountSchema.nullable().optional(),
-	ante: blindAmountSchema.nullable().optional(),
-	anteType: anteTypeSchema.nullable().optional(),
+	gameGroupId: idSchema,
 });
 
 export type StakeInput = z.infer<typeof stakeInputSchema>;
@@ -42,11 +42,11 @@ export interface CarriedStake extends StakeValues {
 export type PlannedStake = StakeTarget & StakeValues;
 
 const EMPTY_STAKE: StakeValues = {
+	ante: null,
+	anteType: null,
 	blind1: null,
 	blind2: null,
 	blind3: null,
-	ante: null,
-	anteType: null,
 };
 
 function withStructureKeys<Item extends { gameGroupId: string }>(
@@ -62,11 +62,11 @@ function withStructureKeys<Item extends { gameGroupId: string }>(
 
 export function stakeValues(stake: StakeValues): StakeValues {
 	return {
+		ante: stake.ante,
+		anteType: stake.anteType,
 		blind1: stake.blind1,
 		blind2: stake.blind2,
 		blind3: stake.blind3,
-		ante: stake.ante,
-		anteType: stake.anteType,
 	};
 }
 
@@ -97,19 +97,19 @@ export function planStakes(
 		}
 		return {
 			...group,
+			ante: stake.ante ?? null,
+			anteType: stake.anteType ?? null,
 			blind1: stake.blind1 ?? null,
 			blind2: stake.blind2 ?? null,
 			blind3: stake.blind3 ?? null,
-			ante: stake.ante ?? null,
-			anteType: stake.anteType ?? null,
 		};
 	});
 }
 
 const BLIND_FIELDS = [
-	{ value: "blind1", label: "blind1Label", required: "blind1Required" },
-	{ value: "blind2", label: "blind2Label", required: "blind2Required" },
-	{ value: "blind3", label: "blind3Label", required: "blind3Required" },
+	{ label: "blind1Label", required: "blind1Required", value: "blind1" },
+	{ label: "blind2Label", required: "blind2Required", value: "blind2" },
+	{ label: "blind3Label", required: "blind3Required", value: "blind3" },
 ] as const;
 
 export async function assertStakeBlinds(

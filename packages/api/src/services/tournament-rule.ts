@@ -49,25 +49,27 @@ const moneySchema = z.number().int().min(0).max(LEDGER_MAX_QUANTITY);
 const chipsSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 export const priceInputSchema = z.object({
-	kind: z.enum(RULE_PRICE_KINDS),
-	assetId: idSchema,
 	amount: moneySchema,
-	fee: moneySchema,
+	assetId: idSchema,
 	chips: chipsSchema.nullable(),
+	fee: moneySchema,
+	kind: z.enum(RULE_PRICE_KINDS),
 	label: z.string().trim().max(100).optional(),
 });
 
 export const levelInputSchema = z.object({
+	game: gameInputSchema.nullable().optional(),
 	isBreak: z.boolean(),
 	minutes: z.number().int().min(1).max(10_000).nullable().optional(),
-	game: gameInputSchema.nullable().optional(),
 	stakes: z.array(stakeInputSchema).max(MAX_LINEUP_GROUPS).optional(),
 });
 
 const ruleScalarFields = {
-	game: gameInputSchema.optional(),
-	startingStack: chipsSchema.nullable().optional(),
 	bountyAmount: moneySchema.nullable().optional(),
+	game: gameInputSchema.optional(),
+	houseRules: z.string().max(50_000).nullable().optional(),
+	prices: z.array(priceInputSchema).max(MAX_RULE_PRICES).optional(),
+	startingStack: chipsSchema.nullable().optional(),
 	tableSize: z
 		.number()
 		.int()
@@ -75,8 +77,6 @@ const ruleScalarFields = {
 		.max(MAX_RULE_TABLE_SIZE)
 		.nullable()
 		.optional(),
-	houseRules: z.string().max(50_000).nullable().optional(),
-	prices: z.array(priceInputSchema).max(MAX_RULE_PRICES).optional(),
 };
 
 const levelsSchema = z.array(levelInputSchema).max(MAX_RULE_LEVELS);
@@ -205,15 +205,15 @@ export async function hydrateTournamentRules(
 			(chunk) =>
 				db
 					.select({
-						levelId: tournamentRuleLevelStake.levelId,
-						lineupGroupId: tournamentRuleLevelStake.lineupGroupId,
-						gameGroupId: gameLineupGroup.gameGroupId,
-						position: gameLineupGroup.position,
+						ante: tournamentRuleLevelStake.ante,
+						anteType: tournamentRuleLevelStake.anteType,
 						blind1: tournamentRuleLevelStake.blind1,
 						blind2: tournamentRuleLevelStake.blind2,
 						blind3: tournamentRuleLevelStake.blind3,
-						ante: tournamentRuleLevelStake.ante,
-						anteType: tournamentRuleLevelStake.anteType,
+						gameGroupId: gameLineupGroup.gameGroupId,
+						levelId: tournamentRuleLevelStake.levelId,
+						lineupGroupId: tournamentRuleLevelStake.lineupGroupId,
+						position: gameLineupGroup.position,
 					})
 					.from(tournamentRuleLevelStake)
 					.innerJoin(
@@ -260,44 +260,44 @@ export async function hydrateTournamentRules(
 		rules.map((rule) => [
 			rule.id,
 			{
-				id: rule.id,
-				tournamentId: rule.tournamentId,
-				parentRuleId: rule.parentRuleId,
-				lineupId: rule.lineupId,
-				startingStack: rule.startingStack,
-				tableSize: rule.tableSize,
 				bountyAmount: rule.bountyAmount,
 				houseRules: rule.houseRules,
+				id: rule.id,
 				levels: (levelsByRule.get(rule.id) ?? [])
 					.toSorted((left, right) => left.ordinal - right.ordinal)
 					.map((level) => ({
-						id: level.id,
-						ordinal: level.ordinal,
-						level: level.level,
-						isBreak: level.isBreak,
-						minutes: level.minutes,
-						game: level.inheritsLineup ? null : { lineupId: level.lineupId },
 						effectiveLineupId: level.lineupId,
+						game: level.inheritsLineup ? null : { lineupId: level.lineupId },
+						id: level.id,
+						isBreak: level.isBreak,
+						level: level.level,
+						minutes: level.minutes,
+						ordinal: level.ordinal,
 						stakes: (stakesByLevel.get(level.id) ?? [])
 							.toSorted((left, right) => left.position - right.position)
 							.map((stake) => ({
-								lineupGroupId: stake.lineupGroupId,
 								gameGroupId: stake.gameGroupId,
+								lineupGroupId: stake.lineupGroupId,
 								...stakeValues(stake),
 							})),
 					})),
+				lineupId: rule.lineupId,
+				parentRuleId: rule.parentRuleId,
 				prices: (pricesByRule.get(rule.id) ?? [])
 					.toSorted((left, right) => left.ordinal - right.ordinal)
 					.map((price) => ({
-						id: price.id,
-						ordinal: price.ordinal,
-						kind: price.kind,
-						assetId: price.assetId,
 						amount: price.amount,
-						fee: price.fee,
+						assetId: price.assetId,
 						chips: price.chips,
+						fee: price.fee,
+						id: price.id,
+						kind: price.kind,
 						label: price.label,
+						ordinal: price.ordinal,
 					})),
+				startingStack: rule.startingStack,
+				tableSize: rule.tableSize,
+				tournamentId: rule.tournamentId,
 			},
 		])
 	);
@@ -381,9 +381,6 @@ function storedContent(rule: TournamentRuleOutput): TournamentRuleContent {
 	return {
 		bountyAmount: rule.bountyAmount,
 		houseRules: rule.houseRules,
-		lineupId: rule.lineupId,
-		startingStack: rule.startingStack,
-		tableSize: rule.tableSize,
 		levels: rule.levels.map((level) => ({
 			inherits: level.game === null,
 			isBreak: level.isBreak,
@@ -392,32 +389,35 @@ function storedContent(rule: TournamentRuleOutput): TournamentRuleContent {
 			minutes: level.minutes,
 			stakes: level.stakes,
 		})),
+		lineupId: rule.lineupId,
 		prices: rule.prices.map((price) => ({
-			kind: price.kind,
-			assetId: price.assetId,
 			amount: price.amount,
-			fee: price.fee,
+			assetId: price.assetId,
 			chips: price.chips,
+			fee: price.fee,
+			kind: price.kind,
 			label: price.label,
 		})),
+		startingStack: rule.startingStack,
+		tableSize: rule.tableSize,
 	};
 }
 
 function plannedContent(content: PlannedContent): TournamentRuleContent {
 	return {
 		...content,
-		lineupId: content.lineup.id,
 		levels: content.levels.map((level) => ({
 			...level,
 			lineupId: level.lineup.id,
 		})),
+		lineupId: content.lineup.id,
 	};
 }
 
 function stakeTargets(lineup: Lineup) {
 	return lineup.groups.map((group) => ({
-		lineupGroupId: group.id,
 		gameGroupId: group.gameGroupId,
+		lineupGroupId: group.id,
 	}));
 }
 
@@ -445,7 +445,7 @@ async function assertPriceAssets(
 		ids,
 		(chunk) =>
 			db
-				.select({ id: asset.id, archivedAt: asset.archivedAt })
+				.select({ archivedAt: asset.archivedAt, id: asset.id })
 				.from(asset)
 				.where(and(eq(asset.userId, userId), inArray(asset.id, chunk))),
 		LOOKUP_EXTRA_PARAMS
@@ -491,11 +491,11 @@ function planLevels(
 					: currentLineups.get(level.effectiveLineupId);
 			const lineup = override ?? defaultLineup;
 			return {
+				inherits: override === undefined,
 				isBreak: level.isBreak,
 				level: level.level,
-				minutes: level.minutes,
-				inherits: override === undefined,
 				lineup,
+				minutes: level.minutes,
 				stakes: level.isBreak
 					? []
 					: planStakes(stakeTargets(lineup), undefined, level.stakes),
@@ -509,22 +509,22 @@ function planLevels(
 				throw badRequest("A break has no game or stakes");
 			}
 			return {
+				inherits: true,
 				isBreak: true,
 				level: null,
-				minutes: level.minutes ?? null,
-				inherits: true,
 				lineup: defaultLineup,
+				minutes: level.minutes ?? null,
 				stakes: [],
 			};
 		}
 		displayed += 1;
 		const lineup = level.game ? planner.resolve(level.game) : defaultLineup;
 		return {
+			inherits: !level.game,
 			isBreak: false,
 			level: displayed,
-			minutes: level.minutes ?? null,
-			inherits: !level.game,
 			lineup,
+			minutes: level.minutes ?? null,
 			stakes: planStakes(
 				stakeTargets(lineup),
 				level.stakes,
@@ -554,20 +554,20 @@ async function planPrices(
 ): Promise<PlannedPrice[]> {
 	if (input.prices === undefined) {
 		return (current?.prices ?? []).map((price) => ({
-			kind: price.kind,
-			assetId: price.assetId,
 			amount: price.amount,
-			fee: price.fee,
+			assetId: price.assetId,
 			chips: price.chips,
+			fee: price.fee,
+			kind: price.kind,
 			label: price.label,
 		}));
 	}
 	const prices = input.prices.map((price) => ({
-		kind: price.kind,
-		assetId: price.assetId,
 		amount: price.amount,
-		fee: price.fee,
+		assetId: price.assetId,
 		chips: price.chips,
+		fee: price.fee,
+		kind: price.kind,
 		label: price.label ?? "",
 	}));
 	await assertPriceAssets(db, userId, prices, current?.prices ?? []);
@@ -624,9 +624,6 @@ export async function planTournamentRuleWrite(params: {
 	const prices = await planPrices(db, userId, input, current);
 
 	const content: PlannedContent = {
-		lineup: defaultLineup,
-		startingStack: carried(input.startingStack, current?.startingStack),
-		tableSize: carried(input.tableSize, current?.tableSize),
 		bountyAmount: carried(input.bountyAmount, current?.bountyAmount),
 		houseRules: carried(input.houseRules, current?.houseRules),
 		levels: planLevels(
@@ -636,7 +633,10 @@ export async function planTournamentRuleWrite(params: {
 			defaultLineup,
 			planner
 		),
+		lineup: defaultLineup,
 		prices,
+		startingStack: carried(input.startingStack, current?.startingStack),
+		tableSize: carried(input.tableSize, current?.tableSize),
 	};
 
 	const planned = plannedContent(content);
@@ -682,8 +682,8 @@ export async function planTournamentRuleWrite(params: {
 				userId,
 				{
 					id: ruleId,
-					tournamentId: params.tournamentId,
 					parentRuleId: current?.id ?? null,
+					tournamentId: params.tournamentId,
 				},
 				planned
 			),
@@ -703,48 +703,48 @@ function tournamentRuleInsertStatements(
 ): BatchStatement[] {
 	const levelRows = content.levels.map((level, index) => ({
 		id: crypto.randomUUID(),
-		userId,
-		ruleId: version.id,
-		ordinal: index + 1,
-		level: level.level,
-		isBreak: level.isBreak,
-		minutes: level.minutes,
-		lineupId: level.lineupId,
-		inheritsLineup: level.inherits,
 		inheritedLineupId: level.inherits ? level.lineupId : null,
+		inheritsLineup: level.inherits,
+		isBreak: level.isBreak,
+		level: level.level,
+		lineupId: level.lineupId,
+		minutes: level.minutes,
+		ordinal: index + 1,
+		ruleId: version.id,
+		userId,
 	}));
 	const stakeRows = levelRows.flatMap((row, index) =>
 		(content.levels[index]?.stakes ?? []).map((stake) => ({
-			userId,
 			levelId: row.id,
 			lineupGroupId: stake.lineupGroupId,
 			lineupId: row.lineupId,
+			userId,
 			...stakeValues(stake),
 		}))
 	);
 	const priceRows = content.prices.map((price, index) => ({
-		id: crypto.randomUUID(),
-		userId,
-		ruleId: version.id,
-		ordinal: index + 1,
-		kind: price.kind,
-		assetId: price.assetId,
 		amount: price.amount,
-		fee: price.fee,
+		assetId: price.assetId,
 		chips: price.chips,
+		fee: price.fee,
+		id: crypto.randomUUID(),
+		kind: price.kind,
 		label: price.label,
+		ordinal: index + 1,
+		ruleId: version.id,
+		userId,
 	}));
 	return [
 		db.insert(tournamentRule).values({
-			id: version.id,
-			userId,
-			tournamentId: version.tournamentId,
-			parentRuleId: version.parentRuleId,
-			lineupId: content.lineupId,
-			startingStack: content.startingStack,
-			tableSize: content.tableSize,
 			bountyAmount: content.bountyAmount,
 			houseRules: content.houseRules,
+			id: version.id,
+			lineupId: content.lineupId,
+			parentRuleId: version.parentRuleId,
+			startingStack: content.startingStack,
+			tableSize: content.tableSize,
+			tournamentId: version.tournamentId,
+			userId,
 		}),
 		...insertChunks(levelRows, (chunk) =>
 			db.insert(tournamentRuleLevel).values(chunk)
@@ -786,8 +786,8 @@ export async function planTournamentRuleCopy(
 				userId,
 				{
 					id: ruleId,
-					tournamentId: target.tournamentId,
 					parentRuleId: target.parent?.id ?? null,
+					tournamentId: target.tournamentId,
 				},
 				content
 			),

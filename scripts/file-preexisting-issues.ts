@@ -25,7 +25,7 @@ const SOURCE_LABEL = "review";
 const TYPE_LABELS = { bug: "Bug", improvement: "Improvement" } as const;
 const PRIORITY_MEDIUM = 3;
 const ESTIMATE_S = 2;
-const WHITESPACE = /\s+/g;
+const WHITESPACE = /\s+/gu;
 
 function isFinding(value: unknown): value is PreExistingFinding {
 	if (typeof value !== "object" || value === null) {
@@ -69,9 +69,6 @@ export function buildIssue(
 ): IssueInput {
 	const id = fingerprint(finding);
 	return {
-		title: finding.title,
-		type: finding.type,
-		fingerprint: id,
 		description: [
 			"## Problem",
 			finding.title,
@@ -84,6 +81,9 @@ export function buildIssue(
 			"",
 			`<!-- audit-fingerprint: ${id} -->`,
 		].join("\n"),
+		fingerprint: id,
+		title: finding.title,
+		type: finding.type,
 	};
 }
 
@@ -93,9 +93,9 @@ async function linear<T>(
 	variables: Record<string, unknown> = {}
 ): Promise<T> {
 	const response = await fetch(LINEAR_API, {
-		method: "POST",
-		headers: { "Content-Type": "application/json", Authorization: apiKey },
 		body: JSON.stringify({ query, variables }),
+		headers: { Authorization: apiKey, "Content-Type": "application/json" },
+		method: "POST",
 	});
 	const payload = (await response.json()) as {
 		data?: T;
@@ -138,7 +138,7 @@ async function loadTeam(apiKey: string): Promise<TeamSetup> {
 		}`,
 		{ key: TEAM_KEY }
 	);
-	const team = data.teams.nodes[0];
+	const [team] = data.teams.nodes;
 	const triage = team?.states.nodes.find((state) => state.type === TRIAGE_TYPE);
 	if (!(team && triage)) {
 		throw new Error(
@@ -146,9 +146,9 @@ async function loadTeam(apiKey: string): Promise<TeamSetup> {
 		);
 	}
 	return {
+		labels: new Map(team.labels.nodes.map((label) => [label.name, label.id])),
 		teamId: team.id,
 		triageStateId: triage.id,
-		labels: new Map(team.labels.nodes.map((label) => [label.name, label.id])),
 	};
 }
 
@@ -197,6 +197,7 @@ async function main(args: string[]): Promise<void> {
 	}
 	for (const finding of findings) {
 		const issue = buildIssue(finding, { number: prNumber, url: prUrl });
+		// biome-ignore lint/performance/noAwaitInLoops: Each lookup must see issues filed by earlier iterations.
 		if (await alreadyFiled(apiKey, issue.fingerprint)) {
 			console.log(`already filed: ${finding.file} ${finding.title}`);
 			continue;
@@ -215,13 +216,13 @@ async function main(args: string[]): Promise<void> {
 			}`,
 			{
 				input: {
-					teamId: team.teamId,
-					stateId: team.triageStateId,
-					title: issue.title,
 					description: issue.description,
-					priority: PRIORITY_MEDIUM,
 					estimate: ESTIMATE_S,
 					labelIds: [sourceLabel, typeLabel].filter(Boolean),
+					priority: PRIORITY_MEDIUM,
+					stateId: team.triageStateId,
+					teamId: team.teamId,
+					title: issue.title,
 				},
 			}
 		);

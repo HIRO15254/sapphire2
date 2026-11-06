@@ -43,16 +43,16 @@ async function addEvent(
 	}
 ) {
 	await db.insert(playEvent).values({
-		id: `${entryId}-event-${sortOrder}`,
-		userId,
 		entryId,
-		playSessionId,
-		type: event.type,
-		schemaVersion: 2,
+		id: `${entryId}-event-${sortOrder}`,
 		occurredAt: at(event.minute),
-		sortOrder,
 		payload: JSON.stringify(event.payload),
+		playSessionId,
+		schemaVersion: 2,
+		sortOrder,
+		type: event.type,
 		updatedAt: START,
+		userId,
 	});
 }
 
@@ -64,8 +64,8 @@ async function reproject(db: Database, entryId: string) {
 	const sessions = await db
 		.select({
 			id: playSession.id,
-			seq: playSession.seq,
 			localDate: playSession.localDate,
+			seq: playSession.seq,
 		})
 		.from(playSession)
 		.where(eq(playSession.entryId, entryId));
@@ -98,14 +98,14 @@ async function reproject(db: Database, entryId: string) {
 async function readPlaySessions(db: Database, entryId: string) {
 	return await db
 		.select({
+			breakMinutes: playSession.breakMinutes,
+			clockStartLevel: playSession.clockStartLevel,
+			endedAt: playSession.endedAt,
+			endStack: playSession.endStack,
+			endState: playSession.endState,
 			id: playSession.id,
 			startedAt: playSession.startedAt,
-			endedAt: playSession.endedAt,
-			breakMinutes: playSession.breakMinutes,
 			status: playSession.status,
-			endState: playSession.endState,
-			endStack: playSession.endStack,
-			clockStartLevel: playSession.clockStartLevel,
 		})
 		.from(playSession)
 		.where(eq(playSession.entryId, entryId))
@@ -114,7 +114,7 @@ async function readPlaySessions(db: Database, entryId: string) {
 
 async function readEntry(db: Database, entryId: string) {
 	const [row] = await db
-		.select({ status: entry.status, playedOn: entry.playedOn })
+		.select({ playedOn: entry.playedOn, status: entry.status })
 		.from(entry)
 		.where(eq(entry.id, entryId));
 	return row;
@@ -126,140 +126,140 @@ describe("projection statements against D1", () => {
 	}) => {
 		await db
 			.insert(asset)
-			.values({ id: "jpy", userId, name: "JPY", updatedAt: START });
+			.values({ id: "jpy", name: "JPY", updatedAt: START, userId });
 		await db.insert(gameLineup).values({ id: "lineup", userId });
 		await db
 			.insert(tournamentRule)
-			.values({ id: "rule", userId, lineupId: "lineup" });
+			.values({ id: "rule", lineupId: "lineup", userId });
 		const entryId = "mtt";
 		await db.insert(entry).values({
 			id: entryId,
-			userId,
 			kind: "tournament",
+			playedOn: "2026-09-06",
 			source: "live",
 			status: "open",
-			playedOn: "2026-09-06",
 			updatedAt: START,
+			userId,
 		});
 		await db.insert(entryTournament).values({
 			entryId,
-			userId,
 			tournamentId: null,
 			tournamentRuleId: "rule",
+			userId,
 		});
 		await db.insert(playSession).values([
 			{
-				id: "mtt-day-1",
-				userId,
 				entryId,
+				id: "mtt-day-1",
 				kind: "tournament",
-				seq: 1,
 				localDate: "2026-09-05",
+				seq: 1,
 				status: "active",
 				updatedAt: START,
+				userId,
 			},
 			{
-				id: "mtt-day-2",
-				userId,
-				entryId,
-				kind: "tournament",
-				seq: 2,
-				localDate: "2026-09-06",
-				status: "ended",
 				endState: "finished",
+				entryId,
+				id: "mtt-day-2",
+				kind: "tournament",
+				localDate: "2026-09-06",
+				seq: 2,
+				status: "ended",
 				updatedAt: START,
+				userId,
 			},
 		]);
 		await addEvent(db, entryId, "mtt-day-1", 0, {
-			type: "session_start",
 			minute: 0,
 			payload: { timerStartedAt: null },
+			type: "session_start",
 		});
 		await addEvent(db, entryId, "mtt-day-1", 1, {
-			type: "update_stack",
 			minute: 120,
 			payload: { stackAmount: 50_000, totalEntries: 200 },
+			type: "update_stack",
 		});
 		await addEvent(db, entryId, "mtt-day-1", 2, {
-			type: "day_end",
 			minute: 300,
 			payload: { endState: "bagged", stackAmount: 61_000 },
+			type: "day_end",
 		});
 		await addEvent(db, entryId, "mtt-day-2", 3, {
-			type: "session_start",
 			minute: 1440,
 			payload: { startLevel: 15 },
+			type: "session_start",
 		});
 		await addEvent(db, entryId, "mtt-day-2", 4, {
-			type: "session_pause",
 			minute: 1500,
 			payload: {},
+			type: "session_pause",
 		});
 		await addEvent(db, entryId, "mtt-day-2", 5, {
-			type: "session_resume",
 			minute: 1520,
 			payload: {},
+			type: "session_resume",
 		});
 
 		await reproject(db, entryId);
 
 		expect(await readPlaySessions(db, entryId)).toEqual([
 			{
+				breakMinutes: 0,
+				clockStartLevel: null,
+				endedAt: at(300),
+				endStack: 61_000,
+				endState: "bagged",
 				id: "mtt-day-1",
 				startedAt: at(0),
-				endedAt: at(300),
-				breakMinutes: 0,
 				status: "ended",
-				endState: "bagged",
-				endStack: 61_000,
-				clockStartLevel: null,
 			},
 			{
+				breakMinutes: 20,
+				clockStartLevel: 15,
+				endedAt: null,
+				endStack: null,
+				endState: null,
 				id: "mtt-day-2",
 				startedAt: at(1440),
-				endedAt: null,
-				breakMinutes: 20,
 				status: "active",
-				endState: null,
-				endStack: null,
-				clockStartLevel: 15,
 			},
 		]);
 		expect(await readEntry(db, entryId)).toEqual({
-			status: "open",
 			playedOn: "2026-09-05",
+			status: "open",
 		});
 
 		await addEvent(db, entryId, "mtt-day-2", 6, {
-			type: "session_end",
 			minute: 1700,
 			payload: {
 				beforeDeadline: false,
+				payments: [{ assetId: "jpy", quantity: 40_000, role: "prize" }],
 				placement: 9,
 				totalEntries: 200,
-				payments: [{ assetId: "jpy", quantity: 40_000, role: "prize" }],
 			},
+			type: "session_end",
 		});
 		await reproject(db, entryId);
 
 		expect((await readPlaySessions(db, entryId))[1]).toMatchObject({
 			endedAt: at(1700),
-			status: "ended",
 			endState: "busted",
+			status: "ended",
 		});
 		expect(await readEntry(db, entryId)).toMatchObject({ status: "settled" });
 		const [result] = await db
 			.select({
+				beforeDeadline: entryTournament.beforeDeadline,
 				placement: entryTournament.placement,
 				totalEntries: entryTournament.totalEntries,
-				beforeDeadline: entryTournament.beforeDeadline,
 			})
 			.from(entryTournament)
 			.where(eq(entryTournament.entryId, entryId));
 		expect(result).toEqual({
+			beforeDeadline: false,
 			placement: 9,
 			totalEntries: 200,
-			beforeDeadline: false,
 		});
 	});
 
@@ -268,94 +268,94 @@ describe("projection statements against D1", () => {
 	}) => {
 		await db
 			.insert(asset)
-			.values({ id: "jpy", userId, name: "JPY", updatedAt: START });
+			.values({ id: "jpy", name: "JPY", updatedAt: START, userId });
 		await db.insert(gameLineup).values({ id: "lineup", userId });
 		await db
 			.insert(tournamentRule)
-			.values({ id: "price-rule", userId, lineupId: "lineup" });
+			.values({ id: "price-rule", lineupId: "lineup", userId });
 		await db.insert(tournamentRulePrice).values({
+			amount: 30_000,
+			assetId: "jpy",
 			id: "cash-price",
-			userId,
-			ruleId: "price-rule",
 			kind: "entry",
 			label: "Entry",
-			assetId: "jpy",
-			amount: 30_000,
 			ordinal: 0,
+			ruleId: "price-rule",
+			userId,
 		});
 		await db
 			.insert(cashRule)
-			.values({ id: "rule", userId, lineupId: "lineup" });
+			.values({ id: "rule", lineupId: "lineup", userId });
 		const entryId = "ring";
 		await db.insert(entry).values({
 			id: entryId,
-			userId,
 			kind: "cash",
+			playedOn: "2026-09-05",
 			source: "live",
 			status: "open",
-			playedOn: "2026-09-05",
 			updatedAt: START,
+			userId,
 		});
 		await db.insert(entryCash).values({
-			entryId,
-			userId,
-			ringGameId: null,
 			cashRuleId: "rule",
+			entryId,
+			ringGameId: null,
+			userId,
 		});
 		await db.insert(playSession).values({
-			id: "ring-day-1",
-			userId,
 			entryId,
+			id: "ring-day-1",
 			kind: "cash",
-			seq: 1,
 			localDate: "2026-09-05",
+			seq: 1,
 			status: "active",
 			updatedAt: START,
+			userId,
 		});
 		await addEvent(db, entryId, "ring-day-1", 0, {
-			type: "session_start",
 			minute: 0,
 			payload: {
 				payments: [
 					{
 						assetId: "jpy",
+						priceId: "cash-price",
 						quantity: 30_000,
 						role: "buy_in",
-						priceId: "cash-price",
 					},
 				],
 			},
+			type: "session_start",
 		});
 		await addEvent(db, entryId, "ring-day-1", 1, {
-			type: "all_in",
 			minute: 30,
-			payload: { potSize: 10_000, trials: 1, equity: 75, wins: 0 },
+			payload: { equity: 75, potSize: 10_000, trials: 1, wins: 0 },
+			type: "all_in",
 		});
 		await addEvent(db, entryId, "ring-day-1", 2, {
-			type: "session_end",
 			minute: 180,
 			payload: {
 				payments: [{ assetId: "jpy", quantity: 22_000, role: "cash_out" }],
 			},
+			type: "session_end",
 		});
 
 		await reproject(db, entryId);
 
 		expect(await readPlaySessions(db, entryId)).toEqual([
 			{
+				breakMinutes: 0,
+				clockStartLevel: null,
+				endedAt: at(180),
+				endStack: 22_000,
+				endState: "cashed_out",
 				id: "ring-day-1",
 				startedAt: at(0),
-				endedAt: at(180),
-				breakMinutes: 0,
 				status: "ended",
-				endState: "cashed_out",
-				endStack: 22_000,
-				clockStartLevel: null,
 			},
 		]);
 		expect(await readEntry(db, entryId)).toEqual({
-			status: "settled",
 			playedOn: "2026-09-05",
+			status: "settled",
 		});
 		const [detail] = await db
 			.select({ evDiff: entryCash.evDiff })
@@ -364,16 +364,16 @@ describe("projection statements against D1", () => {
 		expect(detail).toEqual({ evDiff: 7500 });
 		const lines = await db
 			.select({
-				role: ledgerLine.role,
-				quantity: ledgerLine.quantity,
 				priceId: ledgerLine.priceId,
+				quantity: ledgerLine.quantity,
+				role: ledgerLine.role,
 			})
 			.from(ledgerLine)
 			.where(eq(ledgerLine.entryId, entryId))
 			.orderBy(asc(ledgerLine.role));
 		expect(lines).toEqual([
-			{ role: "buy_in", quantity: -30_000, priceId: "cash-price" },
-			{ role: "cash_out", quantity: 22_000, priceId: null },
+			{ priceId: "cash-price", quantity: -30_000, role: "buy_in" },
+			{ priceId: null, quantity: 22_000, role: "cash_out" },
 		]);
 	});
 });

@@ -20,6 +20,7 @@
   "devDependencies": {
     "@sapphire2/config": "workspace:*",
     "@types/bun": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

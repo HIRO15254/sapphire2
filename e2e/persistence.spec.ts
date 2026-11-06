@@ -24,6 +24,7 @@ async function persistedCache(page: Page) {
 				const read = transaction
 					.objectStore("keyval")
 					.get("sapphire2-query-cache");
+				// biome-ignore lint/suspicious/noUnnecessaryConditions: IndexedDB can return undefined for a missing key.
 				read.onsuccess = () => resolve(JSON.stringify(read.result) ?? "");
 				read.onerror = () => reject(read.error);
 				transaction.oncomplete = () => database.close();
@@ -37,8 +38,8 @@ async function seedViewedVersion(page: Page) {
 	const response = await page.request.post(
 		`${API_URL}/trpc/updateNoteView.markViewed`,
 		{
-			headers: { Origin: "https://localhost:13001" },
 			data: { version },
+			headers: { Origin: "https://localhost:13001" },
 		}
 	);
 	expect(response.ok(), await response.text()).toBe(true);
@@ -62,22 +63,22 @@ test("discards a persisted client from the old API before restoring", async ({
 				transaction.objectStore("keyval").put(
 					JSON.stringify({
 						buster: "2026-10-room-archive",
-						timestamp: Date.now(),
 						clientState: {
 							mutations: [],
 							queries: [
 								{
-									queryKey: [["room", "list"], { type: "query" }],
 									queryHash: "old-room-list",
+									queryKey: [["room", "list"], { type: "query" }],
 									state: {
-										data: [{ name: oldMarker, archivedAt: null }],
+										data: [{ archivedAt: null, name: oldMarker }],
 										dataUpdatedAt: Date.now(),
-										status: "success",
 										fetchStatus: "idle",
+										status: "success",
 									},
 								},
 							],
 						},
+						timestamp: Date.now(),
 					}),
 					"sapphire2-query-cache"
 				);
@@ -117,7 +118,7 @@ test("clears A's persisted records before reload and B's sign in in the same bro
 	await expect.poll(() => persistedCache(page)).toContain(privateRecord);
 
 	await page.goto("/settings");
-	await page.getByRole("button", { name: "Sign out", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Sign out" }).click();
 	await expect(page).toHaveURL((url) => url.pathname === "/login");
 	await expect.poll(() => persistedCache(page)).not.toContain(privateRecord);
 	await page.reload();

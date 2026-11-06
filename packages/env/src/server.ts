@@ -17,7 +17,6 @@ const originSchema = z.url().refine((value) => {
 }, "Must be an HTTP(S) origin");
 
 export const serverEnvSchema = z.object({
-	OPENAI_API_KEY: z.string().min(1).optional(),
 	BETTER_AUTH_SECRET: z.string().min(32),
 	BETTER_AUTH_URL: originSchema,
 	CORS_ORIGIN: originSchema,
@@ -27,6 +26,7 @@ export const serverEnvSchema = z.object({
 	GOOGLE_CLIENT_ID: z.string().min(1).optional(),
 	GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
 	GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
+	OPENAI_API_KEY: z.string().min(1).optional(),
 });
 
 export function createServerEnv(runtimeEnv: unknown) {

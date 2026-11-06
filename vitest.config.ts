@@ -4,6 +4,19 @@ process.env.TZ = "Asia/Tokyo";
 
 export default defineConfig({
 	test: {
+		coverage: {
+			exclude: [
+				"**/__tests__/**",
+				"**/__integration__/**",
+				"**/*.test.{ts,tsx}",
+				"**/*.d.ts",
+				"**/routeTree.gen.ts",
+				"**/migrations/**",
+			],
+			include: ["apps/*/src/**/*.{ts,tsx}", "packages/*/src/**/*.ts"],
+			provider: "v8",
+			reporter: ["text-summary", "html"],
+		},
 		projects: [
 			"apps/web/vitest.dom.config.ts",
 			"apps/web/vitest.node.config.ts",
@@ -16,18 +29,5 @@ export default defineConfig({
 			"scripts/vitest.config.ts",
 			"testing/vitest.config.ts",
 		],
-		coverage: {
-			provider: "v8",
-			include: ["apps/*/src/**/*.{ts,tsx}", "packages/*/src/**/*.ts"],
-			exclude: [
-				"**/__tests__/**",
-				"**/__integration__/**",
-				"**/*.test.{ts,tsx}",
-				"**/*.d.ts",
-				"**/routeTree.gen.ts",
-				"**/migrations/**",
-			],
-			reporter: ["text-summary", "html"],
-		},
 	},
 });

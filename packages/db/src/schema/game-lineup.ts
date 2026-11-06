@@ -17,14 +17,14 @@ import { gameVariant } from "./game-variant";
 export const gameLineup = sqliteTable(
 	"game_lineup",
 	{
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.default(sql`(unixepoch())`)
+			.notNull(),
+		gameMixId: text("game_mix_id"),
 		id: text("id").primaryKey(),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		gameMixId: text("game_mix_id"),
-		createdAt: integer("created_at", { mode: "timestamp" })
-			.default(sql`(unixepoch())`)
-			.notNull(),
 	},
 	(t) => [
 		uniqueIndex("game_lineup_id_user_id_unique").on(t.id, t.userId),
@@ -40,17 +40,17 @@ export const gameLineup = sqliteTable(
 export const gameLineupGroup = sqliteTable(
 	"game_lineup_group",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		lineupId: text("lineup_id").notNull(),
-		position: integer("position").notNull(),
-		gameGroupId: text("game_group_id").notNull(),
-		name: text("name"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		gameGroupId: text("game_group_id").notNull(),
+		id: text("id").primaryKey(),
+		lineupId: text("lineup_id").notNull(),
+		name: text("name"),
+		position: integer("position").notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("game_lineup_group_id_user_id_unique").on(t.id, t.userId),
@@ -77,13 +77,13 @@ export const gameLineupGroup = sqliteTable(
 export const gameLineupVariant = sqliteTable(
 	"game_lineup_variant",
 	{
+		lineupGroupId: text("lineup_group_id").notNull(),
+		lineupId: text("lineup_id").notNull(),
+		position: integer("position").notNull(),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		lineupId: text("lineup_id").notNull(),
-		lineupGroupId: text("lineup_group_id").notNull(),
 		variantId: text("variant_id").notNull(),
-		position: integer("position").notNull(),
 	},
 	(t) => [
 		primaryKey({ columns: [t.lineupGroupId, t.variantId] }),

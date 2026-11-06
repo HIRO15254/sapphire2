@@ -17,11 +17,11 @@ test("ring game rejects foreign and missing identifiers uniformly without writes
 }) => {
 	const club = requireCreatedRow(await api.bob.room.create({ name: "Club" }));
 	const game = await api.bob.ringGame.create({
-		roomId: club.id,
 		name: "Cash",
+		roomId: club.id,
 		rule: {
 			stakes: [
-				{ gameGroupId: "bob:builtin-group:bigbet", blind1: 1, blind2: 2 },
+				{ blind1: 1, blind2: 2, gameGroupId: "bob:builtin-group:bigbet" },
 			],
 		},
 	});
@@ -31,7 +31,7 @@ test("ring game rejects foreign and missing identifiers uniformly without writes
 	};
 	const calls = [
 		(id: string) =>
-			api.alice.ringGame.create({ roomId: id, name: "Cash", rule: {} }),
+			api.alice.ringGame.create({ name: "Cash", roomId: id, rule: {} }),
 		(id: string) => api.alice.ringGame.listByRoom({ roomId: id }),
 		(id: string) => api.alice.ringGame.update({ id, name: "Changed" }),
 		(id: string) => api.alice.ringGame.archive({ id }),
@@ -41,6 +41,7 @@ test("ring game rejects foreign and missing identifiers uniformly without writes
 		const errors: ({ code: string; message: string } | null)[] = [];
 		for (const id of [index < 2 ? club.id : game.id, "missing"]) {
 			errors.push(
+				// biome-ignore lint/performance/noAwaitInLoops: Keep D1 requests sequential.
 				await call(id).then(
 					() => null,
 					(error: { code: string; message: string }) => ({
@@ -61,54 +62,50 @@ test("ring game rejects foreign and missing identifiers uniformly without writes
 
 const cases = [
 	{
-		router: "playerTag",
-		table: playerTag,
-		create: (caller: ApiFixture["alice"]) =>
-			caller.playerTag.create({ name: "Tag" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
 			[
 				() => caller.playerTag.update({ id, name: "Renamed" }),
 				() => caller.playerTag.delete({ id }),
 			] as const,
+		create: (caller: ApiFixture["alice"]) =>
+			caller.playerTag.create({ name: "Tag" }),
+		router: "playerTag",
+		table: playerTag,
 	},
 	{
-		router: "entryTag",
-		table: entryTag,
-		create: (caller: ApiFixture["alice"]) =>
-			caller.entryTag.create({ name: "Tag" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
 			[
 				() => caller.entryTag.update({ id, name: "Renamed" }),
 				() => caller.entryTag.delete({ id }),
 			] as const,
+		create: (caller: ApiFixture["alice"]) =>
+			caller.entryTag.create({ name: "Tag" }),
+		router: "entryTag",
+		table: entryTag,
 	},
 	{
-		router: "tournamentTag",
-		table: tournamentTag,
-		create: (caller: ApiFixture["alice"]) =>
-			caller.tournamentTag.create({ name: "Tag" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
 			[
 				() => caller.tournamentTag.update({ id, name: "Renamed" }),
 				() => caller.tournamentTag.delete({ id }),
 			] as const,
+		create: (caller: ApiFixture["alice"]) =>
+			caller.tournamentTag.create({ name: "Tag" }),
+		router: "tournamentTag",
+		table: tournamentTag,
 	},
 	{
-		router: "handTag",
-		table: handTag,
-		create: (caller: ApiFixture["alice"]) =>
-			caller.handTag.create({ name: "Tag" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
 			[
 				() => caller.handTag.update({ id, name: "Renamed" }),
 				() => caller.handTag.delete({ id }),
 			] as const,
+		create: (caller: ApiFixture["alice"]) =>
+			caller.handTag.create({ name: "Tag" }),
+		router: "handTag",
+		table: handTag,
 	},
 	{
-		router: "ledgerCategory",
-		table: ledgerCategory,
-		create: (caller: ApiFixture["alice"]) =>
-			caller.ledgerCategory.create({ name: "Deposit" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
 			[
 				() => caller.ledgerCategory.update({ id, name: "Renamed" }),
@@ -116,28 +113,24 @@ const cases = [
 				() => caller.ledgerCategory.restore({ id }),
 				() => caller.ledgerCategory.delete({ id }),
 			] as const,
+		create: (caller: ApiFixture["alice"]) =>
+			caller.ledgerCategory.create({ name: "Deposit" }),
+		router: "ledgerCategory",
+		table: ledgerCategory,
 	},
 	{
-		router: "room",
-		table: room,
-		create: (caller: ApiFixture["alice"]) =>
-			caller.room.create({ name: "Room" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
 			[
 				() => caller.room.update({ id, name: "Renamed" }),
 				() => caller.room.getById({ id }),
 				() => caller.room.toggleFavorite({ id }),
 			] as const,
+		create: (caller: ApiFixture["alice"]) =>
+			caller.room.create({ name: "Room" }),
+		router: "room",
+		table: room,
 	},
 	{
-		router: "filterPreset",
-		table: filterPreset,
-		create: (caller: ApiFixture["alice"]) =>
-			caller.filterPreset.create({
-				screenKey: "sessions",
-				name: "Preset",
-				payload: {},
-			}),
 		calls: (caller: ApiFixture["alice"], id: string) =>
 			[
 				() => caller.filterPreset.update({ id, name: "Renamed" }),
@@ -145,61 +138,69 @@ const cases = [
 				() => caller.filterPreset.setDefault({ id }),
 				() => caller.filterPreset.clearDefault({ id }),
 			] as const,
+		create: (caller: ApiFixture["alice"]) =>
+			caller.filterPreset.create({
+				name: "Preset",
+				payload: {},
+				screenKey: "sessions",
+			}),
+		router: "filterPreset",
+		table: filterPreset,
 	},
 ] as const;
 
-test.for(
-	cases
-)("$router prevents foreign access and existence disclosure without blocking its owner", async ({
-	table,
-	create,
-	calls,
-}, { api }) => {
-	const foreign = requireCreatedRow(await create(api.bob));
-	const own = requireCreatedRow(await create(api.alice));
-	const before = await api.db.select().from(table);
-	const foreignCalls = calls(api.alice, foreign.id);
-	const missingCalls = calls(api.alice, "missing");
-	for (const [index, foreignCall] of foreignCalls.entries()) {
-		const missingCall = missingCalls[index];
-		if (!missingCall) {
-			throw new Error("Missing ownership test call");
-		}
-		const errors = await Promise.all(
-			[foreignCall, missingCall].map((call) =>
-				call().then(
-					() => null,
-					(error: unknown) => error
+test.for(cases)(
+	"$router prevents foreign access and existence disclosure without blocking its owner",
+	async ({ table, create, calls }, { api }) => {
+		const foreign = requireCreatedRow(await create(api.bob));
+		const own = requireCreatedRow(await create(api.alice));
+		const before = await api.db.select().from(table);
+		const foreignCalls = calls(api.alice, foreign.id);
+		const missingCalls = calls(api.alice, "missing");
+		for (const [index, foreignCall] of foreignCalls.entries()) {
+			const missingCall = missingCalls[index];
+			if (!missingCall) {
+				throw new Error("Missing ownership test call");
+			}
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 test cases sequential.
+			const errors = await Promise.all(
+				[foreignCall, missingCall].map((call) =>
+					call().then(
+						() => null,
+						(error: unknown) => error
+					)
 				)
-			)
-		);
-		expect(errors[0]).toMatchObject({ code: "FORBIDDEN" });
-		expect(errors[1]).toMatchObject({
-			code: "FORBIDDEN",
-			message: (errors[0] as Error).message,
+			);
+			expect(errors[0]).toMatchObject({ code: "FORBIDDEN" });
+			expect(errors[1]).toMatchObject({
+				code: "FORBIDDEN",
+				message: (errors[0] as Error).message,
+			});
+			expect(await api.db.select().from(table)).toEqual(before);
+		}
+		const [updateOwn] = calls(api.alice, own.id);
+		await expect(updateOwn()).resolves.toMatchObject({
+			id: own.id,
+			name: "Renamed",
 		});
-		expect(await api.db.select().from(table)).toEqual(before);
+		expect(
+			await api.db.select().from(table).where(eq(table.id, own.id))
+		).toEqual([
+			expect.objectContaining({ id: own.id, name: "Renamed", userId: "alice" }),
+		]);
+		expect(
+			await api.db.select().from(table).where(eq(table.id, foreign.id))
+		).toEqual([expect.objectContaining({ id: foreign.id, userId: "bob" })]);
 	}
-	const [updateOwn] = calls(api.alice, own.id);
-	await expect(updateOwn()).resolves.toMatchObject({
-		id: own.id,
-		name: "Renamed",
-	});
-	expect(await api.db.select().from(table).where(eq(table.id, own.id))).toEqual(
-		[expect.objectContaining({ id: own.id, userId: "alice", name: "Renamed" })]
-	);
-	expect(
-		await api.db.select().from(table).where(eq(table.id, foreign.id))
-	).toEqual([expect.objectContaining({ id: foreign.id, userId: "bob" })]);
-});
+);
 
 test("tournament procedures reject foreign and missing rooms and masters uniformly", async ({
 	api,
 }) => {
 	const bobRoom = requireCreatedRow(await api.bob.room.create({ name: "Bob" }));
 	const bobTournament = await api.bob.tournament.create({
-		roomId: bobRoom.id,
 		name: "Bob tournament",
+		roomId: bobRoom.id,
 		rule: {},
 	});
 	const before = await api.db.select().from(tournament);
@@ -209,11 +210,11 @@ test("tournament procedures reject foreign and missing rooms and masters uniform
 			[
 				(id: string) => api.alice.tournament.listByRoom({ roomId: id }),
 				(id: string) =>
-					api.alice.tournament.create({ roomId: id, name: "Test", rule: {} }),
+					api.alice.tournament.create({ name: "Test", roomId: id, rule: {} }),
 				(id: string) =>
 					api.alice.tournament.createWithLevels({
-						roomId: id,
 						name: "Test",
+						roomId: id,
 						rule: { levels: [] },
 					}),
 			],
@@ -231,6 +232,7 @@ test("tournament procedures reject foreign and missing rooms and masters uniform
 		],
 	] as const) {
 		for (const call of calls) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 test cases sequential.
 			const errors = await Promise.all(
 				[foreignId, "missing"].map((id) =>
 					call(id).then(

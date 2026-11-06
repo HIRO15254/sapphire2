@@ -27,7 +27,7 @@ interface InfiniteCache {
 function lastSetQueryDataUpdater(
 	queryClient: QueryClient
 ): (old: InfiniteCache | undefined) => InfiniteCache | undefined {
-	const calls = vi.mocked(queryClient.setQueryData).mock.calls;
+	const { calls } = vi.mocked(queryClient.setQueryData).mock;
 	return calls.at(-1)?.[1] as (
 		old: InfiniteCache | undefined
 	) => InfiniteCache | undefined;
@@ -39,8 +39,8 @@ function createQueryClientMock() {
 		getQueriesData: vi.fn(),
 		getQueryData: vi.fn(),
 		invalidateQueries: vi.fn(async () => undefined),
-		setQueryData: vi.fn(),
 		setQueriesData: vi.fn(),
+		setQueryData: vi.fn(),
 	} as unknown as QueryClient;
 }
 
@@ -254,12 +254,12 @@ describe("optimistic-update helpers", () => {
 				pages: [
 					{
 						items: [
-							{ id: "tx1", amount: 1 },
-							{ id: "tx2", amount: 2 },
+							{ amount: 1, id: "tx1" },
+							{ amount: 2, id: "tx2" },
 						],
 						nextCursor: "tx2",
 					},
-					{ items: [{ id: "tx3", amount: 3 }], nextCursor: undefined },
+					{ items: [{ amount: 3, id: "tx3" }], nextCursor: undefined },
 				],
 			};
 
@@ -268,12 +268,12 @@ describe("optimistic-update helpers", () => {
 				pages: [
 					{
 						items: [
-							{ id: "tx1", amount: 1 },
-							{ id: "tx2", amount: 2 },
+							{ amount: 1, id: "tx1" },
+							{ amount: 2, id: "tx2" },
 						],
 						nextCursor: "tx2",
 					},
-					{ items: [{ id: "tx3", amount: 999 }], nextCursor: undefined },
+					{ items: [{ amount: 999, id: "tx3" }], nextCursor: undefined },
 				],
 			});
 		});
@@ -291,20 +291,20 @@ describe("optimistic-update helpers", () => {
 				pages: [
 					{
 						items: [
-							{ id: "tx1", amount: 1 },
-							{ id: "tx2", amount: 2 },
+							{ amount: 1, id: "tx1" },
+							{ amount: 2, id: "tx2" },
 						],
 						nextCursor: "tx2",
 					},
-					{ items: [{ id: "tx3", amount: 3 }], nextCursor: undefined },
+					{ items: [{ amount: 3, id: "tx3" }], nextCursor: undefined },
 				],
 			};
 
 			expect(updater(old)).toEqual({
 				pageParams: [undefined, "tx2"],
 				pages: [
-					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx2" },
-					{ items: [{ id: "tx3", amount: 3 }], nextCursor: undefined },
+					{ items: [{ amount: 1, id: "tx1" }], nextCursor: "tx2" },
+					{ items: [{ amount: 3, id: "tx3" }], nextCursor: undefined },
 				],
 			});
 		});
@@ -345,15 +345,15 @@ describe("optimistic-update helpers", () => {
 			const old: InfiniteCache = {
 				pageParams: [undefined, "tx1"],
 				pages: [
-					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx1" },
-					{ items: [{ id: "tx2", amount: 2 }], nextCursor: undefined },
+					{ items: [{ amount: 1, id: "tx1" }], nextCursor: "tx1" },
+					{ items: [{ amount: 2, id: "tx2" }], nextCursor: undefined },
 				],
 			};
 
 			expect(updater(old)).toEqual({
 				pageParams: [undefined, "tx1"],
 				pages: [
-					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx1" },
+					{ items: [{ amount: 1, id: "tx1" }], nextCursor: "tx1" },
 					{ items: [], nextCursor: undefined },
 				],
 			});
@@ -365,8 +365,8 @@ describe("optimistic-update helpers", () => {
 			const queryClient = createQueryClientMock();
 
 			prependInfiniteQueryItem<InfiniteItem>(queryClient, ["tx"], {
-				id: "new",
 				amount: 7,
+				id: "new",
 			});
 
 			expect(queryClient.setQueryData).toHaveBeenCalledTimes(1);
@@ -377,8 +377,8 @@ describe("optimistic-update helpers", () => {
 			const old: InfiniteCache = {
 				pageParams: [undefined, "tx2"],
 				pages: [
-					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx1" },
-					{ items: [{ id: "tx2", amount: 2 }], nextCursor: undefined },
+					{ items: [{ amount: 1, id: "tx1" }], nextCursor: "tx1" },
+					{ items: [{ amount: 2, id: "tx2" }], nextCursor: undefined },
 				],
 			};
 
@@ -387,12 +387,12 @@ describe("optimistic-update helpers", () => {
 				pages: [
 					{
 						items: [
-							{ id: "new", amount: 7 },
-							{ id: "tx1", amount: 1 },
+							{ amount: 7, id: "new" },
+							{ amount: 1, id: "tx1" },
 						],
 						nextCursor: "tx1",
 					},
-					{ items: [{ id: "tx2", amount: 2 }], nextCursor: undefined },
+					{ items: [{ amount: 2, id: "tx2" }], nextCursor: undefined },
 				],
 			});
 		});
@@ -401,8 +401,8 @@ describe("optimistic-update helpers", () => {
 			const queryClient = createQueryClientMock();
 
 			prependInfiniteQueryItem<InfiniteItem>(queryClient, ["tx"], {
-				id: "new",
 				amount: 7,
+				id: "new",
 			});
 
 			const updater = lastSetQueryDataUpdater(queryClient);
@@ -413,8 +413,8 @@ describe("optimistic-update helpers", () => {
 			const queryClient = createQueryClientMock();
 
 			prependInfiniteQueryItem<InfiniteItem>(queryClient, ["tx"], {
-				id: "new",
 				amount: 7,
+				id: "new",
 			});
 
 			const updater = lastSetQueryDataUpdater(queryClient);
@@ -434,7 +434,7 @@ describe("optimistic-update helpers", () => {
 		function entityUpdater(
 			queryClient: QueryClient
 		): (old: Entity | null | undefined) => Entity | null | undefined {
-			const calls = vi.mocked(queryClient.setQueryData).mock.calls;
+			const { calls } = vi.mocked(queryClient.setQueryData).mock;
 			return calls.at(-1)?.[1] as (
 				old: Entity | null | undefined
 			) => Entity | null | undefined;
@@ -550,7 +550,7 @@ describe("optimistic-update helpers", () => {
 		function itemsUpdater(
 			queryClient: QueryClient
 		): (old: Item[] | undefined) => Item[] | undefined {
-			const calls = vi.mocked(queryClient.setQueryData).mock.calls;
+			const { calls } = vi.mocked(queryClient.setQueryData).mock;
 			return calls.at(-1)?.[1] as (
 				old: Item[] | undefined
 			) => Item[] | undefined;
@@ -570,12 +570,12 @@ describe("optimistic-update helpers", () => {
 			const updater = itemsUpdater(queryClient);
 			expect(
 				updater([
-					{ id: "e1", amount: 1 },
-					{ id: "e2", amount: 2 },
+					{ amount: 1, id: "e1" },
+					{ amount: 2, id: "e2" },
 				])
 			).toEqual([
-				{ id: "e1", amount: 1 },
-				{ id: "e2", amount: 99 },
+				{ amount: 1, id: "e1" },
+				{ amount: 99, id: "e2" },
 			]);
 		});
 
@@ -589,10 +589,10 @@ describe("optimistic-update helpers", () => {
 			const updater = itemsUpdater(queryClient);
 			expect(
 				updater([
-					{ id: "e1", amount: 1 },
-					{ id: "e2", amount: 2 },
+					{ amount: 1, id: "e1" },
+					{ amount: 2, id: "e2" },
 				])
-			).toEqual([{ id: "e2", amount: 2 }]);
+			).toEqual([{ amount: 2, id: "e2" }]);
 		});
 
 		it("maps an empty array to an empty array without fabricating rows", () => {
@@ -621,7 +621,7 @@ describe("optimistic-update helpers", () => {
 		it("uses fallback items when an optimistic flow intentionally creates an unfetched list", () => {
 			const queryClient = createQueryClientMock();
 			const updateItems = vi.fn((items: Item[]) => items);
-			const fallbackItems = [{ id: "new", amount: 7 }];
+			const fallbackItems = [{ amount: 7, id: "new" }];
 
 			updateQueryItems<Item>(
 				queryClient,

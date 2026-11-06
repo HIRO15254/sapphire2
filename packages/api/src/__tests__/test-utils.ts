@@ -20,7 +20,7 @@ interface ProcedureDef {
 }
 
 export function getProcedureDef(procedure: unknown): ProcedureDef {
-	const def = (procedure as { _def?: ProcedureDef })?._def;
+	const def = (procedure as { _def?: ProcedureDef } | null | undefined)?._def;
 	if (!def) {
 		throw new Error("procedure has no _def; is it really a tRPC procedure?");
 	}
@@ -29,7 +29,7 @@ export function getProcedureDef(procedure: unknown): ProcedureDef {
 
 export function getInputSchema(procedure: unknown): ZodLikeSchema {
 	const def = getProcedureDef(procedure);
-	const candidate = def.inputs[0];
+	const [candidate] = def.inputs;
 	if (
 		!candidate ||
 		typeof (candidate as ZodLikeSchema).safeParse !== "function"
@@ -110,6 +110,7 @@ export function withGameMixVariantFixtures(
 	if ("game_mix_variant" in select) {
 		return select;
 	}
+	// biome-ignore lint/suspicious/noUnnecessaryConditions: Fixture maps can omit the game mix table.
 	const memberships = (select.game_mix ?? []).flatMap((mix) => {
 		const games = Array.isArray(mix.games) ? mix.games : [];
 		return games.map((variantId, position) => ({
@@ -158,6 +159,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 		},
 	}));
 	const insert = vi.fn((table: unknown) => ({
+		select: vi.fn(() => Promise.resolve(undefined)),
 		values: vi.fn((values: unknown) => {
 			const name = getTableName(table as never);
 			const bucket = inserted[name] ?? [];
@@ -170,7 +172,6 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			chain.onConflictDoUpdate = () => chain;
 			return chain;
 		}),
-		select: vi.fn(() => Promise.resolve(undefined)),
 	}));
 	const del = vi.fn((table: unknown) => ({
 		where: vi.fn((cond: unknown) => {
@@ -204,19 +205,19 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	const batch = vi.fn((statements: unknown[]) =>
 		Promise.all(statements as Promise<unknown>[])
 	);
-	const db: Database = { select, insert, delete: del, update, batch } as never;
+	const db: Database = { batch, delete: del, insert, select, update } as never;
 
 	return {
+		batch,
 		db,
-		selectLimits,
-		selectWhereParams,
 		deleteWhereParams,
-		select,
 		insert,
 		inserted,
+		select,
 		selectedTables,
-		batch,
-		updated,
+		selectLimits,
+		selectWhereParams,
 		update,
+		updated,
 	};
 }

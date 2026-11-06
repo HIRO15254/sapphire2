@@ -44,25 +44,25 @@ type TournamentRow = typeof tournament.$inferSelect;
 const nameSchema = z.string().trim().min(1).max(100);
 
 export const tournamentListByRoomInputSchema = z.object({
-	roomId: idSchema,
 	includeArchived: z.boolean().optional(),
+	roomId: idSchema,
 });
 
 export const tournamentIdInputSchema = z.object({ id: idSchema });
 
 const createFields = {
-	roomId: idSchema,
-	name: nameSchema,
 	defaultAssetId: idSchema.nullable().optional(),
 	memo: memoSchema.nullable().optional(),
+	name: nameSchema,
+	roomId: idSchema,
 	tagIds: tagIdsSchema.optional(),
 };
 
 const updateFields = {
-	id: idSchema,
-	name: nameSchema.optional(),
 	defaultAssetId: idSchema.nullable().optional(),
+	id: idSchema,
 	memo: memoSchema.nullable().optional(),
+	name: nameSchema.optional(),
 	tagIds: tagIdsSchema.optional(),
 };
 
@@ -173,19 +173,19 @@ async function hydrateTournaments(
 			}
 		}
 		return {
-			id: row.id,
-			roomId: row.roomId,
-			name: row.name,
-			defaultAssetId: row.defaultAssetId,
-			memo: row.memo,
 			archivedAt: row.archivedAt,
+			createdAt: row.createdAt,
 			currentRuleId: row.currentRuleId,
-			ruleVersion: rule,
+			defaultAssetId: row.defaultAssetId,
+			id: row.id,
 			lineups: ruleLineups,
+			memo: row.memo,
+			name: row.name,
+			roomId: row.roomId,
+			ruleVersion: rule,
 			tags: tags
 				.filter((tag) => tag.tournamentId === row.id)
 				.map((tag) => ({ id: tag.id, name: tag.name })),
-			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 		};
 	});
@@ -247,7 +247,7 @@ function tagStatements(
 				]
 			: []),
 		...insertChunks(
-			tagIds.map((tagId) => ({ userId, tournamentId, tagId })),
+			tagIds.map((tagId) => ({ tagId, tournamentId, userId })),
 			(chunk) => db.insert(tournamentTagLink).values(chunk)
 		),
 	];
@@ -269,11 +269,11 @@ export async function planTournamentCreate(
 	await validateTagsOwnership(db, tournamentTag, input.tagIds, userId);
 	await assertDefaultAsset(db, userId, input.defaultAssetId, null);
 	const write = await planTournamentRuleWrite({
-		db,
-		userId,
 		current: null,
+		db,
 		input: input.rule,
 		tournamentId: null,
+		userId,
 	});
 	const now = new Date();
 	return {
@@ -285,15 +285,15 @@ export async function planTournamentCreate(
 				: []),
 			...write.statements,
 			db.insert(tournament).values({
-				id,
-				userId,
-				roomId: input.roomId,
-				name: input.name,
-				memo: input.memo ?? null,
-				defaultAssetId: input.defaultAssetId ?? null,
-				currentRuleId: write.ruleId,
 				createdAt: now,
+				currentRuleId: write.ruleId,
+				defaultAssetId: input.defaultAssetId ?? null,
+				id,
+				memo: input.memo ?? null,
+				name: input.name,
+				roomId: input.roomId,
 				updatedAt: now,
+				userId,
 			}),
 			db
 				.update(tournamentRule)
@@ -339,7 +339,7 @@ async function updateTournament(
 		found.defaultAssetId
 	);
 	let ruleStatements: BatchStatement[] = [];
-	let currentRuleId = found.currentRuleId;
+	let { currentRuleId } = found;
 	if (input.rule) {
 		const current = (
 			await hydrateTournamentRules(db, userId, [found.currentRuleId])
@@ -351,11 +351,11 @@ async function updateTournament(
 			});
 		}
 		const write = await planTournamentRuleWrite({
-			db,
-			userId,
 			current,
+			db,
 			input: input.rule,
 			tournamentId: found.id,
+			userId,
 		});
 		ruleStatements = write.statements;
 		currentRuleId = write.ruleId;
@@ -396,6 +396,73 @@ OR EXISTS (SELECT 1 FROM ledger_line INNER JOIN tournament_rule_price ON tournam
 OR EXISTS (SELECT 1 FROM tournament_rule AS child INNER JOIN tournament_rule AS parent ON parent.id = child.parent_rule_id AND parent.user_id = child.user_id WHERE parent.tournament_id = tournament.id AND parent.user_id = tournament.user_id AND (child.tournament_id IS NULL OR child.tournament_id <> tournament.id)))`;
 
 export const tournamentRouter = router({
+	archive: protectedProcedure
+		.input(tournamentIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
+			const now = new Date();
+			await ctx.db
+				.update(tournament)
+				.set({ archivedAt: now, updatedAt: now })
+				.where(and(eq(tournament.id, input.id), eq(tournament.userId, userId)));
+			return await getTournament(ctx.db, userId, input.id);
+		}),
+
+	create: protectedProcedure
+		.input(tournamentCreateInputSchema)
+		.mutation(
+			async ({ ctx, input }) =>
+				await createTournament(ctx.db, ctx.session.user.id, input)
+		),
+
+	createWithLevels: protectedProcedure
+		.input(tournamentCreateWithLevelsInputSchema)
+		.mutation(
+			async ({ ctx, input }) =>
+				await createTournament(ctx.db, ctx.session.user.id, input)
+		),
+
+	delete: protectedProcedure
+		.input(tournamentIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
+			const conflict = () =>
+				new TRPCError({
+					code: "CONFLICT",
+					message:
+						"This tournament is referenced by entries or ledger lines. Archive the tournament instead of deleting it.",
+				});
+			try {
+				const deleted = await ctx.db
+					.delete(tournament)
+					.where(
+						and(
+							eq(tournament.id, input.id),
+							eq(tournament.userId, userId),
+							not(tournamentIsReferenced)
+						)
+					)
+					.returning({ id: tournament.id });
+				if (deleted.length === 0) {
+					throw conflict();
+				}
+			} catch (error) {
+				if (isForeignKeyConstraintError(error)) {
+					throw conflict();
+				}
+				throw error;
+			}
+			return { success: true };
+		}),
+
+	getById: protectedProcedure
+		.input(tournamentIdInputSchema)
+		.query(
+			async ({ ctx, input }) =>
+				await getTournament(ctx.db, ctx.session.user.id, input.id)
+		),
 	listByRoom: protectedProcedure
 		.input(tournamentListByRoomInputSchema)
 		.query(async ({ ctx, input }) => {
@@ -414,40 +481,17 @@ export const tournamentRouter = router({
 			return await hydrateTournaments(ctx.db, userId, rows);
 		}),
 
-	getById: protectedProcedure
+	restore: protectedProcedure
 		.input(tournamentIdInputSchema)
-		.query(
-			async ({ ctx, input }) =>
-				await getTournament(ctx.db, ctx.session.user.id, input.id)
-		),
-
-	create: protectedProcedure
-		.input(tournamentCreateInputSchema)
-		.mutation(
-			async ({ ctx, input }) =>
-				await createTournament(ctx.db, ctx.session.user.id, input)
-		),
-
-	createWithLevels: protectedProcedure
-		.input(tournamentCreateWithLevelsInputSchema)
-		.mutation(
-			async ({ ctx, input }) =>
-				await createTournament(ctx.db, ctx.session.user.id, input)
-		),
-
-	update: protectedProcedure
-		.input(tournamentUpdateInputSchema)
-		.mutation(
-			async ({ ctx, input }) =>
-				await updateTournament(ctx.db, ctx.session.user.id, input)
-		),
-
-	updateWithLevels: protectedProcedure
-		.input(tournamentUpdateWithLevelsInputSchema)
-		.mutation(
-			async ({ ctx, input }) =>
-				await updateTournament(ctx.db, ctx.session.user.id, input)
-		),
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
+			await ctx.db
+				.update(tournament)
+				.set({ archivedAt: null, updatedAt: new Date() })
+				.where(and(eq(tournament.id, input.id), eq(tournament.userId, userId)));
+			return await getTournament(ctx.db, userId, input.id);
+		}),
 
 	restoreRule: protectedProcedure
 		.input(tournamentRestoreRuleInputSchema)
@@ -496,62 +540,17 @@ export const tournamentRouter = router({
 			return await getTournament(ctx.db, userId, input.id);
 		}),
 
-	archive: protectedProcedure
-		.input(tournamentIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
-			const now = new Date();
-			await ctx.db
-				.update(tournament)
-				.set({ archivedAt: now, updatedAt: now })
-				.where(and(eq(tournament.id, input.id), eq(tournament.userId, userId)));
-			return await getTournament(ctx.db, userId, input.id);
-		}),
+	update: protectedProcedure
+		.input(tournamentUpdateInputSchema)
+		.mutation(
+			async ({ ctx, input }) =>
+				await updateTournament(ctx.db, ctx.session.user.id, input)
+		),
 
-	restore: protectedProcedure
-		.input(tournamentIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
-			await ctx.db
-				.update(tournament)
-				.set({ archivedAt: null, updatedAt: new Date() })
-				.where(and(eq(tournament.id, input.id), eq(tournament.userId, userId)));
-			return await getTournament(ctx.db, userId, input.id);
-		}),
-
-	delete: protectedProcedure
-		.input(tournamentIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
-			const conflict = () =>
-				new TRPCError({
-					code: "CONFLICT",
-					message:
-						"This tournament is referenced by entries or ledger lines. Archive the tournament instead of deleting it.",
-				});
-			try {
-				const deleted = await ctx.db
-					.delete(tournament)
-					.where(
-						and(
-							eq(tournament.id, input.id),
-							eq(tournament.userId, userId),
-							not(tournamentIsReferenced)
-						)
-					)
-					.returning({ id: tournament.id });
-				if (deleted.length === 0) {
-					throw conflict();
-				}
-			} catch (error) {
-				if (isForeignKeyConstraintError(error)) {
-					throw conflict();
-				}
-				throw error;
-			}
-			return { success: true };
-		}),
+	updateWithLevels: protectedProcedure
+		.input(tournamentUpdateWithLevelsInputSchema)
+		.mutation(
+			async ({ ctx, input }) =>
+				await updateTournament(ctx.db, ctx.session.user.id, input)
+		),
 });

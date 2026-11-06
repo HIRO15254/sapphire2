@@ -1,13 +1,14 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAddPasskeyForm } from "@/features/settings/pages/settings-page/passkeys/use-add-passkey-form";
 
 const DEVICE_NAME = "Chrome on macOS";
 
 const mocks = vi.hoisted(() => ({
 	addPasskey: vi.fn(),
-	toastSuccess: vi.fn(),
-	toastError: vi.fn(),
 	setAutomaticPasskeyOptOut: vi.fn(),
+	toastError: vi.fn(),
+	toastSuccess: vi.fn(),
 }));
 
 vi.mock("@/shared/lib/passkey-opt-out", () => ({
@@ -15,7 +16,7 @@ vi.mock("@/shared/lib/passkey-opt-out", () => ({
 }));
 
 vi.mock("sonner", () => ({
-	toast: { success: mocks.toastSuccess, error: mocks.toastError },
+	toast: { error: mocks.toastError, success: mocks.toastSuccess },
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -25,8 +26,6 @@ vi.mock("@/lib/auth-client", () => ({
 vi.mock("@/shared/lib/device-name", () => ({
 	describeCurrentDevice: () => "Chrome on macOS",
 }));
-
-import { useAddPasskeyForm } from "@/features/settings/pages/settings-page/passkeys/use-add-passkey-form";
 
 function renderForm() {
 	const onOpenChange = vi.fn();

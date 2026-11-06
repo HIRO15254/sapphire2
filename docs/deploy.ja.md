@@ -26,7 +26,7 @@ Worker は MCP エンドポイント（`/mcp`）と OAuth ディスカバリル�
 - [Cloudflare](https://dash.cloudflare.com/sign-up) アカウントと Workers Paid が必要。D1 の入力上限は Paid の Worker 1回の呼び出しあたり 1,000 クエリという制限から決めています。
 - GitHub リポジトリの管理者権限（Secrets 設定に必要）
 - [Bun](https://bun.sh/) がローカルにインストール済み
-- [Node.js](https://nodejs.org/) 22.16.0 以上がローカルにインストール済み（Cloudflare Wrangler CLI と Vitest の実行用。パッケージマネージャーは引き続き Bun）
+- [Node.js](https://nodejs.org/) 22 系なら 22.22.2 以上、または 24.15.0 以上がローカルにインストール済み（Cloudflare Wrangler CLI、Vitest、Ultracite の実行用。パッケージマネージャーは引き続き Bun）
 
 > ローカル開発用 D1 は Wrangler が作成します。プレビューと dev の DB は workflow が Cloudflare API で作成し、本番は `apps/server/wrangler.toml` に設定済みの DB を使用します。
 

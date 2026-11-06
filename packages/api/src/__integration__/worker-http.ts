@@ -45,10 +45,10 @@ export type WorkerClient = (
 
 export function createWorkerClient(d1: TestD1Database): WorkerClient {
 	const env = {
-		DB: d1,
 		BETTER_AUTH_SECRET: "a".repeat(32),
 		BETTER_AUTH_URL: SERVER_URL,
 		CORS_ORIGIN: WEB_ORIGIN,
+		DB: d1,
 		GOOGLE_CLIENT_ID: "google-client-id",
 		GOOGLE_CLIENT_SECRET: "google-client-secret",
 	};
@@ -73,13 +73,13 @@ export function jsonPost(
 	headers: Record<string, string> = {}
 ): WorkerRequestInit {
 	return {
-		method: "POST",
+		body: JSON.stringify(body),
 		headers: {
 			"content-type": "application/json",
 			origin: WEB_ORIGIN,
 			...headers,
 		},
-		body: JSON.stringify(body),
+		method: "POST",
 	};
 }
 
@@ -91,7 +91,7 @@ export async function signUp(
 	const jar = new CookieJar();
 	const response = await request("/api/auth/sign-up/email", {
 		...jsonPost(
-			{ email, password: "correct-horse-battery", name: "Test User" },
+			{ email, name: "Test User", password: "correct-horse-battery" },
 			headers
 		),
 		jar,

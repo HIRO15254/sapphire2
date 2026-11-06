@@ -2,7 +2,7 @@ name: Preview Cleanup
 
 on:
   pull_request:
-    types: [closed]
+    types: [ closed ]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

@@ -2,12 +2,12 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	test: {
-		name: "api-integration",
 		environment: "node",
-		include: ["src/__integration__/**/*.test.ts"],
-		testTimeout: 30_000,
 		hookTimeout: 60_000,
+		include: ["src/__integration__/**/*.test.ts"],
 		maxWorkers: 2,
+		name: "api-integration",
 		sequence: { groupOrder: 1 },
+		testTimeout: 30_000,
 	},
 });

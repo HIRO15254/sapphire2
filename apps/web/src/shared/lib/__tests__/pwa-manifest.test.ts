@@ -10,10 +10,10 @@ function readGeneratedRoutePaths(): Set<string> {
 	);
 	const source = readFileSync(routeTreePath, "utf8");
 	const paths = new Set<string>();
-	const pathLiteral = /(?:full)?[Pp]ath:\s*'([^']+)'/g;
+	const pathLiteral = /(?:full)?[Pp]ath:\s*'(?<routePath>[^']+)'/gu;
 	let match = pathLiteral.exec(source);
 	while (match !== null) {
-		const routePath = match[1];
+		const routePath = match.groups?.routePath;
 		if (routePath === undefined) {
 			throw new Error("Expected a captured route path");
 		}

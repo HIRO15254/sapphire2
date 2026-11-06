@@ -9,7 +9,7 @@ import {
 } from "./sqlite";
 
 const TARGET = "0067_ring_game_rule_versions.sql";
-const PRECONDITION_GATE = /NOT NULL constraint failed: __gate_0067/;
+const PRECONDITION_GATE = /NOT NULL constraint failed: __gate_0067/u;
 
 function apply(db: Database, statements: string[]): void {
 	for (const statement of statements) {

@@ -4,9 +4,9 @@ import type { ComponentType } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+	clearPersistedQueryCache: vi.fn(),
 	navigate: vi.fn(),
 	signOut: vi.fn(),
-	clearPersistedQueryCache: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -92,7 +92,7 @@ describe("SettingsComponent", () => {
 		expect(mocks.signOut).toHaveBeenCalledOnce();
 		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
 		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/" });
-		const navigateOrder = mocks.navigate.mock.invocationCallOrder[0];
+		const [navigateOrder] = mocks.navigate.mock.invocationCallOrder;
 		if (navigateOrder === undefined) {
 			throw new Error("Expected navigation to be called");
 		}

@@ -1,7 +1,7 @@
 export const REGISTRATION_MAX_BODY_BYTES = 16 * 1024;
 export const REGISTRATION_MAX_REDIRECT_URIS = 10;
 
-const TRAILING_SLASHES = /\/+$/;
+const TRAILING_SLASHES = /\/+$/u;
 
 export function isRegistrationRequest(method: string, path: string): boolean {
 	return (

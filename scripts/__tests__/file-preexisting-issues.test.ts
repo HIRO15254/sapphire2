@@ -13,11 +13,11 @@ function finding(
 	overrides: Partial<PreExistingFinding> = {}
 ): PreExistingFinding {
 	return {
+		evidence:
+			"bunx vitest run --project api player → another user's rows returned",
 		file: "packages/api/src/routers/player.ts",
 		line: 42,
 		title: "Player list ignores the owner filter",
-		evidence:
-			"bunx vitest run --project api player → another user's rows returned",
 		type: "bug",
 		...overrides,
 	};
@@ -26,12 +26,12 @@ function finding(
 describe("parsePreExisting", () => {
 	it("returns well-formed findings and drops malformed ones", () => {
 		const trailer = JSON.stringify({
-			verdict: "approve",
 			preExisting: [
 				finding(),
 				{ file: "a.ts" },
 				finding({ type: "chore" as never }),
 			],
+			verdict: "approve",
 		});
 		expect(parsePreExisting(trailer)).toEqual([finding()]);
 	});
@@ -87,9 +87,9 @@ describe("buildIssue", () => {
 describe("review trailer carrying findings", () => {
 	it("is still extracted when a finding's text contains braces", () => {
 		const trailer = JSON.stringify({
-			verdict: "approve",
-			resolved: [],
 			preExisting: [finding({ evidence: "if (x) { return }" })],
+			resolved: [],
+			verdict: "approve",
 		});
 		expect(
 			extractReviewTrailer(`### レビュー結果\n<!-- pr-review: ${trailer} -->`)

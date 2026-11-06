@@ -10,9 +10,9 @@ import { createTestQueryClient } from "@/__tests__/test-utils";
 import { useUpdateNotesViewed } from "@/features/update-notes/hooks/use-update-notes-viewed";
 
 const transport = vi.hoisted(() => ({
-	queryClient: undefined as QueryClient | undefined,
 	list: vi.fn<() => Promise<{ id: string; version: string }[]>>(),
 	markViewed: vi.fn<(input: unknown) => Promise<unknown>>(),
+	queryClient: undefined as QueryClient | undefined,
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -63,7 +63,7 @@ function deferred<T>() {
 		resolve = res;
 		reject = rej;
 	});
-	return { promise, resolve, reject };
+	return { promise, reject, resolve };
 }
 
 function mountHook() {
@@ -140,27 +140,29 @@ describe("useUpdateNotesViewed", () => {
 		expect(result.current.viewedVersions).toEqual(new Set());
 	});
 
-	it.each([
-		"success",
-		"failure",
-	] as const)("refetches the mounted list after mutation %s so viewed badges resync", async (outcome) => {
-		const pending = deferred<unknown>();
-		transport.markViewed.mockReturnValue(pending.promise);
-		const { result } = mountHook();
-		await waitFor(() => expect(result.current.isViewedListLoaded).toBe(true));
-		expect(transport.list).toHaveBeenCalledTimes(1);
+	it.each(["success", "failure"] as const)(
+		"refetches the mounted list after mutation %s so viewed badges resync",
+		async (outcome) => {
+			const pending = deferred<unknown>();
+			transport.markViewed.mockReturnValue(pending.promise);
+			const { result } = mountHook();
+			await waitFor(() => expect(result.current.isViewedListLoaded).toBe(true));
+			expect(transport.list).toHaveBeenCalledTimes(1);
 
-		act(() => result.current.markViewed("2.0.0"));
-		await waitFor(() => expect(transport.markViewed).toHaveBeenCalledTimes(1));
-		expect(transport.list).toHaveBeenCalledTimes(1);
-		act(() => {
-			if (outcome === "success") {
-				pending.resolve({ id: "new" });
-			} else {
-				pending.reject(new Error("server down"));
-			}
-		});
+			act(() => result.current.markViewed("2.0.0"));
+			await waitFor(() =>
+				expect(transport.markViewed).toHaveBeenCalledTimes(1)
+			);
+			expect(transport.list).toHaveBeenCalledTimes(1);
+			act(() => {
+				if (outcome === "success") {
+					pending.resolve({ id: "new" });
+				} else {
+					pending.reject(new Error("server down"));
+				}
+			});
 
-		await waitFor(() => expect(transport.list).toHaveBeenCalledTimes(2));
-	});
+			await waitFor(() => expect(transport.list).toHaveBeenCalledTimes(2));
+		}
+	);
 });

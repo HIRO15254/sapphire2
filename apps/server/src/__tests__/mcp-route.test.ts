@@ -9,8 +9,8 @@ describe("/mcp route", () => {
 		const response = await app.request(
 			"/mcp",
 			{
-				method: "POST",
 				headers: { origin: "https://claude.ai" },
+				method: "POST",
 			},
 			env
 		);
@@ -24,13 +24,13 @@ describe("/mcp route", () => {
 		const response = await app.request(
 			"/mcp",
 			{
-				method: "OPTIONS",
 				headers: {
-					origin: "https://claude.ai",
-					"access-control-request-method": "POST",
 					"access-control-request-headers":
 						"authorization, content-type, mcp-protocol-version",
+					"access-control-request-method": "POST",
+					origin: "https://claude.ai",
 				},
+				method: "OPTIONS",
 			},
 			env
 		);
@@ -50,11 +50,11 @@ describe("/mcp route", () => {
 		const response = await app.request(
 			"/trpc/healthCheck",
 			{
-				method: "OPTIONS",
 				headers: {
-					origin: "http://localhost:3001",
 					"access-control-request-method": "POST",
+					origin: "http://localhost:3001",
 				},
+				method: "OPTIONS",
 			},
 			env
 		);

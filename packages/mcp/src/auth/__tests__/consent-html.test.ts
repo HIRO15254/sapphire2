@@ -2,12 +2,13 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { renderConsentHtml } from "../consent-html";
 
-const CONSENT_SCRIPT = /<script nonce="test-nonce">([\s\S]*?)<\/script>/;
+const CONSENT_SCRIPT =
+	/<script nonce="test-nonce">(?<script>[\s\S]*?)<\/script>/u;
 
 const BASE_PROPS = {
 	clientName: "Claude",
-	oauthQuery: "client_id=c1&sig=abc",
 	nonce: "test-nonce",
+	oauthQuery: "client_id=c1&sig=abc",
 	redirectHosts: ["claude.ai"],
 };
 
@@ -94,7 +95,7 @@ describe("renderConsentHtml", () => {
 
 	it("rejects unsafe consent redirects while allowing secure and native callbacks", async () => {
 		const html = renderConsentHtml(BASE_PROPS);
-		const script = html.match(CONSENT_SCRIPT)?.[1];
+		const script = html.match(CONSENT_SCRIPT)?.groups?.script;
 		expect(script).toBeDefined();
 		const cases = [
 			["javascript:alert(1)", false],
@@ -113,20 +114,20 @@ describe("renderConsentHtml", () => {
 			["cursor://callback", true],
 		] as const;
 		for (const [redirectURI, allowed] of cases) {
-			const handlers: Record<string, () => Promise<void>> = {};
+			const handlers: Partial<Record<string, () => Promise<void>>> = {};
 			const elements = {
-				"consent-data": { textContent: JSON.stringify({ oauthQuery: "q" }) },
 				approve: {
-					disabled: false,
 					addEventListener: (_: string, fn: () => Promise<void>) => {
 						handlers.approve = fn;
 					},
-				},
-				deny: {
 					disabled: false,
+				},
+				"consent-data": { textContent: JSON.stringify({ oauthQuery: "q" }) },
+				deny: {
 					addEventListener: (_: string, fn: () => Promise<void>) => {
 						handlers.deny = fn;
 					},
+					disabled: false,
 				},
 				error: { hidden: true },
 			};
@@ -136,12 +137,13 @@ describe("renderConsentHtml", () => {
 					getElementById: (id: keyof typeof elements) => elements[id],
 				},
 				fetch: async () => ({
-					ok: true,
 					json: async () => ({ redirect: true, url: redirectURI }),
+					ok: true,
 				}),
-				window: { location },
 				URL,
+				window: { location },
 			});
+			// biome-ignore lint/performance/noAwaitInLoops: Each case completes before the next isolated setup.
 			await handlers.approve?.();
 			expect(location.href).toBe(allowed ? redirectURI : "");
 			expect(elements.error.hidden).toBe(allowed);

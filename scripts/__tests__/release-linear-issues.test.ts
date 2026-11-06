@@ -20,10 +20,10 @@ describe("pullRequestsInRelease", () => {
 		const releaseCommits = new Set(["aaa", "bbb", "ccc"]);
 		const urls = pullRequestsInRelease(
 			[
-				{ url: "https://github.com/o/r/pull/1", mergeCommit: { oid: "aaa" } },
-				{ url: "https://github.com/o/r/pull/2", mergeCommit: { oid: "zzz" } },
-				{ url: "https://github.com/o/r/pull/3", mergeCommit: null },
-				{ url: "https://github.com/o/r/pull/4", mergeCommit: { oid: "ccc" } },
+				{ mergeCommit: { oid: "aaa" }, url: "https://github.com/o/r/pull/1" },
+				{ mergeCommit: { oid: "zzz" }, url: "https://github.com/o/r/pull/2" },
+				{ mergeCommit: null, url: "https://github.com/o/r/pull/3" },
+				{ mergeCommit: { oid: "ccc" }, url: "https://github.com/o/r/pull/4" },
 			],
 			releaseCommits
 		);

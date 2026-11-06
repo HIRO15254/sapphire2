@@ -15,12 +15,12 @@ const day = "2026-09-05";
 function entryRow(id: string, userId: string, overrides: Row = {}): Row {
 	return {
 		id,
-		user_id: userId,
 		kind: "cash",
+		played_on: day,
 		source: "manual",
 		status: "settled",
-		played_on: day,
 		updated_at: 0,
+		user_id: userId,
 		...overrides,
 	};
 }
@@ -32,15 +32,15 @@ function playSessionRow(
 	overrides: Row = {}
 ): Row {
 	return {
-		id,
-		user_id: userId,
-		entry_id: entryId,
-		kind: "cash",
-		seq: 1,
-		local_date: day,
-		status: "ended",
 		end_state: "cashed_out",
+		entry_id: entryId,
+		id,
+		kind: "cash",
+		local_date: day,
+		seq: 1,
+		status: "ended",
 		updated_at: 0,
+		user_id: userId,
 		...overrides,
 	};
 }
@@ -53,54 +53,55 @@ function playEventRow(
 	overrides: Row = {}
 ): Row {
 	return {
-		id,
-		user_id: userId,
 		entry_id: entryId,
 		entry_source: "live",
-		play_session_id: playSessionId,
-		type: "memo",
-		schema_version: 2,
+		id,
 		occurred_at: 0,
-		sort_order: 0,
 		payload: '{"text":"note"}',
+		play_session_id: playSessionId,
+		schema_version: 2,
+		sort_order: 0,
+		type: "memo",
 		updated_at: 0,
+		user_id: userId,
 		...overrides,
 	};
 }
 
 async function seedMasters(d1: TestD1Database, owners: string[]) {
 	for (const owner of owners) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 		await insert(d1, "room", {
 			id: `${owner}-room`,
-			user_id: owner,
 			name: "Room",
 			updated_at: 0,
+			user_id: owner,
 		});
 		await insert(d1, "asset", {
 			id: `${owner}-currency`,
-			user_id: owner,
 			name: "Chips",
 			updated_at: 0,
+			user_id: owner,
 		});
 		await insertRingGameFixture(d1, {
 			id: `${owner}-ring`,
-			userId: owner,
-			roomId: `${owner}-room`,
 			name: "1/2",
+			roomId: `${owner}-room`,
+			userId: owner,
 		});
 		await insert(d1, "game_lineup", { id: `${owner}-lineup`, user_id: owner });
 		await insert(d1, "tournament_rule", {
 			id: `${owner}-rule`,
-			user_id: owner,
 			lineup_id: `${owner}-lineup`,
+			user_id: owner,
 		});
 		await insert(d1, "tournament", {
-			id: `${owner}-tournament`,
-			user_id: owner,
-			room_id: `${owner}-room`,
-			name: "Daily",
 			current_rule_id: `${owner}-rule`,
+			id: `${owner}-tournament`,
+			name: "Daily",
+			room_id: `${owner}-room`,
 			updated_at: 0,
+			user_id: owner,
 		});
 		await d1
 			.prepare("UPDATE tournament_rule SET tournament_id = ? WHERE id = ?")
@@ -114,17 +115,17 @@ async function seedEntryAggregate(d1: TestD1Database, owner: string) {
 		d1,
 		"entry",
 		entryRow(`${owner}-cash`, owner, {
-			source: "live",
-			room_id: `${owner}-room`,
 			asset_id: `${owner}-currency`,
+			room_id: `${owner}-room`,
+			source: "live",
 		})
 	);
 	await insert(d1, "entry_cash", {
+		cash_rule_id: `${owner}-ring-fixture-rule`,
 		entry_id: `${owner}-cash`,
-		user_id: owner,
 		kind: "cash",
 		ring_game_id: `${owner}-ring`,
-		cash_rule_id: `${owner}-ring-fixture-rule`,
+		user_id: owner,
 	});
 	await insert(
 		d1,
@@ -151,19 +152,19 @@ async function seedEntryAggregate(d1: TestD1Database, owner: string) {
 	);
 	await insert(d1, "entry_tournament", {
 		entry_id: `${owner}-mtt`,
-		user_id: owner,
 		kind: "tournament",
-		tournament_id: `${owner}-tournament`,
-		tournament_rule_id: `${owner}-rule`,
 		placement: 3,
 		total_entries: 40,
+		tournament_id: `${owner}-tournament`,
+		tournament_rule_id: `${owner}-rule`,
+		user_id: owner,
 	});
 	await insert(
 		d1,
 		"play_session",
 		playSessionRow(`${owner}-mtt-play`, `${owner}-mtt`, owner, {
-			kind: "tournament",
 			end_state: "busted",
+			kind: "tournament",
 		})
 	);
 }
@@ -202,21 +203,21 @@ describe("entry aggregate tables on D1", () => {
 			[
 				"entry_cash",
 				{
+					cash_rule_id: "bob-ring-fixture-rule",
 					entry_id: "bob-cash",
-					user_id: "bob",
 					kind: "cash",
 					ring_game_id: "alice-ring",
-					cash_rule_id: "bob-ring-fixture-rule",
+					user_id: "bob",
 				},
 			],
 			[
 				"entry_tournament",
 				{
 					entry_id: "bob-mtt",
-					user_id: "bob",
 					kind: "tournament",
 					tournament_id: "alice-tournament",
 					tournament_rule_id: "bob-rule",
+					user_id: "bob",
 				},
 			],
 			[
@@ -246,6 +247,7 @@ describe("entry aggregate tables on D1", () => {
 			],
 		];
 		for (const [table, row] of crossOwner) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				insert(api.d1, table, row),
 				`${table} ${row.id ?? row.entry_id}`
@@ -256,23 +258,23 @@ describe("entry aggregate tables on D1", () => {
 			api.d1,
 			"entry",
 			entryRow("bob-in-own-room", "bob", {
-				room_id: "bob-room",
 				asset_id: "bob-currency",
+				room_id: "bob-room",
 			})
 		);
 		await insert(api.d1, "entry_cash", {
+			cash_rule_id: "bob-ring-fixture-rule",
 			entry_id: "bob-cash",
-			user_id: "bob",
 			kind: "cash",
 			ring_game_id: "bob-ring",
-			cash_rule_id: "bob-ring-fixture-rule",
+			user_id: "bob",
 		});
 		await insert(api.d1, "entry_tournament", {
 			entry_id: "bob-mtt",
-			user_id: "bob",
 			kind: "tournament",
 			tournament_id: "bob-tournament",
 			tournament_rule_id: "bob-rule",
+			user_id: "bob",
 		});
 		await insert(
 			api.d1,
@@ -372,28 +374,28 @@ describe("entry aggregate tables on D1", () => {
 
 		await expect(
 			insert(api.d1, "entry_cash", {
-				entry_id: "mtt",
-				user_id: "alice",
-				kind: "cash",
 				cash_rule_id: "alice-ring-fixture-rule",
+				entry_id: "mtt",
+				kind: "cash",
+				user_id: "alice",
 			}),
 			"cash detail on a tournament entry"
 		).rejects.toThrow(FOREIGN_KEY_FAILED);
 		await expect(
 			insert(api.d1, "entry_cash", {
-				entry_id: "mtt",
-				user_id: "alice",
-				kind: "tournament",
 				cash_rule_id: "alice-ring-fixture-rule",
+				entry_id: "mtt",
+				kind: "tournament",
+				user_id: "alice",
 			}),
 			"cash detail claiming the tournament kind"
 		).rejects.toThrow("CHECK constraint failed: entry_cash_kind_check");
 		await expect(
 			insert(api.d1, "entry_tournament", {
 				entry_id: "cash",
-				user_id: "alice",
 				kind: "tournament",
 				tournament_rule_id: "alice-rule",
+				user_id: "alice",
 			}),
 			"tournament detail on a cash entry"
 		).rejects.toThrow(FOREIGN_KEY_FAILED);
@@ -427,11 +429,11 @@ describe("entry aggregate tables on D1", () => {
 		).rejects.toThrow("NOT NULL constraint failed: play_event.schema_version");
 		await expect(
 			insert(api.d1, "entry_tournament", {
+				before_deadline: null,
 				entry_id: "mtt",
-				user_id: "alice",
 				kind: "tournament",
 				tournament_rule_id: "alice-rule",
-				before_deadline: null,
+				user_id: "alice",
 			}),
 			"before_deadline NULL"
 		).rejects.toThrow(
@@ -439,16 +441,16 @@ describe("entry aggregate tables on D1", () => {
 		);
 
 		await insert(api.d1, "entry_cash", {
-			entry_id: "cash",
-			user_id: "alice",
-			kind: "cash",
 			cash_rule_id: "alice-ring-fixture-rule",
+			entry_id: "cash",
+			kind: "cash",
+			user_id: "alice",
 		});
 		await insert(api.d1, "entry_tournament", {
 			entry_id: "mtt",
-			user_id: "alice",
 			kind: "tournament",
 			tournament_rule_id: "alice-rule",
+			user_id: "alice",
 		});
 		await insert(
 			api.d1,
@@ -464,7 +466,7 @@ describe("entry aggregate tables on D1", () => {
 		api,
 	}) => {
 		const live = { source: "live", status: "open" };
-		const unfinished = { status: "active", end_state: null };
+		const unfinished = { end_state: null, status: "active" };
 		await insert(api.d1, "entry", entryRow("alice-live-1", "alice", live));
 		await insert(api.d1, "entry", entryRow("alice-live-2", "alice", live));
 		await insert(api.d1, "entry", entryRow("alice-manual", "alice"));
@@ -480,8 +482,8 @@ describe("entry aggregate tables on D1", () => {
 				api.d1,
 				"play_session",
 				playSessionRow("alice-live-2-play", "alice-live-2", "alice", {
-					status: "paused",
 					end_state: null,
+					status: "paused",
 				})
 			)
 		).rejects.toThrow("UNIQUE constraint failed: play_session.user_id");
@@ -528,8 +530,8 @@ describe("entry aggregate tables on D1", () => {
 			"play_session",
 			playSessionRow("day-1", "multi-day", "alice", {
 				...tournament,
-				end_state: "bagged",
 				end_stack: 52_000,
+				end_state: "bagged",
 			})
 		);
 
@@ -551,8 +553,8 @@ describe("entry aggregate tables on D1", () => {
 				"play_session",
 				playSessionRow("day-0", "multi-day", "alice", {
 					...tournament,
-					seq: 0,
 					end_state: "busted",
+					seq: 0,
 				})
 			)
 		).rejects.toThrow("CHECK constraint failed: play_session_seq_check");
@@ -561,8 +563,8 @@ describe("entry aggregate tables on D1", () => {
 			"play_session",
 			playSessionRow("day-2", "multi-day", "alice", {
 				...tournament,
-				seq: 2,
 				end_state: "busted",
+				seq: 2,
 			})
 		);
 		await insert(
@@ -604,27 +606,28 @@ describe("entry aggregate tables on D1", () => {
 		};
 
 		const accepted: ["cash" | "mtt", Row][] = [
-			["cash", { end_state: "held", end_stack: 30_000 }],
+			["cash", { end_stack: 30_000, end_state: "held" }],
 			["cash", { end_state: "cashed_out" }],
 			["cash", { end_state: "finished" }],
-			["mtt", { end_state: "bagged", end_stack: 52_000 }],
+			["mtt", { end_stack: 52_000, end_state: "bagged" }],
 			["mtt", { end_state: "busted" }],
 			["mtt", { end_state: "finished" }],
 		];
 		for (const [entryId, overrides] of accepted) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await play(entryId, overrides);
 		}
 
 		const rejected: ["cash" | "mtt", Row, string][] = [
 			[
 				"cash",
-				{ end_state: "bagged", end_stack: 30_000 },
+				{ end_stack: 30_000, end_state: "bagged" },
 				"play_session_end_state_kind_check",
 			],
 			["cash", { end_state: "busted" }, "play_session_end_state_kind_check"],
 			[
 				"mtt",
-				{ end_state: "held", end_stack: 52_000 },
+				{ end_stack: 52_000, end_state: "held" },
 				"play_session_end_state_kind_check",
 			],
 			["mtt", { end_state: "cashed_out" }, "play_session_end_state_kind_check"],
@@ -632,16 +635,17 @@ describe("entry aggregate tables on D1", () => {
 			["mtt", { end_state: "bagged" }, "play_session_end_stack_required_check"],
 			[
 				"cash",
-				{ status: "ended", end_state: null },
+				{ end_state: null, status: "ended" },
 				"play_session_end_state_presence_check",
 			],
 			[
 				"mtt",
-				{ status: "paused", end_state: "bagged", end_stack: 52_000 },
+				{ end_stack: 52_000, end_state: "bagged", status: "paused" },
 				"play_session_end_state_presence_check",
 			],
 		];
 		for (const [entryId, overrides, constraint] of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				play(entryId, overrides),
 				`${entryId} ${JSON.stringify(overrides)}`
@@ -653,10 +657,10 @@ describe("entry aggregate tables on D1", () => {
 				api.d1,
 				"play_session",
 				playSessionRow("cash-posing-as-tournament", "cash", "alice", {
+					end_stack: 30_000,
+					end_state: "bagged",
 					kind: "tournament",
 					seq: 99,
-					end_state: "bagged",
-					end_stack: 30_000,
 				})
 			)
 		).rejects.toThrow(FOREIGN_KEY_FAILED);
@@ -667,12 +671,12 @@ describe("entry aggregate tables on D1", () => {
 			)
 			.all<{ end_state: string; entry_id: string }>();
 		expect(stored.results).toEqual([
-			{ entry_id: "cash", end_state: "held" },
-			{ entry_id: "cash", end_state: "cashed_out" },
-			{ entry_id: "cash", end_state: "finished" },
-			{ entry_id: "mtt", end_state: "bagged" },
-			{ entry_id: "mtt", end_state: "busted" },
-			{ entry_id: "mtt", end_state: "finished" },
+			{ end_state: "held", entry_id: "cash" },
+			{ end_state: "cashed_out", entry_id: "cash" },
+			{ end_state: "finished", entry_id: "cash" },
+			{ end_state: "bagged", entry_id: "mtt" },
+			{ end_state: "busted", entry_id: "mtt" },
+			{ end_state: "finished", entry_id: "mtt" },
 		]);
 	});
 
@@ -704,6 +708,7 @@ describe("entry aggregate tables on D1", () => {
 			],
 		];
 		for (const [table, row, constraint] of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(insert(api.d1, table, row), `${row.id}`).rejects.toThrow(
 				`CHECK constraint failed: ${constraint}`
 			);
@@ -724,12 +729,13 @@ describe("entry aggregate tables on D1", () => {
 				{ before_deadline: 1, placement: 3, total_entries: 10 },
 				"entry_tournament_before_deadline_placement_check",
 			],
-			[{ placement: 10, total_entries: 10, before_deadline: 0 }, null],
+			[{ before_deadline: 0, placement: 10, total_entries: 10 }, null],
 			[{ before_deadline: 1, placement: null, total_entries: 10 }, null],
 			[{ before_deadline: 2 }, "entry_tournament_before_deadline_check"],
 		];
 		for (const [index, [result, constraint]] of results.entries()) {
 			const id = `mtt-${index}`;
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await insert(
 				api.d1,
 				"entry",
@@ -737,9 +743,9 @@ describe("entry aggregate tables on D1", () => {
 			);
 			const write = insert(api.d1, "entry_tournament", {
 				entry_id: id,
-				user_id: "alice",
 				kind: "tournament",
 				tournament_rule_id: "alice-rule",
+				user_id: "alice",
 				...result,
 			});
 			if (constraint) {
@@ -760,8 +766,8 @@ describe("entry aggregate tables on D1", () => {
 				api.d1,
 				"play_session",
 				playSessionRow("backwards", "live-open", "alice", {
-					started_at: 2000,
 					ended_at: 1000,
+					started_at: 2000,
 				})
 			)
 		).rejects.toThrow("CHECK constraint failed: play_session_time_order_check");
@@ -769,8 +775,8 @@ describe("entry aggregate tables on D1", () => {
 			api.d1,
 			"play_session",
 			playSessionRow("forwards", "live-open", "alice", {
-				started_at: 1000,
 				ended_at: 1000,
+				started_at: 1000,
 			})
 		);
 		await expect(
@@ -804,6 +810,7 @@ describe("entry aggregate tables on D1", () => {
 			["ring_game", "alice-ring"],
 			["tournament", "alice-tournament"],
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.d1.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run(),
 				table
@@ -814,9 +821,11 @@ describe("entry aggregate tables on D1", () => {
 			.prepare("DELETE FROM entry WHERE id IN ('alice-cash', 'alice-mtt')")
 			.run();
 		for (const table of ["play_event", "play_session"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			expect(await ids(api.d1, table), table).toEqual([]);
 		}
 		for (const table of ["entry_cash", "entry_tournament"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			expect(await ids(api.d1, table, "entry_id"), table).toEqual([]);
 		}
 		await api.d1.prepare("DELETE FROM asset WHERE id = 'alice-currency'").run();

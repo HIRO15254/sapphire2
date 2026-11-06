@@ -26,16 +26,16 @@ export function toPlayEventOutput(
 		unknown
 	>;
 	return {
-		id: event.id,
+		createdAt: event.createdAt,
 		entryId: event.entryId,
-		playSessionId: event.playSessionId,
 		eventType: event.type,
+		id: event.id,
 		occurredAt: event.occurredAt,
-		sortOrder: event.sortOrder,
 		payload:
 			event.handId === null ? payload : { ...payload, handId: event.handId },
+		playSessionId: event.playSessionId,
 		schemaVersion: event.schemaVersion,
-		createdAt: event.createdAt,
+		sortOrder: event.sortOrder,
 		updatedAt: event.updatedAt,
 	};
 }

@@ -56,13 +56,13 @@ describe("room lifecycle on D1", () => {
 			if (reference === "entry") {
 				await api.db.insert(entry).values({
 					id: "session",
-					userId: "alice",
 					kind: "cash",
-					status: "settled",
-					source: "manual",
 					playedOn: "2026-09-05",
 					roomId: club.id,
+					source: "manual",
+					status: "settled",
 					updatedAt: day,
+					userId: "alice",
 				});
 			} else if (reference === "ring game") {
 				const nlh = (await api.alice.gameVariant.list()).find(
@@ -73,11 +73,11 @@ describe("room lifecycle on D1", () => {
 				}
 				const game = requireCreatedRow(
 					await api.alice.ringGame.create({
-						roomId: club.id,
 						name: "Cash",
+						roomId: club.id,
 						rule: {
 							game: { variantId: nlh.id },
-							stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+							stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 						},
 					})
 				);
@@ -90,15 +90,15 @@ describe("room lifecycle on D1", () => {
 					throw new Error("missing builtin nlh");
 				}
 				const created = await api.alice.tournament.createWithLevels({
-					roomId: club.id,
 					name: "Tournament",
+					roomId: club.id,
 					rule: {
 						game: { variantId: nlh.id },
 						levels: [
 							{
 								isBreak: false,
 								minutes: 20,
-								stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+								stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 							},
 						],
 					},
@@ -109,21 +109,21 @@ describe("room lifecycle on D1", () => {
 				expect.objectContaining({ id: club.id, isReferenced: true }),
 			]);
 			const before = {
-				rooms: await api.db.select().from(room),
 				entries: await api.db.select().from(entry),
 				games: await api.db.select().from(ringGame),
-				tournaments: await api.db.select().from(tournament),
 				levels: await api.db.select().from(tournamentRuleLevel),
+				rooms: await api.db.select().from(room),
+				tournaments: await api.db.select().from(tournament),
 			};
 			await expect(
 				api.alice.room.delete({ id: club.id })
 			).rejects.toMatchObject({ code: "CONFLICT", message: conflictMessage });
 			expect({
-				rooms: await api.db.select().from(room),
 				entries: await api.db.select().from(entry),
 				games: await api.db.select().from(ringGame),
-				tournaments: await api.db.select().from(tournament),
 				levels: await api.db.select().from(tournamentRuleLevel),
+				rooms: await api.db.select().from(room),
+				tournaments: await api.db.select().from(tournament),
 			}).toEqual(before);
 		});
 	}
@@ -154,13 +154,13 @@ describe("room lifecycle on D1", () => {
 		);
 		await api.db.insert(entry).values({
 			id: "session",
-			userId: "alice",
 			kind: "cash",
-			status: "settled",
-			source: "manual",
 			playedOn: "2026-09-05",
 			roomId: club.id,
+			source: "manual",
+			status: "settled",
 			updatedAt: day,
+			userId: "alice",
 		});
 		const archived = requireCreatedRow(
 			await api.alice.room.archive({ id: club.id })
@@ -171,8 +171,8 @@ describe("room lifecycle on D1", () => {
 		expect(await api.alice.room.list({ includeArchived: false })).toEqual([]);
 		expect(await api.alice.room.list({ includeArchived: true })).toEqual([
 			expect.objectContaining({
-				id: club.id,
 				archivedAt: archived.archivedAt,
+				id: club.id,
 				isReferenced: true,
 			}),
 		]);
@@ -184,17 +184,17 @@ describe("room lifecycle on D1", () => {
 			await api.alice.room.restore({ id: club.id })
 		);
 		expect(restored).toMatchObject({
+			archivedAt: null,
 			id: club.id,
 			name: "Club",
-			archivedAt: null,
 		});
 		expect(restored.updatedAt).toBeInstanceOf(Date);
 		expect(await api.db.select().from(room)).toEqual([restored]);
 		expect(await api.alice.room.list()).toEqual([
-			expect.objectContaining({ id: club.id, archivedAt: null }),
+			expect.objectContaining({ archivedAt: null, id: club.id }),
 		]);
 		expect(await api.alice.room.list({ includeArchived: true })).toEqual([
-			expect.objectContaining({ id: club.id, archivedAt: null }),
+			expect.objectContaining({ archivedAt: null, id: club.id }),
 		]);
 	});
 
@@ -211,11 +211,11 @@ describe("room lifecycle on D1", () => {
 			throw new Error("missing builtin nlh");
 		}
 		await api.bob.ringGame.create({
-			roomId: club.id,
 			name: "Cash",
+			roomId: club.id,
 			rule: {
 				game: { variantId: nlh.id },
-				stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+				stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 			},
 		});
 		const before = await api.db.select().from(room);
@@ -227,6 +227,7 @@ describe("room lifecycle on D1", () => {
 				api.alice.room.restore,
 				api.alice.room.delete,
 			]) {
+				// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 				await expect(mutate({ id })).rejects.toMatchObject({
 					code: "FORBIDDEN",
 					message: "You do not own this room",

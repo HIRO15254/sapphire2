@@ -12,8 +12,9 @@ import {
 } from "./sqlite";
 
 const TARGET = "0074_stand_in_cleanup.sql";
-const LOCAL_DATES_GATE = /NOT NULL constraint failed: __gate_0074\.local_dates/;
-const PRICES_GATE = /NOT NULL constraint failed: __gate_0074\.prices/;
+const LOCAL_DATES_GATE =
+	/NOT NULL constraint failed: __gate_0074\.local_dates/u;
+const PRICES_GATE = /NOT NULL constraint failed: __gate_0074\.prices/u;
 const beforeEntry = migrationFiles("0061_").map(statementsOf);
 const cutovers = migrationFiles(TARGET)
 	.filter((name) => name >= "0061_")
@@ -76,7 +77,8 @@ function apply(db: Database, statements: string[]): void {
 }
 
 function migratedBeforeTarget(extraSeed = ""): Database {
-	const path = join(directory, `${index++}.sqlite`);
+	const path = join(directory, `${index}.sqlite`);
+	index += 1;
 	const db = openDatabase(path);
 	db.exec(
 		"PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF; PRAGMA foreign_keys=ON"
@@ -115,7 +117,8 @@ describe("migration 0074 — stand-in cleanup", () => {
 		source.prepare("VACUUM INTO ?").run(seededPath);
 		source.close();
 		seeded = () => {
-			const path = join(directory, `${index++}.sqlite`);
+			const path = join(directory, `${index}.sqlite`);
+			index += 1;
 			copyFileSync(seededPath, path);
 			const db = openDatabase(path);
 			db.exec(
@@ -124,7 +127,7 @@ describe("migration 0074 — stand-in cleanup", () => {
 			return db;
 		};
 	});
-	afterAll(() => rmSync(directory, { recursive: true, force: true }));
+	afterAll(() => rmSync(directory, { force: true, recursive: true }));
 
 	it("moves Unassigned references in a room to the room's only asset, else to the asset named after the room", () => {
 		const db = seeded();
@@ -182,7 +185,7 @@ describe("migration 0074 — stand-in cleanup", () => {
 			]);
 			expect(payload(db, "club-start")).toEqual({
 				payments: [
-					{ assetId: "chip", quantity: 100, role: "buy_in", effect: "real" },
+					{ assetId: "chip", effect: "real", quantity: 100, role: "buy_in" },
 				],
 			});
 			expect(payload(db, "club-add")).toEqual({

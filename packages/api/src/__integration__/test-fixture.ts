@@ -18,7 +18,7 @@ const workerCompatibility = readWorkerCompatibility();
 
 export const FOREIGN_KEY_FAILED = "FOREIGN KEY constraint failed";
 
-const WRITE_STATEMENT = /^\s*(?:insert|update|delete|replace)\b/i;
+const WRITE_STATEMENT = /^\s*(?:insert|update|delete|replace)\b/iu;
 const STATEMENT_RUNNERS = ["run", "all", "raw", "first"] as const;
 
 export function insert(
@@ -71,7 +71,7 @@ export async function nlhGame(db: Database, userId = "alice") {
 	const nlh = await builtinNlh(db, userId);
 	return {
 		game: { variantId: nlh.id },
-		stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+		stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 	};
 }
 
@@ -95,17 +95,18 @@ export async function seedMaxRuleLevels(api: ApiFixture): Promise<{
 	for (let index = groups.length; index < 12; index += 1) {
 		groups.push(
 			requireCreatedRow(
+				// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential fixture creation and ordering.
 				await api.alice.gameGroup.create({
-					label: `Group ${index}`,
 					blind1Label: "Small Bet",
 					blind2Label: "Big Bet",
+					label: `Group ${index}`,
 				})
 			).id
 		);
 	}
 	const variants = (await api.alice.gameVariant.list()).map((variant) => ({
-		id: variant.id,
 		groupId: variant.groupId,
+		id: variant.id,
 	}));
 	for (let index = 0; index < groups.length; index += 1) {
 		const groupId = groups[index] ?? "";
@@ -113,13 +114,14 @@ export async function seedMaxRuleLevels(api: ApiFixture): Promise<{
 			continue;
 		}
 		variants.push({
+			groupId,
 			id: requireCreatedRow(
+				// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential fixture creation and ordering.
 				await api.alice.gameVariant.create({
-					label: `Variant ${index}`,
 					groupId,
+					label: `Variant ${index}`,
 				})
 			).id,
-			groupId,
 		});
 	}
 	const pool = variants.filter((variant) => groups.includes(variant.groupId));
@@ -151,34 +153,36 @@ export async function seedMaxRuleLevels(api: ApiFixture): Promise<{
 		const mixId = `max-mix-${index}`;
 		mixRows.push({
 			id: mixId,
-			userId: "alice",
 			label: `Mix ${index}`,
 			updatedAt: new Date("2026-09-05T00:00:00.000Z"),
+			userId: "alice",
 		});
 		mixVariantRows.push(
 			...order.map((variant, position) => ({
 				mixId,
-				variantId: variant.id,
-				userId: "alice",
 				position,
+				userId: "alice",
+				variantId: variant.id,
 			}))
 		);
 		const groupOrder = [...new Set(order.map((variant) => variant.groupId))];
 		levels.push({
+			game: { gameMixId: mixId },
 			isBreak: false,
 			minutes: 20,
-			game: { gameMixId: mixId },
 			stakes: groupOrder.map((gameGroupId) => ({
-				gameGroupId,
 				blind1: index + 1,
 				blind2: (index + 1) * 2,
+				gameGroupId,
 			})),
 		});
 	}
 	for (const chunk of chunkForInsert(mixRows, 6)) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database inserts.
 		await api.db.insert(gameMix).values(chunk);
 	}
 	for (const chunk of chunkForInsert(mixVariantRows, 4)) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database inserts.
 		await api.db.insert(gameMixVariant).values(chunk);
 	}
 	return { groupCount: groups.length, levels };
@@ -227,17 +231,17 @@ async function createApiFixture() {
 			.insert(user)
 			.values([
 				{
+					createdAt: now,
+					email: "alice@example.test",
 					id: "alice",
 					name: "Alice",
-					email: "alice@example.test",
-					createdAt: now,
 					updatedAt: now,
 				},
 				{
+					createdAt: now,
+					email: "bob@example.test",
 					id: "bob",
 					name: "Bob",
-					email: "bob@example.test",
-					createdAt: now,
 					updatedAt: now,
 				},
 			])
@@ -246,24 +250,24 @@ async function createApiFixture() {
 			const account = users.find((row) => row.id === userId);
 			const session: Context["session"] = account
 				? {
-						user: account,
 						session: {
-							id: `session-${account.id}`,
-							userId: account.id,
-							token: `test-token-${account.id}`,
 							createdAt: now,
-							updatedAt: now,
 							expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+							id: `session-${account.id}`,
 							ipAddress: null,
+							token: `test-token-${account.id}`,
+							updatedAt: now,
 							userAgent: null,
+							userId: account.id,
 						},
+						user: account,
 					}
 				: null;
 			return appRouter.createCaller({
-				session,
 				db: callerDb,
-				openaiApiKey: undefined,
 				googleMapsApiKey: undefined,
+				openaiApiKey: undefined,
+				session,
 			});
 		}
 		function meteredCaller(userId: "alice" | "bob") {
@@ -281,11 +285,11 @@ async function createApiFixture() {
 				},
 			});
 			return {
-				meter,
 				caller: caller(
 					userId,
 					createDb(metered as unknown as Parameters<typeof createDb>[0])
 				),
+				meter,
 			};
 		}
 		function raceCaller(
@@ -361,27 +365,28 @@ async function createApiFixture() {
 			);
 		}
 		return {
-			d1,
-			db,
-			caller,
-			meteredCaller,
-			raceCaller,
 			alice: caller("alice"),
 			bob: caller("bob"),
-			dispose: () => miniflare.dispose(),
+			caller,
 			async createPlayerTags(userId: "alice" | "bob", count: number) {
 				const rows = Array.from({ length: count }, (_, position) => ({
 					id: `${userId}-tag-${position}`,
-					userId,
 					name: `Tag ${position}`,
 					updatedAt: now,
+					userId,
 				}));
 
 				for (const row of rows) {
+					// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database inserts.
 					await db.insert(playerTag).values(row);
 				}
 				return rows.map(({ id }) => id);
 			},
+			d1,
+			db,
+			dispose: () => miniflare.dispose(),
+			meteredCaller,
+			raceCaller,
 		};
 	} catch (error) {
 		await miniflare.dispose();

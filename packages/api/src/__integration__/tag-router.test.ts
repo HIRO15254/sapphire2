@@ -116,6 +116,7 @@ describe.for(kinds)("$kind on D1", ({ kind, table }) => {
 		);
 		const before = await alice.list();
 		for (const id of [foreign.id, "missing"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(
 				alice.reorder({ ids: [second.id, first.id, id] })
 			).rejects.toMatchObject({
@@ -132,32 +133,30 @@ describe.for(kinds)("$kind on D1", ({ kind, table }) => {
 		expect(await tags(api.bob, kind).list()).toEqual([foreign]);
 	});
 
-	test.for([
-		"create",
-		"delete",
-	] as const)("reorder conflicts if a tag is changed by %s before its write", async (operation, {
-		api,
-	}) => {
-		const alice = tags(api.alice, kind);
-		const first = requireCreatedRow(await alice.create({ name: "First" }));
-		const second = requireCreatedRow(await alice.create({ name: "Second" }));
-		const raced = tags(
-			api.raceCaller("alice", () =>
-				operation === "create"
-					? alice.create({ name: "Third" })
-					: alice.delete({ id: first.id })
-			),
-			kind
-		);
-		await expect(
-			raced.reorder({ ids: [second.id, first.id] })
-		).rejects.toMatchObject({ code: "CONFLICT" });
-		const remaining = await alice.list();
-		expect(remaining.find((tag) => tag.id === second.id)?.position).toBe(1);
-		expect(remaining.map((tag) => tag.name)).toEqual(
-			operation === "create" ? ["First", "Second", "Third"] : ["Second"]
-		);
-	});
+	test.for(["create", "delete"] as const)(
+		"reorder conflicts if a tag is changed by %s before its write",
+		async (operation, { api }) => {
+			const alice = tags(api.alice, kind);
+			const first = requireCreatedRow(await alice.create({ name: "First" }));
+			const second = requireCreatedRow(await alice.create({ name: "Second" }));
+			const raced = tags(
+				api.raceCaller("alice", () =>
+					operation === "create"
+						? alice.create({ name: "Third" })
+						: alice.delete({ id: first.id })
+				),
+				kind
+			);
+			await expect(
+				raced.reorder({ ids: [second.id, first.id] })
+			).rejects.toMatchObject({ code: "CONFLICT" });
+			const remaining = await alice.list();
+			expect(remaining.find((tag) => tag.id === second.id)?.position).toBe(1);
+			expect(remaining.map((tag) => tag.name)).toEqual(
+				operation === "create" ? ["First", "Second", "Third"] : ["Second"]
+			);
+		}
+	);
 
 	test("a reorder of the maximum tag count stays inside the D1 query budget and the cap blocks one more", async ({
 		api,

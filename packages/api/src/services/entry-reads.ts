@@ -152,26 +152,26 @@ export type EntryOutput = EntryOutputBase &
 function entryRowQuery(db: Database) {
 	return db
 		.select({
+			assetId: entry.assetId,
+			beforeDeadline: entryTournament.beforeDeadline,
+			cashRuleId: entryCash.cashRuleId,
+			createdAt: entry.createdAt,
+			evDiff: entryCash.evDiff,
 			id: entry.id,
 			kind: entry.kind,
-			source: entry.source,
-			status: entry.status,
+			memo: entry.memo,
+			placement: entryTournament.placement,
 			playedOn: entry.playedOn,
-			title: entry.title,
+			ringGameId: entryCash.ringGameId,
 			roomId: entry.roomId,
 			roomName: room.name,
-			assetId: entry.assetId,
-			memo: entry.memo,
-			createdAt: entry.createdAt,
-			updatedAt: entry.updatedAt,
-			ringGameId: entryCash.ringGameId,
-			cashRuleId: entryCash.cashRuleId,
-			evDiff: entryCash.evDiff,
+			source: entry.source,
+			status: entry.status,
+			title: entry.title,
+			totalEntries: entryTournament.totalEntries,
 			tournamentId: entryTournament.tournamentId,
 			tournamentRuleId: entryTournament.tournamentRuleId,
-			placement: entryTournament.placement,
-			totalEntries: entryTournament.totalEntries,
-			beforeDeadline: entryTournament.beforeDeadline,
+			updatedAt: entry.updatedAt,
 		})
 		.from(entry)
 		.leftJoin(
@@ -241,7 +241,7 @@ export async function selectEntryPage(
 	filters: EntryListFilters,
 	options: { after?: { id: string; playedOn: string }; limit: number }
 ): Promise<EntryRow[]> {
-	const after = options.after;
+	const { after } = options;
 	return await entryRowQuery(db)
 		.where(
 			and(
@@ -294,15 +294,15 @@ function nativeTotals(lines: EntryLine[]): AssetTotal[] {
 		if (!total) {
 			total = {
 				assetId: line.assetId,
-				effect: line.effect,
-				roleTotals: {},
 				buyIn: 0,
 				cashOut: 0,
+				effect: line.effect,
 				profitLoss: 0,
+				roleTotals: {},
 			};
 			totals.set(key, total);
 		}
-		const role = total.roleTotals[line.role] ?? { quantity: 0, lineCount: 0 };
+		const role = total.roleTotals[line.role] ?? { lineCount: 0, quantity: 0 };
 		role.quantity = addSafeIntegers(role.quantity, line.quantity);
 		role.lineCount += 1;
 		total.roleTotals[line.role] = role;
@@ -335,12 +335,12 @@ export async function loadValuationTables(
 		.where(eq(asset.userId, userId));
 	const rates = await db
 		.select({
-			id: assetRate.id,
 			baseAssetId: assetRate.baseAssetId,
-			quoteAssetId: assetRate.quoteAssetId,
-			rateNum: assetRate.rateNum,
-			rateDen: assetRate.rateDen,
 			effectiveFrom: assetRate.effectiveFrom,
+			id: assetRate.id,
+			quoteAssetId: assetRate.quoteAssetId,
+			rateDen: assetRate.rateDen,
+			rateNum: assetRate.rateNum,
 		})
 		.from(assetRate)
 		.where(eq(assetRate.userId, userId));
@@ -379,29 +379,29 @@ function entryValuation(
 	if (context.baseAssetId === null) {
 		return {
 			baseAssetId: null,
+			missingRates: { real: [], virtual: [] },
 			real: null,
 			virtual: null,
-			missingRates: { real: [], virtual: [] },
 		};
 	}
 	const result = valueEntries({
 		assets: context.assets,
 		baseAssetId: context.baseAssetId,
-		rates: context.rates,
 		lines: lines.map((line) => ({
-			entryId,
 			assetId: line.assetId,
-			quantity: line.quantity,
 			effect: line.effect,
+			entryId,
 			occurredAt: line.occurredAt,
+			quantity: line.quantity,
 		})),
+		rates: context.rates,
 	});
 	const valued = result.entries.get(entryId);
 	return {
 		baseAssetId: context.baseAssetId,
+		missingRates: valued?.missingRates ?? { real: [], virtual: [] },
 		real: valued ? valued.real : ZERO_AMOUNTS,
 		virtual: valued ? valued.virtual : ZERO_AMOUNTS,
-		missingRates: valued?.missingRates ?? { real: [], virtual: [] },
 	};
 }
 
@@ -515,70 +515,70 @@ export async function hydrateEntries(
 		const entryPlays: PlaySessionOutput[] = (
 			playsByEntry.get(row.id) ?? []
 		).map((play) => ({
-			id: play.id,
-			seq: play.seq,
-			label: play.label,
-			localDate: play.localDate,
-			startedAt: play.startedAt,
-			endedAt: play.endedAt,
 			breakMinutes: play.breakMinutes,
-			status: play.status,
-			endState: play.endState,
-			endStack: play.endStack,
 			clockStartedAt: play.clockStartedAt,
 			clockStartLevel: play.clockStartLevel,
+			endedAt: play.endedAt,
+			endStack: play.endStack,
+			endState: play.endState,
+			id: play.id,
+			label: play.label,
+			localDate: play.localDate,
+			seq: play.seq,
+			startedAt: play.startedAt,
+			status: play.status,
 		}));
 		const lines = linesByEntry.get(row.id) ?? [];
 		const base: EntryOutputBase = {
+			assetId: row.assetId,
+			createdAt: row.createdAt,
+			currentMasterRuleId: rule.currentMasterRuleId,
+			handCount: handsByEntry.get(row.id) ?? 0,
 			id: row.id,
-			source: row.source,
-			status: row.status,
+			lines,
+			lineups: entryLineups(rule, rules.lineups),
+			memo: row.memo,
 			playedOn: row.playedOn,
-			title: row.title,
+			playMinutes: playMinutes(entryPlays),
+			playSessions: entryPlays,
 			roomId: row.roomId,
 			roomName: row.roomName,
-			assetId: row.assetId,
-			memo: row.memo,
-			createdAt: row.createdAt,
-			updatedAt: row.updatedAt,
-			playSessions: entryPlays,
-			playMinutes: playMinutes(entryPlays),
-			handCount: handsByEntry.get(row.id) ?? 0,
+			ruleDrift: rule.ruleDrift,
+			ruleVersionId: rule.ruleVersionId,
+			source: row.source,
+			status: row.status,
 			tags: (tagsByEntry.get(row.id) ?? []).map(({ id, name }) => ({
 				id,
 				name,
 			})),
-			ruleVersionId: rule.ruleVersionId,
-			currentMasterRuleId: rule.currentMasterRuleId,
-			ruleDrift: rule.ruleDrift,
-			lineups: entryLineups(rule, rules.lineups),
-			lines,
+			title: row.title,
 			totals: nativeTotals(lines),
+			updatedAt: row.updatedAt,
 			valuation: entryValuation(valuationContext, row.id, lines),
 		};
 		if (rule.kind === "cash") {
 			return {
 				...base,
+				cash: { bigBlind: cashBigBlind(rule.ruleVersion), evDiff: row.evDiff },
 				kind: "cash",
 				ringGameId: row.ringGameId,
-				tournamentId: null,
 				ruleVersion: rule.ruleVersion,
-				cash: { evDiff: row.evDiff, bigBlind: cashBigBlind(rule.ruleVersion) },
 				tournament: null,
+				tournamentId: null,
 			};
 		}
 		return {
 			...base,
+			cash: null,
 			kind: "tournament",
 			ringGameId: null,
-			tournamentId: row.tournamentId,
 			ruleVersion: rule.ruleVersion,
-			cash: null,
 			tournament: {
+				beforeDeadline: row.beforeDeadline ?? false,
 				placement: row.placement,
 				totalEntries: row.totalEntries,
-				beforeDeadline: row.beforeDeadline ?? false,
 			},
+			tournamentId: row.tournamentId,
 		};
 	});
 }
@@ -642,16 +642,16 @@ export async function selectEntryLines(
 		(chunk) =>
 			db
 				.select({
-					id: ledgerLine.id,
-					entryId: sql<string>`${ledgerLine.entryId}`,
-					playSessionId: ledgerLine.playSessionId,
-					eventId: ledgerLine.sourceEventId,
 					assetId: ledgerLine.assetId,
-					role: ledgerLine.role,
 					effect: ledgerLine.effect,
-					quantity: ledgerLine.quantity,
+					entryId: sql<string>`${ledgerLine.entryId}`,
+					eventId: ledgerLine.sourceEventId,
+					id: ledgerLine.id,
 					occurredAt: ledgerLine.occurredAt,
+					playSessionId: ledgerLine.playSessionId,
 					priceId: ledgerLine.priceId,
+					quantity: ledgerLine.quantity,
+					role: ledgerLine.role,
 				})
 				.from(ledgerLine)
 				.where(

@@ -22,20 +22,20 @@ export interface NavigationItem {
 }
 
 export const MOBILE_ITEMS: readonly NavigationItem[] = [
-	{ to: "/", label: "Home", icon: IconHome, exact: true },
-	{ to: "/sessions", label: "Sessions", icon: IconCards },
-	{ to: "/stats", label: "Stats", icon: IconChartLine },
-	{ to: "/assets", label: "Assets", icon: IconWallet },
-	{ to: "/more", label: "More", icon: IconDots },
+	{ exact: true, icon: IconHome, label: "Home", to: "/" },
+	{ icon: IconCards, label: "Sessions", to: "/sessions" },
+	{ icon: IconChartLine, label: "Stats", to: "/stats" },
+	{ icon: IconWallet, label: "Assets", to: "/assets" },
+	{ icon: IconDots, label: "More", to: "/more" },
 ];
 export const LIBRARY_ITEMS: readonly NavigationItem[] = [
-	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
-	{ to: "/games", label: "Games", icon: IconPlayCard },
-	{ to: "/players", label: "Players", icon: IconUsers },
-	{ to: "/tags", label: "Tags", icon: IconTag },
+	{ icon: IconBuildingStore, label: "Rooms", to: "/rooms" },
+	{ icon: IconPlayCard, label: "Games", to: "/games" },
+	{ icon: IconUsers, label: "Players", to: "/players" },
+	{ icon: IconTag, label: "Tags", to: "/tags" },
 ];
 export const APP_ITEMS: readonly NavigationItem[] = [
-	{ to: "/settings", label: "Settings", icon: IconSettings },
+	{ icon: IconSettings, label: "Settings", to: "/settings" },
 ];
 
 export function isActive(

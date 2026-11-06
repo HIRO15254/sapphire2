@@ -15,19 +15,19 @@ import { gameVariant } from "./game-variant";
 export const gameMix = sqliteTable(
 	"game_mix",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		builtinKey: text("builtin_key"),
-		label: text("label").notNull(),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
+		builtinKey: text("builtin_key"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		id: text("id").primaryKey(),
+		label: text("label").notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table) => [
 		index("gameMix_userId_idx").on(table.userId),
@@ -47,9 +47,9 @@ export const gameMixVariant = sqliteTable(
 	"game_mix_variant",
 	{
 		mixId: text("mix_id").notNull(),
-		variantId: text("variant_id").notNull(),
-		userId: text("user_id").notNull(),
 		position: integer("position").notNull(),
+		userId: text("user_id").notNull(),
+		variantId: text("variant_id").notNull(),
 	},
 	(table) => [
 		primaryKey({ columns: [table.mixId, table.variantId] }),

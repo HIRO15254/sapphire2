@@ -1,7 +1,7 @@
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
-	weekday: "short",
-	month: "short",
 	day: "numeric",
+	month: "short",
+	weekday: "short",
 });
 
 export function useHomePage() {

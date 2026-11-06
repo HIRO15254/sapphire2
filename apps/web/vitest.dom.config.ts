@@ -8,9 +8,7 @@ export default defineConfig({
 		},
 	},
 	test: {
-		name: "web-dom",
 		environment: "jsdom",
-		setupFiles: ["./src/__tests__/setup.ts"],
 		include: [
 			"src/**/*.test.tsx",
 			"src/shared/hooks/__tests__/*.test.ts",
@@ -18,5 +16,7 @@ export default defineConfig({
 			"src/features/**/pages/**/__tests__/*.test.ts",
 			"src/features/**/hooks/__tests__/*.test.ts",
 		],
+		name: "web-dom",
+		setupFiles: ["./src/__tests__/setup.ts"],
 	},
 });

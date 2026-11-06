@@ -6,28 +6,28 @@ import { stubWebAuthnSupport } from "@/__tests__/test-utils";
 import { Passkeys } from "./passkeys";
 
 const mocks = vi.hoisted(() => ({
-	listUserPasskeys: vi.fn(),
-	deletePasskey: vi.fn(),
-	updatePasskey: vi.fn(),
 	addPasskey: vi.fn(),
+	deletePasskey: vi.fn(),
+	listUserPasskeys: vi.fn(),
+	updatePasskey: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
-	toast: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
+	toast: { error: vi.fn(), info: vi.fn(), success: vi.fn() },
 }));
 
 vi.mock("@/shared/components/ui/drawer", () => ({
 	Drawer: ({ children, open }: { children: ReactNode; open?: boolean }) =>
 		open ? <div data-testid="drawer">{children}</div> : null,
+	DrawerBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 	DrawerContent: ({ children }: { children: ReactNode }) => (
 		<div>{children}</div>
 	),
-	DrawerBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-	DrawerHeader: ({ children }: { children: ReactNode }) => (
+	DrawerDescription: ({ children }: { children: ReactNode }) => (
 		<div>{children}</div>
 	),
 	DrawerGrab: () => null,
-	DrawerDescription: ({ children }: { children: ReactNode }) => (
+	DrawerHeader: ({ children }: { children: ReactNode }) => (
 		<div>{children}</div>
 	),
 	DrawerTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -36,19 +36,19 @@ vi.mock("@/shared/components/ui/drawer", () => ({
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
 		passkey: {
-			listUserPasskeys: mocks.listUserPasskeys,
-			deletePasskey: mocks.deletePasskey,
-			updatePasskey: mocks.updatePasskey,
 			addPasskey: mocks.addPasskey,
+			deletePasskey: mocks.deletePasskey,
+			listUserPasskeys: mocks.listUserPasskeys,
+			updatePasskey: mocks.updatePasskey,
 		},
 	},
 }));
 
-const MACBOOK_ROW = /MacBook/;
-const PIXEL_ROW = /Pixel 9/;
-const UNSUPPORTED_NOTE = /This browser doesn't support passkeys/;
-const ADDED_ON_PATTERN = /^Added /;
-const PASSKEY_NAME_LABEL = /^Name/;
+const MACBOOK_ROW = /MacBook/u;
+const PIXEL_ROW = /Pixel 9/u;
+const UNSUPPORTED_NOTE = /This browser doesn't support passkeys/u;
+const ADDED_ON_PATTERN = /^Added /u;
+const PASSKEY_NAME_LABEL = /^Name/u;
 
 const PASSKEY = {
 	backedUp: true,

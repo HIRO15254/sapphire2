@@ -43,110 +43,24 @@ export const roomListInputSchema = z
 
 export const roomCreateInputSchema = z
 	.object({
-		name: z.string().trim().min(1).max(100),
-		memo: memoSchema.optional(),
 		latitude: z.number().min(-90).max(90).nullable().optional(),
 		longitude: z.number().min(-180).max(180).nullable().optional(),
+		memo: memoSchema.optional(),
+		name: z.string().trim().min(1).max(100),
 	})
 	.refine(coordinatesPaired, COORDINATES_PAIRED_ISSUE);
 
 export const roomUpdateInputSchema = z
 	.object({
 		id: idSchema,
-		name: z.string().trim().min(1).max(100).optional(),
-		memo: memoSchema.nullable().optional(),
 		latitude: z.number().min(-90).max(90).nullable().optional(),
 		longitude: z.number().min(-180).max(180).nullable().optional(),
+		memo: memoSchema.nullable().optional(),
+		name: z.string().trim().min(1).max(100).optional(),
 	})
 	.refine(coordinatesPaired, COORDINATES_PAIRED_ISSUE);
 
 export const roomRouter = router({
-	list: protectedProcedure
-		.input(roomListInputSchema)
-		.query(({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			return ctx.db
-				.select({
-					id: room.id,
-					userId: room.userId,
-					name: room.name,
-					memo: room.memo,
-					isFavorite: room.isFavorite,
-					createdAt: room.createdAt,
-					updatedAt: room.updatedAt,
-					latitude: room.latitude,
-					longitude: room.longitude,
-					archivedAt: room.archivedAt,
-					ringGameCount: sql<number>`(SELECT COUNT(*) FROM ring_game WHERE ring_game.room_id = room.id AND ring_game.user_id = room.user_id AND ring_game.archived_at IS NULL)`,
-					tournamentCount: sql<number>`(SELECT COUNT(*) FROM tournament WHERE tournament.room_id = room.id AND tournament.user_id = room.user_id AND tournament.archived_at IS NULL)`,
-					isReferenced: roomIsReferenced().mapWith(Boolean),
-				})
-				.from(room)
-				.where(
-					and(
-						eq(room.userId, userId),
-						input?.includeArchived ? undefined : isNull(room.archivedAt)
-					)
-				)
-				.orderBy(desc(room.isFavorite), asc(room.createdAt));
-		}),
-
-	getById: protectedProcedure
-		.input(roomIdInputSchema)
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const [found] = await ctx.db
-				.select()
-				.from(room)
-				.where(and(eq(room.id, input.id), eq(room.userId, userId)));
-			if (!found) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
-					message: "You do not own this room",
-				});
-			}
-			return found;
-		}),
-
-	create: protectedProcedure
-		.input(roomCreateInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const id = crypto.randomUUID();
-			await ctx.db.insert(room).values({
-				id,
-				userId,
-				name: input.name,
-				memo: input.memo ?? null,
-				latitude: input.latitude ?? null,
-				longitude: input.longitude ?? null,
-				updatedAt: new Date(),
-			});
-			const [created] = await ctx.db.select().from(room).where(eq(room.id, id));
-			return created;
-		}),
-
-	update: protectedProcedure
-		.input(roomUpdateInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-
-			const [updated] = await ctx.db
-				.update(room)
-				.set({
-					...(input.name === undefined ? {} : { name: input.name }),
-					...(input.memo === undefined ? {} : { memo: input.memo }),
-					...(input.latitude === undefined ? {} : { latitude: input.latitude }),
-					...(input.longitude === undefined
-						? {}
-						: { longitude: input.longitude }),
-					updatedAt: new Date(),
-				})
-				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
-				.returning();
-			return requireOwnedRoom(updated);
-		}),
-
 	archive: protectedProcedure
 		.input(roomIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
@@ -160,16 +74,22 @@ export const roomRouter = router({
 			return requireOwnedRoom(updated);
 		}),
 
-	restore: protectedProcedure
-		.input(roomIdInputSchema)
+	create: protectedProcedure
+		.input(roomCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const [updated] = await ctx.db
-				.update(room)
-				.set({ archivedAt: null, updatedAt: new Date() })
-				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
-				.returning();
-			return requireOwnedRoom(updated);
+			const id = crypto.randomUUID();
+			await ctx.db.insert(room).values({
+				id,
+				latitude: input.latitude ?? null,
+				longitude: input.longitude ?? null,
+				memo: input.memo ?? null,
+				name: input.name,
+				updatedAt: new Date(),
+				userId,
+			});
+			const [created] = await ctx.db.select().from(room).where(eq(room.id, id));
+			return created;
 		}),
 
 	delete: protectedProcedure
@@ -198,6 +118,64 @@ export const roomRouter = router({
 			return { success: true };
 		}),
 
+	getById: protectedProcedure
+		.input(roomIdInputSchema)
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const [found] = await ctx.db
+				.select()
+				.from(room)
+				.where(and(eq(room.id, input.id), eq(room.userId, userId)));
+			if (!found) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You do not own this room",
+				});
+			}
+			return found;
+		}),
+	list: protectedProcedure
+		.input(roomListInputSchema)
+		.query(({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			return ctx.db
+				.select({
+					archivedAt: room.archivedAt,
+					createdAt: room.createdAt,
+					id: room.id,
+					isFavorite: room.isFavorite,
+					isReferenced: roomIsReferenced().mapWith(Boolean),
+					latitude: room.latitude,
+					longitude: room.longitude,
+					memo: room.memo,
+					name: room.name,
+					ringGameCount: sql<number>`(SELECT COUNT(*) FROM ring_game WHERE ring_game.room_id = room.id AND ring_game.user_id = room.user_id AND ring_game.archived_at IS NULL)`,
+					tournamentCount: sql<number>`(SELECT COUNT(*) FROM tournament WHERE tournament.room_id = room.id AND tournament.user_id = room.user_id AND tournament.archived_at IS NULL)`,
+					updatedAt: room.updatedAt,
+					userId: room.userId,
+				})
+				.from(room)
+				.where(
+					and(
+						eq(room.userId, userId),
+						input?.includeArchived ? undefined : isNull(room.archivedAt)
+					)
+				)
+				.orderBy(desc(room.isFavorite), asc(room.createdAt));
+		}),
+
+	restore: protectedProcedure
+		.input(roomIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const [updated] = await ctx.db
+				.update(room)
+				.set({ archivedAt: null, updatedAt: new Date() })
+				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
+				.returning();
+			return requireOwnedRoom(updated);
+		}),
+
 	toggleFavorite: protectedProcedure
 		.input(roomIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
@@ -206,6 +184,27 @@ export const roomRouter = router({
 			const [updated] = await ctx.db
 				.update(room)
 				.set({ isFavorite: sql`NOT ${room.isFavorite}`, updatedAt: new Date() })
+				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
+				.returning();
+			return requireOwnedRoom(updated);
+		}),
+
+	update: protectedProcedure
+		.input(roomUpdateInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+
+			const [updated] = await ctx.db
+				.update(room)
+				.set({
+					...(input.name === undefined ? {} : { name: input.name }),
+					...(input.memo === undefined ? {} : { memo: input.memo }),
+					...(input.latitude === undefined ? {} : { latitude: input.latitude }),
+					...(input.longitude === undefined
+						? {}
+						: { longitude: input.longitude }),
+					updatedAt: new Date(),
+				})
 				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
 				.returning();
 			return requireOwnedRoom(updated);

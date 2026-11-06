@@ -28,11 +28,11 @@ function tableSizeCheck(column: SQLiteColumn): SQL {
 }
 
 const stakeColumns = {
+	ante: integer("ante"),
+	anteType: text("ante_type", { enum: ANTE_TYPES }),
 	blind1: integer("blind1"),
 	blind2: integer("blind2"),
 	blind3: integer("blind3"),
-	ante: integer("ante"),
-	anteType: text("ante_type", { enum: ANTE_TYPES }),
 };
 
 function stakeChecks(
@@ -57,20 +57,20 @@ function stakeChecks(
 export const cashRule = sqliteTable(
 	"cash_rule",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		ringGameId: text("ring_game_id"),
-		parentRuleId: text("parent_rule_id"),
-		lineupId: text("lineup_id").notNull(),
-		minBuyIn: integer("min_buy_in"),
-		maxBuyIn: integer("max_buy_in"),
-		tableSize: integer("table_size"),
-		houseRules: text("house_rules"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		houseRules: text("house_rules"),
+		id: text("id").primaryKey(),
+		lineupId: text("lineup_id").notNull(),
+		maxBuyIn: integer("max_buy_in"),
+		minBuyIn: integer("min_buy_in"),
+		parentRuleId: text("parent_rule_id"),
+		ringGameId: text("ring_game_id"),
+		tableSize: integer("table_size"),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("cash_rule_id_user_id_unique").on(t.id, t.userId),
@@ -109,12 +109,12 @@ export const cashRule = sqliteTable(
 export const cashRuleStake = sqliteTable(
 	"cash_rule_stake",
 	{
+		lineupGroupId: text("lineup_group_id").notNull(),
+		lineupId: text("lineup_id").notNull(),
+		ruleId: text("rule_id").notNull(),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		ruleId: text("rule_id").notNull(),
-		lineupGroupId: text("lineup_group_id").notNull(),
-		lineupId: text("lineup_id").notNull(),
 		...stakeColumns,
 	},
 	(t) => [
@@ -147,20 +147,20 @@ export const cashRuleStake = sqliteTable(
 export const tournamentRule = sqliteTable(
 	"tournament_rule",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		tournamentId: text("tournament_id"),
-		parentRuleId: text("parent_rule_id"),
-		lineupId: text("lineup_id").notNull(),
-		startingStack: integer("starting_stack"),
-		tableSize: integer("table_size"),
 		bountyAmount: integer("bounty_amount"),
-		houseRules: text("house_rules"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		houseRules: text("house_rules"),
+		id: text("id").primaryKey(),
+		lineupId: text("lineup_id").notNull(),
+		parentRuleId: text("parent_rule_id"),
+		startingStack: integer("starting_stack"),
+		tableSize: integer("table_size"),
+		tournamentId: text("tournament_id"),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("tournament_rule_id_user_id_unique").on(t.id, t.userId),
@@ -201,21 +201,21 @@ export const tournamentRule = sqliteTable(
 export const tournamentRuleLevel = sqliteTable(
 	"tournament_rule_level",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		ruleId: text("rule_id").notNull(),
-		ordinal: integer("ordinal").notNull(),
-		level: integer("level"),
-		isBreak: integer("is_break", { mode: "boolean" }).notNull().default(false),
-		minutes: integer("minutes"),
-		lineupId: text("lineup_id").notNull(),
-		inheritsLineup: integer("inherits_lineup", { mode: "boolean" }).notNull(),
-		inheritedLineupId: text("inherited_lineup_id"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		id: text("id").primaryKey(),
+		inheritedLineupId: text("inherited_lineup_id"),
+		inheritsLineup: integer("inherits_lineup", { mode: "boolean" }).notNull(),
+		isBreak: integer("is_break", { mode: "boolean" }).notNull().default(false),
+		level: integer("level"),
+		lineupId: text("lineup_id").notNull(),
+		minutes: integer("minutes"),
+		ordinal: integer("ordinal").notNull(),
+		ruleId: text("rule_id").notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("tournament_rule_level_id_user_id_unique").on(t.id, t.userId),
@@ -260,12 +260,12 @@ export const tournamentRuleLevel = sqliteTable(
 export const tournamentRuleLevelStake = sqliteTable(
 	"tournament_rule_level_stake",
 	{
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
 		levelId: text("level_id").notNull(),
 		lineupGroupId: text("lineup_group_id").notNull(),
 		lineupId: text("lineup_id").notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 		...stakeColumns,
 	},
 	(t) => [
@@ -298,21 +298,21 @@ export const tournamentRuleLevelStake = sqliteTable(
 export const tournamentRulePrice = sqliteTable(
 	"tournament_rule_price",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		ruleId: text("rule_id").notNull(),
-		kind: text("kind", { enum: RULE_PRICE_KINDS }).notNull(),
-		label: text("label").notNull(),
-		assetId: text("asset_id").notNull(),
 		amount: integer("amount").notNull(),
-		fee: integer("fee").notNull().default(0),
+		assetId: text("asset_id").notNull(),
 		chips: integer("chips"),
-		ordinal: integer("ordinal").notNull(),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		fee: integer("fee").notNull().default(0),
+		id: text("id").primaryKey(),
+		kind: text("kind", { enum: RULE_PRICE_KINDS }).notNull(),
+		label: text("label").notNull(),
+		ordinal: integer("ordinal").notNull(),
+		ruleId: text("rule_id").notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("tournament_rule_price_id_user_id_unique").on(t.id, t.userId),

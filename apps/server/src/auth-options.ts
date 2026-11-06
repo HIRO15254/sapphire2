@@ -29,22 +29,22 @@ export function buildAuthOptions(env: AuthEnv, db: Database): AuthOptions {
 	const corsOrigin = new URL(env.CORS_ORIGIN).origin;
 	const baseURL = new URL(env.BETTER_AUTH_URL).origin;
 	return {
-		corsOrigin,
-		secret: env.BETTER_AUTH_SECRET,
 		baseURL,
-		googleClientId: env.GOOGLE_CLIENT_ID,
-		googleClientSecret: env.GOOGLE_CLIENT_SECRET,
+		corsOrigin,
 		discordClientId: env.DISCORD_CLIENT_ID,
 		discordClientSecret: env.DISCORD_CLIENT_SECRET,
-		onUserCreated: async (userId) => {
-			const statements = await planDefaultGameData(db, userId);
-			await runBatch(db, [selfPlayerInsert(db, userId), ...statements]);
-		},
-		passkey: resolvePasskeyRp(corsOrigin),
+		googleClientId: env.GOOGLE_CLIENT_ID,
+		googleClientSecret: env.GOOGLE_CLIENT_SECRET,
 		mcp: {
 			consentPage: `${baseURL}/oauth/consent`,
 			loginPage: `${corsOrigin}/login`,
 			resource: `${baseURL}/mcp`,
 		},
+		onUserCreated: async (userId) => {
+			const statements = await planDefaultGameData(db, userId);
+			await runBatch(db, [selfPlayerInsert(db, userId), ...statements]);
+		},
+		passkey: resolvePasskeyRp(corsOrigin),
+		secret: env.BETTER_AUTH_SECRET,
 	};
 }

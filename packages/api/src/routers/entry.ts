@@ -65,15 +65,15 @@ function manualPlaySchema<
 	EndState extends z.ZodType,
 >(payments: Payments, endState: EndState) {
 	return z.object({
-		id: idSchema.optional(),
-		localDate: dateOnlySchema,
-		label: z.string().max(50).optional(),
-		startedAt: instantSchema.optional(),
-		endedAt: instantSchema.optional(),
 		breakMinutes: z.number().int().min(0).max(100_000).optional(),
-		endState,
+		endedAt: instantSchema.optional(),
 		endStack: z.number().int().min(0).optional(),
+		endState,
+		id: idSchema.optional(),
+		label: z.string().max(50).optional(),
+		localDate: dateOnlySchema,
 		payments,
+		startedAt: instantSchema.optional(),
 	});
 }
 
@@ -98,42 +98,42 @@ const tournamentPlaySchema = manualPlaySchema(
 );
 
 const createSharedFields = {
+	assetId: idSchema.optional(),
+	memo: memoSchema.optional(),
 	playedOn: dateOnlySchema,
 	roomId: idSchema.optional(),
-	assetId: idSchema.optional(),
-	title: titleSchema.optional(),
-	memo: memoSchema.optional(),
 	tagIds: tagIdsSchema.optional(),
+	title: titleSchema.optional(),
 };
 
 export const entryCreateCashInputSchema = z.object({
 	kind: z.literal("cash"),
 	...createSharedFields,
+	evDiff: evDiffSchema.optional(),
+	payments: cashPayments.optional(),
 	playSessions: z
 		.array(cashPlaySchema)
 		.min(1)
 		.max(MAX_ENTRY_PLAY_SESSIONS)
 		.optional(),
-	payments: cashPayments.optional(),
 	ringGameId: idSchema.optional(),
 	rule: cashRuleInputSchema.optional(),
-	evDiff: evDiffSchema.optional(),
 });
 
 export const entryCreateTournamentInputSchema = z.object({
 	kind: z.literal("tournament"),
 	...createSharedFields,
+	beforeDeadline: z.boolean().default(false),
+	payments: tournamentPayments.optional(),
+	placement: positiveCountSchema.optional(),
 	playSessions: z
 		.array(tournamentPlaySchema)
 		.min(1)
 		.max(MAX_ENTRY_PLAY_SESSIONS)
 		.optional(),
-	payments: tournamentPayments.optional(),
-	tournamentId: idSchema.optional(),
 	rule: tournamentRuleInputSchema.optional(),
-	placement: positiveCountSchema.optional(),
 	totalEntries: positiveCountSchema.optional(),
-	beforeDeadline: z.boolean().default(false),
+	tournamentId: idSchema.optional(),
 });
 
 export const entryCreateInputSchema = z.discriminatedUnion("kind", [
@@ -142,7 +142,13 @@ export const entryCreateInputSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const entryUpdateInputSchema = z.object({
+	assetId: idSchema.nullable().optional(),
+	beforeDeadline: z.boolean().optional(),
+	evDiff: evDiffSchema.nullable().optional(),
 	id: idSchema,
+	memo: memoSchema.nullable().optional(),
+	payments: anyEntryPayments.optional(),
+	placement: positiveCountSchema.nullable().optional(),
 	playedOn: dateOnlySchema.optional(),
 	playSessions: z
 		.array(
@@ -154,16 +160,10 @@ export const entryUpdateInputSchema = z.object({
 		.min(1)
 		.max(MAX_ENTRY_PLAY_SESSIONS)
 		.optional(),
-	payments: anyEntryPayments.optional(),
 	roomId: idSchema.nullable().optional(),
-	assetId: idSchema.nullable().optional(),
-	title: titleSchema.nullable().optional(),
-	memo: memoSchema.nullable().optional(),
 	tagIds: tagIdsSchema.optional(),
-	evDiff: evDiffSchema.nullable().optional(),
-	placement: positiveCountSchema.nullable().optional(),
+	title: titleSchema.nullable().optional(),
 	totalEntries: positiveCountSchema.nullable().optional(),
-	beforeDeadline: z.boolean().optional(),
 });
 
 export const entryIdInputSchema = z.object({ id: idSchema });
@@ -184,38 +184,38 @@ export const entryOverrideRuleInputSchema = z.discriminatedUnion("kind", [
 export const entryRelinkInputSchema = z.union([
 	z.object({
 		id: idSchema,
-		ringGameId: idSchema.nullable(),
 		keepRule: z.boolean(),
+		ringGameId: idSchema.nullable(),
 	}),
 	z.object({
 		id: idSchema,
-		tournamentId: idSchema.nullable(),
 		keepRule: z.boolean(),
+		tournamentId: idSchema.nullable(),
 	}),
 ]);
 
 export const entryRestoreRuleInputSchema = z.object({
 	id: idSchema,
 	masterId: idSchema.nullable(),
-	ruleVersionId: idSchema,
 	masterRuleVersionId: idSchema.optional(),
+	ruleVersionId: idSchema,
 });
 
 export const entryListInputSchema = z
 	.object({
+		assetId: idSchema.optional(),
 		cursor: z.string().optional(),
+		dateFrom: dateOnlySchema.optional(),
+		dateTo: dateOnlySchema.optional(),
+		kind: z.enum(ENTRY_KINDS).optional(),
 		limit: z
 			.number()
 			.int()
 			.min(1)
 			.max(MAX_ENTRY_PAGE_SIZE)
 			.default(DEFAULT_ENTRY_PAGE_SIZE),
-		kind: z.enum(ENTRY_KINDS).optional(),
-		status: z.enum(ENTRY_STATUSES).optional(),
 		roomId: idSchema.optional(),
-		assetId: idSchema.optional(),
-		dateFrom: dateOnlySchema.optional(),
-		dateTo: dateOnlySchema.optional(),
+		status: z.enum(ENTRY_STATUSES).optional(),
 	})
 	.refine(
 		(input) =>
@@ -226,30 +226,30 @@ export const entryListInputSchema = z
 	);
 
 const entryCursorSchema = z.object({
+	id: z.string(),
+	playedOn: z.string(),
 	scope: z.object({
-		userId: z.string(),
-		source: z.enum(ENTRY_SOURCES).nullable(),
-		kind: z.enum(ENTRY_KINDS).nullable(),
-		status: z.enum(ENTRY_STATUSES).nullable(),
-		roomId: z.string().nullable(),
 		assetId: z.string().nullable(),
 		dateFrom: z.string().nullable(),
 		dateTo: z.string().nullable(),
+		kind: z.enum(ENTRY_KINDS).nullable(),
+		roomId: z.string().nullable(),
+		source: z.enum(ENTRY_SOURCES).nullable(),
+		status: z.enum(ENTRY_STATUSES).nullable(),
+		userId: z.string(),
 	}),
-	playedOn: z.string(),
-	id: z.string(),
 });
 
 function cursorScope(userId: string, filters: EntryListFilters) {
 	return {
-		userId,
-		source: filters.source ?? null,
-		kind: filters.kind ?? null,
-		status: filters.status ?? null,
-		roomId: filters.roomId ?? null,
 		assetId: filters.assetId ?? null,
 		dateFrom: filters.dateFrom ?? null,
 		dateTo: filters.dateTo ?? null,
+		kind: filters.kind ?? null,
+		roomId: filters.roomId ?? null,
+		source: filters.source ?? null,
+		status: filters.status ?? null,
+		userId,
 	};
 }
 
@@ -279,7 +279,7 @@ export async function listEntryPage<Item>(
 		await validateEntityOwnership(db, "asset", filters.assetId, userId);
 	}
 	const rows = await selectEntryPage(db, userId, filters, {
-		after: cursor && { playedOn: cursor.playedOn, id: cursor.id },
+		after: cursor && { id: cursor.id, playedOn: cursor.playedOn },
 		limit: limit + 1,
 	});
 	const page = rows.slice(0, limit);
@@ -288,30 +288,25 @@ export async function listEntryPage<Item>(
 		items: await hydrate(page),
 		nextCursor: boundary
 			? encodeCursor({
-					scope,
-					playedOn: boundary.playedOn,
 					id: boundary.id,
+					playedOn: boundary.playedOn,
+					scope,
 				})
 			: null,
 	};
 }
 
 export const entryRouter = router({
-	list: protectedProcedure
-		.input(entryListInputSchema)
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			return await listEntryPage(ctx.db, userId, input, (rows) =>
-				hydrateEntries(ctx.db, userId, rows)
-			);
-		}),
-
-	getById: protectedProcedure
+	applyMasterRule: protectedProcedure
 		.input(entryIdInputSchema)
-		.query(
-			async ({ ctx, input }) =>
-				await getEntry(ctx.db, ctx.session.user.id, input.id)
-		),
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await applyMasterRule(ctx.db, userId, input.id, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
+		}),
 
 	create: protectedProcedure
 		.input(entryCreateInputSchema)
@@ -321,14 +316,6 @@ export const entryRouter = router({
 			return await getEntry(ctx.db, userId, id);
 		}),
 
-	update: protectedProcedure
-		.input(entryUpdateInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await updateEntry(ctx.db, userId, input, new Date());
-			return await getEntry(ctx.db, userId, input.id);
-		}),
-
 	delete: protectedProcedure
 		.input(entryIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
@@ -336,22 +323,26 @@ export const entryRouter = router({
 			return { success: true as const };
 		}),
 
+	getById: protectedProcedure
+		.input(entryIdInputSchema)
+		.query(
+			async ({ ctx, input }) =>
+				await getEntry(ctx.db, ctx.session.user.id, input.id)
+		),
+	list: protectedProcedure
+		.input(entryListInputSchema)
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			return await listEntryPage(ctx.db, userId, input, (rows) =>
+				hydrateEntries(ctx.db, userId, rows)
+			);
+		}),
+
 	overrideRule: protectedProcedure
 		.input(entryOverrideRuleInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await overrideEntryRule(ctx.db, userId, input, {
-				live: false,
-				now: new Date(),
-			});
-			return await getEntry(ctx.db, userId, input.id);
-		}),
-
-	applyMasterRule: protectedProcedure
-		.input(entryIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await applyMasterRule(ctx.db, userId, input.id, {
 				live: false,
 				now: new Date(),
 			});
@@ -388,6 +379,14 @@ export const entryRouter = router({
 				live: false,
 				now: new Date(),
 			});
+			return await getEntry(ctx.db, userId, input.id);
+		}),
+
+	update: protectedProcedure
+		.input(entryUpdateInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await updateEntry(ctx.db, userId, input, new Date());
 			return await getEntry(ctx.db, userId, input.id);
 		}),
 });

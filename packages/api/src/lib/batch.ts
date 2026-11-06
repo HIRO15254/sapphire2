@@ -29,7 +29,7 @@ export function insertChunks<Row extends Record<string, unknown>>(
 	rows: Row[],
 	insert: (chunk: Row[]) => BatchStatement
 ): BatchStatement[] {
-	const first = rows[0];
+	const [first] = rows;
 	return first
 		? chunkForInsert(rows, Object.keys(first).length).map(insert)
 		: [];
@@ -62,6 +62,7 @@ export async function selectInChunks<Id, Row>(
 	const rows: Row[] = [];
 	const perChunk = D1_MAX_BOUND_PARAMS - extraBoundParams;
 	for (let index = 0; index < ids.length; index += perChunk) {
+		// biome-ignore lint/performance/noAwaitInLoops: Sequential queries preserve the database query budget and result order.
 		rows.push(...(await run(ids.slice(index, index + perChunk))));
 	}
 	return rows;

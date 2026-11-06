@@ -31,7 +31,8 @@ export async function withWriteGuardConflict<T>(
 		return await run();
 	} catch (error) {
 		if (isWriteGuardError(error)) {
-			throw new TRPCError({ code: "CONFLICT", message, cause: error });
+			// biome-ignore lint/style/useErrorCause: TRPCError receives the original error in its cause option.
+			throw new TRPCError({ cause: error, code: "CONFLICT", message });
 		}
 		throw error;
 	}

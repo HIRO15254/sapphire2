@@ -65,17 +65,17 @@ export async function planDefaultGameData(
 		db
 			.insert(gameGroup)
 			.values({
-				id: groupIdByKey.get(g.key) as string,
-				userId,
-				builtinKey: g.key,
-				label: g.label,
 				blind1Label: g.blind1Label,
-				blind2Label: g.blind2Label,
-				blind3Label: g.blind3Label,
 				blind1Required: g.blind1Required,
+				blind2Label: g.blind2Label,
 				blind2Required: g.blind2Required,
+				blind3Label: g.blind3Label,
 				blind3Required: g.blind3Required,
+				builtinKey: g.key,
+				id: groupIdByKey.get(g.key) as string,
+				label: g.label,
 				updatedAt: now,
+				userId,
 			})
 			.onConflictDoNothing()
 	);
@@ -93,14 +93,14 @@ export async function planDefaultGameData(
 			db
 				.insert(gameVariant)
 				.values({
-					id: variantId,
-					userId,
 					builtinKey: v.key,
+					groupId,
+					id: variantId,
 					label: v.label,
 					shortLabel: v.shortLabel,
-					groupId,
 					sortOrder: index,
 					updatedAt: now,
+					userId,
 				})
 				.onConflictDoNothing()
 		);
@@ -115,11 +115,11 @@ export async function planDefaultGameData(
 			db
 				.insert(gameMix)
 				.values({
-					id: mixId,
-					userId,
 					builtinKey: m.key,
+					id: mixId,
 					label: m.label,
 					updatedAt: now,
+					userId,
 				})
 				.onConflictDoNothing()
 		);

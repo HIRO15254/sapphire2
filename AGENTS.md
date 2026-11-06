@@ -11,7 +11,7 @@ Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules.
 
 ## Stack
 
-- **Runtime / package manager**: Bun 1.3 (workspaces). Always use `bun`, never `npm` / `yarn` / `pnpm`. Node.js >=22.16.0 runs Cloudflare Wrangler and Vitest through the repository scripts; CI pins Node in `.node-version` and Bun in `packageManager`.
+- **Runtime / package manager**: Bun 1.4 (workspaces). Always use `bun`, never `npm` / `yarn` / `pnpm`. Node.js `^22.22.2 || >=24.15.0` (`engines.node`) runs Cloudflare Wrangler, Vitest and Ultracite through the repository scripts; CI pins Node in `.node-version` and Bun in `packageManager`.
 - **Web**: React 19, Vite, TanStack Router, TanStack Query, tRPC v11 client, Tailwind v4, Cryst design system components (shadcn names on Radix UI), `@tanstack/react-form`.
 - **Server**: Hono on Cloudflare Workers, tRPC v11 server, Better Auth.
 - **DB**: Cloudflare D1 (SQLite) via Drizzle ORM. Migrations in `packages/db/src/migrations`.

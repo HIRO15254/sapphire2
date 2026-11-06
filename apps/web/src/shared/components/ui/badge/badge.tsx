@@ -4,18 +4,18 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-	"inline-flex h-5 w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-transparent px-[7px] font-medium text-xs [&>svg]:pointer-events-none [&>svg]:size-3",
+	"inline-flex h-5 w-fit shrink-0 items-center gap-1 rounded-full border border-transparent px-[7px] text-xs font-medium whitespace-nowrap [&>svg]:pointer-events-none [&>svg]:size-3",
 	{
+		defaultVariants: {
+			variant: "default",
+		},
 		variants: {
 			variant: {
 				default: "bg-primary text-primary-foreground",
-				secondary: "bg-muted text-foreground",
 				destructive: "bg-destructive-soft text-destructive-text",
-				outline: "border-border bg-transparent text-muted-foreground",
+				outline: "border-border text-muted-foreground bg-transparent",
+				secondary: "bg-muted text-foreground",
 			},
-		},
-		defaultVariants: {
-			variant: "default",
 		},
 	}
 );

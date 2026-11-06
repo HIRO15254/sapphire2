@@ -7,22 +7,22 @@ interface Agent {
 }
 
 const CLAUDE: Agent = {
-	name: "Claude Code",
-	trailer: /^co-authored-by: claude[^<\n]*<noreply@anthropic\.com>\r?$/im,
 	example: "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+	name: "Claude Code",
+	trailer: /^co-authored-by: claude[^<\n]*<noreply@anthropic\.com>\r?$/imu,
 };
 
 const CODEX: Agent = {
-	name: "Codex",
-	trailer: /^co-authored-by: codex \([^)\n]+\) <noreply@openai\.com>\r?$/im,
 	example: "Co-Authored-By: Codex (gpt-5.5) <noreply@openai.com>",
+	name: "Codex",
+	trailer: /^co-authored-by: codex \([^)\n]+\) <noreply@openai\.com>\r?$/imu,
 };
 
 const GEMINI: Agent = {
+	example: "Co-Authored-By: Gemini CLI (gemini-3-pro) <noreply@google.com>",
 	name: "Gemini CLI",
 	trailer:
-		/^co-authored-by: gemini cli \([^)\n]+\) <noreply@google\.com>\r?$/im,
-	example: "Co-Authored-By: Gemini CLI (gemini-3-pro) <noreply@google.com>",
+		/^co-authored-by: gemini cli \([^)\n]+\) <noreply@google\.com>\r?$/imu,
 };
 
 type Env = Record<string, string | undefined>;

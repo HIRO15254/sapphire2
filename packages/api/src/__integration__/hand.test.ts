@@ -40,105 +40,105 @@ const NOW = new Date("2026-09-05T10:00:00.000Z");
 async function seedOwner(db: Database, owner: Owner) {
 	await db.insert(entry).values({
 		id: `${owner}-entry`,
-		userId: owner,
 		kind: "cash",
+		playedOn: "2026-09-05",
 		source: "live",
 		status: "open",
-		playedOn: "2026-09-05",
 		updatedAt: NOW,
+		userId: owner,
 	});
 	await db.insert(playSession).values({
-		id: `${owner}-play`,
-		userId: owner,
 		entryId: `${owner}-entry`,
+		id: `${owner}-play`,
 		kind: "cash",
-		seq: 1,
 		localDate: "2026-09-05",
+		seq: 1,
 		status: "active",
 		updatedAt: NOW,
+		userId: owner,
 	});
 	await db.insert(gameGroup).values({
 		id: `${owner}-group`,
-		userId: owner,
 		label: "Hold'em",
 		updatedAt: NOW,
+		userId: owner,
 	});
 	await db.insert(gameVariant).values({
-		id: `${owner}-variant`,
-		userId: owner,
-		label: "NLH",
 		groupId: `${owner}-group`,
+		id: `${owner}-variant`,
+		label: "NLH",
 		updatedAt: NOW,
+		userId: owner,
 	});
 	await db.insert(player).values([
 		{
 			id: `${owner}-self`,
-			userId: owner,
-			name: "Hero",
 			isSelf: true,
+			name: "Hero",
 			updatedAt: NOW,
+			userId: owner,
 		},
 		...Array.from({ length: 9 }, (_, index) => ({
 			id: `${owner}-player-${index + 1}`,
-			userId: owner,
 			name: `Villain ${index + 1}`,
 			updatedAt: NOW,
+			userId: owner,
 		})),
 	]);
 }
 
 function handRow(id: string, owner: Owner, overrides: Row = {}): Row {
 	return {
-		id,
-		user_id: owner,
-		play_session_id: `${owner}-play`,
-		hand_no: 1,
-		seq: overrides.hand_no ?? 1,
 		detail: "count",
+		hand_no: 1,
+		id,
+		play_session_id: `${owner}-play`,
+		seq: overrides.hand_no ?? 1,
 		updated_at: 0,
+		user_id: owner,
 		...overrides,
 	};
 }
 
 function seatRow(handId: string, owner: Owner, overrides: Row = {}): Row {
-	return { hand_id: handId, user_id: owner, seat: 0, ...overrides };
+	return { hand_id: handId, seat: 0, user_id: owner, ...overrides };
 }
 
 function eventRow(id: string, owner: Owner, overrides: Row = {}): Row {
 	return {
-		id,
-		user_id: owner,
 		entry_id: `${owner}-entry`,
 		entry_source: "live",
-		play_session_id: `${owner}-play`,
-		type: "all_in",
-		schema_version: 2,
+		id,
 		occurred_at: 0,
-		sort_order: 0,
 		payload: "{}",
+		play_session_id: `${owner}-play`,
+		schema_version: 2,
+		sort_order: 0,
+		type: "all_in",
 		updated_at: 0,
+		user_id: owner,
 		...overrides,
 	};
 }
 
 function boardRow(handId: string, owner: Owner, overrides: Row = {}): Row {
 	return {
-		hand_id: handId,
-		user_id: owner,
 		board_no: 1,
 		cards: "Ah Kd 7c",
+		hand_id: handId,
+		user_id: owner,
 		...overrides,
 	};
 }
 
 function actionRow(handId: string, owner: Owner, overrides: Row = {}): Row {
 	return {
+		action: "fold",
 		hand_id: handId,
-		user_id: owner,
+		seat: 0,
 		seq: 1,
 		street: 0,
-		seat: 0,
-		action: "fold",
+		user_id: owner,
 		...overrides,
 	};
 }
@@ -147,32 +147,32 @@ type FullHand = Extract<HandUpdateInput, { detail: "full" }>;
 
 function fullHand(id: string, seats: number, actions: number): FullHand {
 	return {
-		id,
-		detail: "full",
-		buttonSeat: 0,
-		tableSize: 10,
-		levelOrdinal: null,
-		stakes: { blind1: 100, blind2: 200, ante: 200, anteType: "bb" },
-		variantId: "alice-variant",
+		actions: Array.from({ length: actions }, (_, index) => ({
+			action: index % 3 === 0 ? "raise" : "call",
+			allIn: false,
+			amount: 200 * (index + 1),
+			seat: index % seats,
+			street: Math.min(Math.floor(index / 30), 3),
+		})),
 		boards: ["Ah Kd 7c 2s 9h", "Ah Kd 7c 3d 4c"],
+		buttonSeat: 0,
+		detail: "full",
+		id,
+		levelOrdinal: null,
+		memo: "Long hand",
 		pot: 12_000,
 		rake: 500,
-		memo: "Long hand",
 		seats: Array.from({ length: seats }, (_, seat) => ({
-			seat,
-			playerId: seat === 0 ? "alice-self" : `alice-player-${seat}`,
-			startStack: 20_000 + seat,
 			holeCards: seat === 0 ? "As Ks" : null,
 			net: null,
+			playerId: seat === 0 ? "alice-self" : `alice-player-${seat}`,
+			seat,
 			showed: false,
+			startStack: 20_000 + seat,
 		})),
-		actions: Array.from({ length: actions }, (_, index) => ({
-			street: Math.min(Math.floor(index / 30), 3),
-			seat: index % seats,
-			action: index % 3 === 0 ? "raise" : "call",
-			amount: 200 * (index + 1),
-			allIn: false,
-		})),
+		stakes: { ante: 200, anteType: "bb", blind1: 100, blind2: 200 },
+		tableSize: 10,
+		variantId: "alice-variant",
 	};
 }
 
@@ -188,7 +188,7 @@ async function countHand(db: Database) {
 
 async function handNumbers(db: Database, playSessionId: string) {
 	const rows = await db
-		.select({ id: hand.id, handNo: hand.handNo })
+		.select({ handNo: hand.handNo, id: hand.id })
 		.from(hand)
 		.where(eq(hand.playSessionId, playSessionId))
 		.orderBy(asc(hand.handNo));
@@ -209,9 +209,9 @@ async function childCounts(db: Database, handId: string) {
 		.from(handAction)
 		.where(eq(handAction.handId, handId));
 	return {
+		actions: actions.length,
 		boards: boards.length,
 		seats: seats.length,
-		actions: actions.length,
 	};
 }
 
@@ -228,8 +228,8 @@ describe("hand tables on D1", () => {
 			[
 				"hand",
 				handRow("bob-in-alice-play", "bob", {
-					play_session_id: "alice-play",
 					hand_no: 2,
+					play_session_id: "alice-play",
 				}),
 			],
 			[
@@ -252,6 +252,7 @@ describe("hand tables on D1", () => {
 			],
 		];
 		for (const [table, row] of crossOwner) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				insert(api.d1, table, row),
 				`${table} ${JSON.stringify(row)}`
@@ -283,9 +284,9 @@ describe("hand tables on D1", () => {
 			[1, "alice-hand"],
 		]);
 		expect(await childCounts(api.db, "bob-hand")).toEqual({
+			actions: 1,
 			boards: 1,
 			seats: 1,
-			actions: 1,
 		});
 	});
 
@@ -294,15 +295,15 @@ describe("hand tables on D1", () => {
 	}) => {
 		await seedOwner(api.db, "alice");
 		await api.db.insert(playSession).values({
-			id: "alice-day-2",
-			userId: "alice",
-			entryId: "alice-entry",
-			kind: "cash",
-			seq: 2,
-			localDate: "2026-09-06",
-			status: "ended",
 			endState: "cashed_out",
+			entryId: "alice-entry",
+			id: "alice-day-2",
+			kind: "cash",
+			localDate: "2026-09-06",
+			seq: 2,
+			status: "ended",
 			updatedAt: NOW,
+			userId: "alice",
 		});
 		await insert(api.d1, "hand", handRow("day-1-hand", "alice"));
 		await insert(api.d1, "hand_seat", seatRow("day-1-hand", "alice"));
@@ -312,8 +313,8 @@ describe("hand tables on D1", () => {
 				api.d1,
 				"play_event",
 				eventRow("day-2-event", "alice", {
-					play_session_id: "alice-day-2",
 					hand_id: "day-1-hand",
+					play_session_id: "alice-day-2",
 				})
 			)
 		).rejects.toThrow(FOREIGN_KEY_FAILED);
@@ -332,13 +333,13 @@ describe("hand tables on D1", () => {
 		);
 		await insert(api.d1, "hand_action", actionRow("day-1-hand", "alice"));
 		const events = await api.db
-			.select({ id: playEvent.id, handId: playEvent.handId })
+			.select({ handId: playEvent.handId, id: playEvent.id })
 			.from(playEvent);
-		expect(events).toEqual([{ id: "day-1-event", handId: "day-1-hand" }]);
+		expect(events).toEqual([{ handId: "day-1-hand", id: "day-1-event" }]);
 		expect(await childCounts(api.db, "day-1-hand")).toEqual({
+			actions: 1,
 			boards: 0,
 			seats: 1,
-			actions: 1,
 		});
 	});
 
@@ -358,12 +359,12 @@ describe("hand tables on D1", () => {
 			["hand", handRow("zero", "alice", { hand_no: 0 }), "hand_hand_no_check"],
 			[
 				"hand",
-				handRow("detail", "alice", { hand_no: 2, detail: "partial" }),
+				handRow("detail", "alice", { detail: "partial", hand_no: 2 }),
 				"hand_detail_check",
 			],
 			[
 				"hand",
-				handRow("button", "alice", { hand_no: 2, button_seat: 10 }),
+				handRow("button", "alice", { button_seat: 10, hand_no: 2 }),
 				"hand_button_seat_check",
 			],
 			[
@@ -408,7 +409,7 @@ describe("hand tables on D1", () => {
 			],
 			[
 				"hand_action",
-				actionRow("first", "alice", { seat: 3, action: "limp" }),
+				actionRow("first", "alice", { action: "limp", seat: 3 }),
 				"hand_action_action_check",
 			],
 			[
@@ -418,6 +419,7 @@ describe("hand tables on D1", () => {
 			],
 		];
 		for (const [table, row, constraint] of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				insert(api.d1, table, row),
 				`${table} ${JSON.stringify(row)}`
@@ -427,13 +429,13 @@ describe("hand tables on D1", () => {
 		await insert(
 			api.d1,
 			"hand_seat",
-			seatRow("first", "alice", { seat: 5, is_hero: 1 })
+			seatRow("first", "alice", { is_hero: 1, seat: 5 })
 		);
 		await expect(
 			insert(
 				api.d1,
 				"hand_seat",
-				seatRow("first", "alice", { seat: 6, is_hero: 1 })
+				seatRow("first", "alice", { is_hero: 1, seat: 6 })
 			)
 		).rejects.toThrow("UNIQUE constraint failed: hand_seat.hand_id");
 		await expect(
@@ -445,9 +447,9 @@ describe("hand tables on D1", () => {
 			actionRow("first", "alice", { seat: 3 })
 		);
 		expect(await childCounts(api.db, "first")).toEqual({
+			actions: 1,
 			boards: 0,
 			seats: 2,
-			actions: 1,
 		});
 	});
 
@@ -459,7 +461,7 @@ describe("hand tables on D1", () => {
 		const added = await addHand(
 			api.db,
 			"alice",
-			{ playSessionId: "alice-play", buttonSeat: 2 },
+			{ buttonSeat: 2, playSessionId: "alice-play" },
 			NOW
 		);
 		await api.alice.hand.update(fullHand(added.id, 3, 4));
@@ -470,17 +472,17 @@ describe("hand tables on D1", () => {
 			NOW
 		);
 		await api.db.insert(playEvent).values({
-			id: "alice-all-in",
-			userId: "alice",
 			entryId: "alice-entry",
-			playSessionId: "alice-play",
-			type: "all_in",
-			schemaVersion: 2,
-			occurredAt: NOW,
-			sortOrder: 0,
-			payload: "{}",
 			handId: added.id,
+			id: "alice-all-in",
+			occurredAt: NOW,
+			payload: "{}",
+			playSessionId: "alice-play",
+			schemaVersion: 2,
+			sortOrder: 0,
+			type: "all_in",
 			updatedAt: NOW,
+			userId: "alice",
 		});
 
 		await api.db.delete(entry).where(eq(entry.id, "alice-entry"));
@@ -489,9 +491,9 @@ describe("hand tables on D1", () => {
 			{ id: kept.id },
 		]);
 		expect(await childCounts(api.db, added.id)).toEqual({
+			actions: 0,
 			boards: 0,
 			seats: 0,
-			actions: 0,
 		});
 	});
 });
@@ -503,34 +505,34 @@ describe("hand API on D1", () => {
 		await seedOwner(api.db, "alice");
 		await seedOwner(api.db, "bob");
 		const first = await api.alice.hand.add({
-			playSessionId: "alice-play",
 			buttonSeat: 3,
+			playedAt: NOW.getTime() / 1000,
+			playSessionId: "alice-play",
 			stakes: { blind1: 1, blind2: 2 },
 			variantId: "alice-variant",
-			playedAt: NOW.getTime() / 1000,
 		});
 		const second = await api.alice.hand.add({
-			playSessionId: "alice-play",
 			buttonSeat: 4,
+			playSessionId: "alice-play",
 		});
 		const bobs = await api.bob.hand.add({ playSessionId: "bob-play" });
 		expect(first).toMatchObject({
-			handNo: 1,
-			detail: "count",
 			buttonSeat: 3,
+			detail: "count",
+			handNo: 1,
+			playedAt: NOW,
 			stakes: { blind1: 1, blind2: 2 },
 			variantId: "alice-variant",
-			playedAt: NOW,
 		});
-		expect(second).toMatchObject({ handNo: 2, buttonSeat: 4, stakes: null });
+		expect(second).toMatchObject({ buttonSeat: 4, handNo: 2, stakes: null });
 		expect(bobs.handNo).toBe(1);
 
 		expect(
 			await api.alice.hand.undoLast({ playSessionId: "alice-play" })
 		).toEqual({ success: true });
 		const third = await api.alice.hand.add({
-			playSessionId: "alice-play",
 			buttonSeat: 5,
+			playSessionId: "alice-play",
 		});
 		expect(third.handNo).toBe(2);
 		await api.alice.hand.update(fullHand(third.id, 2, 2));
@@ -559,9 +561,10 @@ describe("hand API on D1", () => {
 		const second = await countHand(api.db);
 
 		for (const state of [
-			{ status: "paused", endState: null },
-			{ status: "ended", endState: "cashed_out" },
+			{ endState: null, status: "paused" },
+			{ endState: "cashed_out", status: "ended" },
 		] as const) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await api.db
 				.update(playSession)
 				.set(state)
@@ -639,6 +642,7 @@ describe("hand API on D1", () => {
 		await seedOwner(api.db, "alice");
 		const ids = ["page-1", "page-2", "page-3", "page-4", "page-5"];
 		for (const [index, id] of ids.entries()) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await insert(
 				api.d1,
 				"hand",
@@ -650,14 +654,14 @@ describe("hand API on D1", () => {
 			.set({ nextHandSeq: 5 })
 			.where(eq(playSession.id, "alice-play"));
 		const first = await api.alice.hand.list({
-			playSessionId: "alice-play",
 			limit: 2,
+			playSessionId: "alice-play",
 		});
 		await api.alice.hand.delete({ id: ids[1] as string });
 		const second = await api.alice.hand.list({
-			playSessionId: "alice-play",
-			limit: 2,
 			cursor: first.nextCursor ?? undefined,
+			limit: 2,
+			playSessionId: "alice-play",
 		});
 		expect([...first.items, ...second.items].map(({ id }) => id)).toEqual([
 			ids[4],
@@ -673,7 +677,8 @@ describe("hand API on D1", () => {
 	}) => {
 		await seedOwner(api.db, "alice");
 		const ids: string[] = [];
-		for (let index = 0; index < 5; index++) {
+		for (let index = 0; index < 5; index += 1) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			ids.push((await api.alice.hand.add({ playSessionId: "alice-play" })).id);
 		}
 		const raced = api.raceCaller("alice", () =>
@@ -719,24 +724,24 @@ describe("hand API on D1", () => {
 			[3, fourth],
 		]);
 		expect(await childCounts(api.db, second)).toEqual({
+			actions: 0,
 			boards: 0,
 			seats: 0,
-			actions: 0,
 		});
 
 		await api.db.insert(playEvent).values(
 			[third, fourth].map((handId, sortOrder) => ({
-				id: `all-in-${handId}`,
-				userId: "alice",
 				entryId: "alice-entry",
-				playSessionId: "alice-play",
-				type: "all_in",
-				schemaVersion: 2,
-				occurredAt: NOW,
-				sortOrder,
-				payload: "{}",
 				handId,
+				id: `all-in-${handId}`,
+				occurredAt: NOW,
+				payload: "{}",
+				playSessionId: "alice-play",
+				schemaVersion: 2,
+				sortOrder,
+				type: "all_in",
 				updatedAt: NOW,
+				userId: "alice",
 			}))
 		);
 		await expect(api.alice.hand.delete({ id: third })).rejects.toMatchObject({
@@ -763,6 +768,7 @@ describe("hand API on D1", () => {
 		const ids = ["hand-1", "hand-2", "hand-3", "hand-4", "hand-5"] as const;
 		const [first, second, third, fourth, fifth] = ids;
 		for (const [index, id] of ids.entries()) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await insert(
 				api.d1,
 				"hand",
@@ -776,8 +782,8 @@ describe("hand API on D1", () => {
 		await api.alice.hand.update(fullHand(fourth, 2, 1));
 
 		const firstPage = await api.alice.hand.list({
-			playSessionId: "alice-play",
 			limit: 2,
+			playSessionId: "alice-play",
 		});
 		expect(firstPage.items.map(({ id }) => id)).toEqual([fifth, fourth]);
 		expect(firstPage.items[1]?.seats.map(({ seat }) => seat)).toEqual([0, 1]);
@@ -793,37 +799,37 @@ describe("hand API on D1", () => {
 
 		await api.alice.hand.delete({ id: fourth });
 		const secondPage = await api.alice.hand.list({
-			playSessionId: "alice-play",
-			limit: 2,
 			cursor,
+			limit: 2,
+			playSessionId: "alice-play",
 		});
 		expect(secondPage.items.map(({ id }) => id)).toEqual([third, second]);
 		const lastPage = await api.alice.hand.list({
-			playSessionId: "alice-play",
-			limit: 2,
 			cursor: secondPage.nextCursor ?? undefined,
+			limit: 2,
+			playSessionId: "alice-play",
 		});
 		expect(lastPage.items.map(({ id }) => id)).toEqual([first]);
 		expect(lastPage.nextCursor).toBeNull();
 
 		const bobHand = await api.bob.hand.add({ playSessionId: "bob-play" });
 		await expect(
-			api.bob.hand.list({ playSessionId: "bob-play", cursor })
+			api.bob.hand.list({ cursor, playSessionId: "bob-play" })
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		await expect(
 			api.alice.hand.list({
-				playSessionId: "alice-play",
 				cursor: "not-a-cursor",
+				playSessionId: "alice-play",
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(
 			api.alice.hand.list({
-				playSessionId: "alice-play",
 				cursor: encodeCursor({
-					playSessionId: "alice-play",
 					handNo: 4,
 					id: fourth,
+					playSessionId: "alice-play",
 				}),
+				playSessionId: "alice-play",
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		expect(
@@ -844,8 +850,8 @@ describe("hand API on D1", () => {
 		const aliceHand = await countHand(api.db);
 		await countHand(api.db);
 		const page = await api.alice.hand.list({
-			playSessionId: "alice-play",
 			limit: 1,
+			playSessionId: "alice-play",
 		});
 		expect(page.nextCursor).not.toBeNull();
 
@@ -853,8 +859,8 @@ describe("hand API on D1", () => {
 			() => api.bob.hand.list({ playSessionId: "alice-play" }),
 			() =>
 				api.bob.hand.list({
-					playSessionId: "alice-play",
 					cursor: page.nextCursor ?? undefined,
+					playSessionId: "alice-play",
 				}),
 			() => api.bob.hand.getById({ id: aliceHand }),
 			() => api.bob.hand.add({ playSessionId: "alice-play" }),
@@ -869,6 +875,7 @@ describe("hand API on D1", () => {
 			() => api.bob.hand.list({ playSessionId: "missing" }),
 		];
 		for (const attempt of attempts) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(attempt()).rejects.toMatchObject({ code: "FORBIDDEN" });
 		}
 		expect((await handNumbers(api.db, "alice-play")).length).toBe(2);
@@ -883,11 +890,11 @@ describe("hand API on D1", () => {
 			api.d1,
 			"play_event",
 			eventRow("join", "alice", {
-				type: "player_join",
 				payload: JSON.stringify({
 					playerId: "alice-player-1",
 					seatPosition: 2,
 				}),
+				type: "player_join",
 			})
 		);
 		await expect(
@@ -940,12 +947,12 @@ describe("hand API on D1", () => {
 
 function countBody(id: string): Extract<HandUpdateInput, { detail: "count" }> {
 	return {
-		id,
-		detail: "count",
 		buttonSeat: 2,
-		tableSize: null,
+		detail: "count",
+		id,
 		levelOrdinal: null,
 		stakes: null,
+		tableSize: null,
 		variantId: null,
 	};
 }
@@ -955,37 +962,38 @@ function summaryBody(
 	heroPlayerId = "alice-self"
 ): Extract<HandUpdateInput, { detail: "summary" }> {
 	return {
-		id,
-		detail: "summary",
-		buttonSeat: 1,
-		tableSize: 6,
-		levelOrdinal: null,
-		stakes: null,
-		variantId: null,
 		boards: ["Qh Jh Th"],
-		pot: 900,
-		rake: null,
-		memo: "Hero flopped a straight",
+		buttonSeat: 1,
+		detail: "summary",
 		hero: {
-			seat: 4,
-			playerId: heroPlayerId,
-			startStack: 10_000,
 			holeCards: "9h 8h",
 			net: -300,
+			playerId: heroPlayerId,
+			seat: 4,
 			showed: true,
+			startStack: 10_000,
 		},
+		id,
+		levelOrdinal: null,
+		memo: "Hero flopped a straight",
+		pot: 900,
+		rake: null,
+		stakes: null,
+		tableSize: 6,
+		variantId: null,
 	};
 }
 
 async function seedHandTags(api: ApiFixture, count: number) {
 	const rows = Array.from({ length: count }, (_, index) => ({
 		id: `alice-hand-tag-${index}`,
-		userId: "alice",
 		name: `Tag ${index}`,
 		sortOrder: index,
 		updatedAt: NOW,
+		userId: "alice",
 	}));
 	for (const chunk of chunkForInsert(rows, Object.keys(rows[0] ?? {}).length)) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 		await api.db.insert(handTag).values(chunk);
 	}
 	return rows.map(({ id }) => id);
@@ -1000,32 +1008,32 @@ describe("hand.update on D1", () => {
 
 		const summary = await api.alice.hand.update(summaryBody(added));
 		expect(summary).toMatchObject({
-			id: added,
-			handNo: 1,
-			detail: "summary",
-			boards: ["Qh Jh Th"],
-			pot: 900,
-			memo: "Hero flopped a straight",
 			actions: [],
+			boards: ["Qh Jh Th"],
+			detail: "summary",
+			handNo: 1,
+			id: added,
+			memo: "Hero flopped a straight",
+			pot: 900,
 		});
 		expect(summary.seats).toEqual([
 			{
-				seat: 4,
-				playerId: "alice-self",
-				isHero: true,
-				startStack: 10_000,
 				holeCards: "9h 8h",
+				isHero: true,
 				net: -300,
+				playerId: "alice-self",
+				seat: 4,
 				showed: true,
+				startStack: 10_000,
 			},
 		]);
 
 		const full = await api.alice.hand.update(fullHand(added, 6, 12));
 		expect(full).toMatchObject({
-			detail: "full",
 			boards: ["Ah Kd 7c 2s 9h", "Ah Kd 7c 3d 4c"],
-			stakes: { blind1: 100, blind2: 200, ante: 200, anteType: "bb" },
+			detail: "full",
 			memo: "Long hand",
+			stakes: { ante: 200, anteType: "bb", blind1: 100, blind2: 200 },
 		});
 		expect(full.seats.map(({ seat, isHero }) => [seat, isHero])).toEqual([
 			[0, true],
@@ -1042,26 +1050,26 @@ describe("hand.update on D1", () => {
 
 		await api.alice.hand.update(summaryBody(added));
 		expect(await childCounts(api.db, added)).toEqual({
+			actions: 0,
 			boards: 1,
 			seats: 1,
-			actions: 0,
 		});
 
 		const count = await api.alice.hand.update(countBody(added));
 		expect(count).toMatchObject({
-			detail: "count",
-			buttonSeat: 2,
+			actions: [],
 			boards: [],
+			buttonSeat: 2,
+			detail: "count",
+			memo: null,
 			pot: null,
 			rake: null,
-			memo: null,
 			seats: [],
-			actions: [],
 		});
 		expect(await childCounts(api.db, added)).toEqual({
+			actions: 0,
 			boards: 0,
 			seats: 0,
-			actions: 0,
 		});
 		expect(await handNumbers(api.db, "alice-play")).toEqual([[1, added]]);
 	});
@@ -1125,11 +1133,11 @@ describe("hand.update on D1", () => {
 		const bobHand = (await api.bob.hand.add({ playSessionId: "bob-play" })).id;
 		const bobBody = (body: FullHand): FullHand => ({
 			...body,
-			variantId: null,
 			seats: body.seats.map((seat) => ({
 				...seat,
 				playerId: seat.playerId?.replace("alice", "bob") ?? null,
 			})),
+			variantId: null,
 		});
 		const before = await api.bob.hand.getById({ id: bobHand });
 
@@ -1147,29 +1155,30 @@ describe("hand.update on D1", () => {
 			() =>
 				api.bob.hand.update({
 					...countBody(bobHand),
-					tagReviews: [{ tagId: aliceTag.id, reviewedAt: null }],
+					tagReviews: [{ reviewedAt: null, tagId: aliceTag.id }],
 				}),
 			() =>
 				api.bob.hand.update({
 					...countBody(bobHand),
-					tagReviews: [{ tagId: "missing-tag", reviewedAt: null }],
+					tagReviews: [{ reviewedAt: null, tagId: "missing-tag" }],
 				}),
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(attempt()).rejects.toMatchObject({ code: "FORBIDDEN" });
 		}
 		expect(await api.bob.hand.getById({ id: bobHand })).toEqual(before);
 		expect(await childCounts(api.db, added)).toEqual({
+			actions: 0,
 			boards: 0,
 			seats: 0,
-			actions: 0,
 		});
 		expect(
 			await api.bob.hand.update(bobBody(fullHand(bobHand, 2, 2)))
 		).toMatchObject({
 			detail: "full",
 			seats: [
-				{ playerId: "bob-self", isHero: true },
-				{ playerId: "bob-player-1", isHero: false },
+				{ isHero: true, playerId: "bob-self" },
+				{ isHero: false, playerId: "bob-player-1" },
 			],
 		});
 	});
@@ -1192,7 +1201,7 @@ describe("hand.update on D1", () => {
 		await api.alice.hand.update({
 			...countBody(added),
 			tagIds: [first.id, second.id],
-			tagReviews: [{ tagId: first.id, reviewedAt: reviewed }],
+			tagReviews: [{ reviewedAt: reviewed, tagId: first.id }],
 		});
 		expect(await tagsOf()).toEqual([
 			["A", NOW],
@@ -1212,8 +1221,8 @@ describe("hand.update on D1", () => {
 		await api.alice.hand.update({
 			...countBody(added),
 			tagReviews: [
-				{ tagId: first.id, reviewedAt: null },
-				{ tagId: third.id, reviewedAt: later.getTime() / 1000 },
+				{ reviewedAt: null, tagId: first.id },
+				{ reviewedAt: later.getTime() / 1000, tagId: third.id },
 			],
 		});
 		expect(await tagsOf()).toEqual([
@@ -1222,12 +1231,13 @@ describe("hand.update on D1", () => {
 		]);
 
 		for (const body of [
-			{ tagReviews: [{ tagId: second.id, reviewedAt: reviewed }] },
+			{ tagReviews: [{ reviewedAt: reviewed, tagId: second.id }] },
 			{
 				tagIds: [first.id],
-				tagReviews: [{ tagId: third.id, reviewedAt: reviewed }],
+				tagReviews: [{ reviewedAt: reviewed, tagId: third.id }],
 			},
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.alice.hand.update({ ...countBody(added), ...body })
 			).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -1254,8 +1264,8 @@ describe("hand.update on D1", () => {
 			],
 			tagIds,
 			tagReviews: tagIds.map((tagId) => ({
-				tagId,
 				reviewedAt: NOW.getTime() / 1000,
+				tagId,
 			})),
 		};
 
@@ -1265,7 +1275,7 @@ describe("hand.update on D1", () => {
 			input,
 			{
 				selfPlayerId: "alice-self",
-				tagLinks: tagIds.map((tagId) => ({ tagId, reviewedAt: NOW })),
+				tagLinks: tagIds.map((tagId) => ({ reviewedAt: NOW, tagId })),
 			},
 			NOW
 		)) {
@@ -1287,12 +1297,12 @@ describe("hand.update on D1", () => {
 			Array.from({ length: 200 }, (_, index) => index + 1)
 		);
 		expect(saved.actions.at(-1)).toEqual({
+			action: "call",
+			allIn: false,
+			amount: 40_000,
+			seat: 9,
 			seq: 200,
 			street: 3,
-			seat: 9,
-			action: "call",
-			amount: 40_000,
-			allIn: false,
 		});
 		expect(saved.tags).toHaveLength(MAX_LINKED_TAGS);
 		expect(
@@ -1337,16 +1347,16 @@ describe("hand.update on D1", () => {
 		const first = await api.alice.handTag.create({ name: "First" });
 		await api.alice.handTag.reorder({ ids: [first.id, second.id] });
 		await insert(api.d1, "hand_tag_link", {
-			user_id: "alice",
 			hand_id: added,
-			tag_id: second.id,
 			reviewed_at: null,
+			tag_id: second.id,
+			user_id: "alice",
 		});
 		await insert(api.d1, "hand_tag_link", {
-			user_id: "alice",
 			hand_id: added,
-			tag_id: first.id,
 			reviewed_at: NOW.getTime() / 1000,
+			tag_id: first.id,
+			user_id: "alice",
 		});
 		const expected = [
 			{ id: first.id, name: "First", reviewedAt: NOW },
@@ -1368,15 +1378,15 @@ describe("all-in hand link on D1", () => {
 	async function startCash(api: ApiFixture) {
 		const rule = await nlhGame(api.db);
 		const jpy = requireCreatedRow(
-			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "JPY" })
 		);
 		const started = await api.alice.live.create({
 			kind: "cash",
+			payments: [
+				{ assetId: jpy.id, effect: "real", quantity: 10_000, role: "buy_in" },
+			],
 			rule,
 			startedAt: Math.floor(Date.now() / 1000) - 3600,
-			payments: [
-				{ role: "buy_in", assetId: jpy.id, quantity: 10_000, effect: "real" },
-			],
 		});
 		const playSessionId = started.playSessions[0]?.id ?? "";
 		const manual = await api.alice.entry.create({
@@ -1386,8 +1396,8 @@ describe("all-in hand link on D1", () => {
 		});
 		return {
 			entryId: started.id,
-			playSessionId,
 			otherDayId: manual.playSessions[0]?.id ?? "",
+			playSessionId,
 		};
 	}
 
@@ -1412,7 +1422,7 @@ describe("all-in hand link on D1", () => {
 		);
 		const linked = await api.alice.hand.add({ playSessionId });
 		const later = await api.alice.hand.add({ playSessionId });
-		const values = { potSize: 1000, trials: 1, equity: 50, wins: 1 };
+		const values = { equity: 50, potSize: 1000, trials: 1, wins: 1 };
 
 		const allIn = await api.alice.playEvent.create({
 			entryId,
@@ -1426,6 +1436,7 @@ describe("all-in hand link on D1", () => {
 		});
 
 		for (const handId of ["bob-hand", "other-day-hand", "missing"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.alice.playEvent.create({
 					entryId,

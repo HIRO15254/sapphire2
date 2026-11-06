@@ -26,7 +26,7 @@ The Worker also serves the MCP endpoint (`/mcp`) and its OAuth discovery routes 
 - [Cloudflare](https://dash.cloudflare.com/sign-up) account with Workers Paid. D1's input limit is derived from the 1,000 queries per Worker invocation available on Paid.
 - GitHub repository admin access (required for Secrets configuration)
 - [Bun](https://bun.sh/) installed locally
-- [Node.js](https://nodejs.org/) 22.16.0 or later installed locally (required to run the Cloudflare Wrangler CLI and Vitest; Bun remains the package manager)
+- [Node.js](https://nodejs.org/) 22.22.2 or later on the 22 line, or 24.15.0 or later, installed locally (required to run the Cloudflare Wrangler CLI, Vitest and Ultracite; Bun remains the package manager)
 
 > Wrangler creates local D1 state for local development. Preview and dev databases are created by the workflows through the Cloudflare API; production uses the existing database configured in `apps/server/wrangler.toml`.
 

@@ -7,7 +7,7 @@ import { TRPCError } from "@trpc/server";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import type {
-	ResponseInput,
+	EasyInputMessage,
 	ResponseInputContent,
 } from "openai/resources/responses/responses";
 import z from "zod";
@@ -26,8 +26,8 @@ const MEDIA_TYPES = [
 ] as const;
 
 const SourceSchema = z.object({
-	kind: z.literal("image"),
 	data: z.string().min(1).base64(),
+	kind: z.literal("image"),
 	mediaType: z.enum(MEDIA_TYPES),
 });
 
@@ -41,69 +41,41 @@ const tableSizeSchema = z
 	.max(MAX_RULE_TABLE_SIZE);
 
 export const ExtractedTournamentDataSchema = z.object({
-	name: z.string().optional(),
-	buyIn: nonNegativeIntegerSchema.optional(),
-	entryFee: nonNegativeIntegerSchema.optional(),
-	startingStack: nonNegativeIntegerSchema.optional(),
-	tableSize: tableSizeSchema.optional(),
-	chipPurchases: z
-		.array(
-			z.object({
-				name: z.string(),
-				cost: nonNegativeIntegerSchema,
-				chips: nonNegativeIntegerSchema,
-			})
-		)
-		.optional(),
 	blindLevels: z
 		.array(
 			z.object({
-				isBreak: z.boolean(),
+				ante: nonNegativeIntegerSchema.nullable().optional(),
 				blind1: nonNegativeIntegerSchema.nullable().optional(),
 				blind2: nonNegativeIntegerSchema.nullable().optional(),
 				blind3: nonNegativeIntegerSchema.nullable().optional(),
-				ante: nonNegativeIntegerSchema.nullable().optional(),
+				isBreak: z.boolean(),
 				minutes: nonNegativeIntegerSchema.nullable().optional(),
 			})
 		)
 		.optional(),
-});
-
-export const TOURNAMENT_OUTPUT_SCHEMA = z.object({
-	name: z
-		.string()
-		.nullable()
-		.describe(
-			"トーナメント名。ソースに明示されている場合のみ。不明なら null。"
-		),
-	buyIn: nonNegativeIntegerSchema
-		.nullable()
-		.describe("バイイン金額（数値のみ）。不明なら null。"),
-	entryFee: nonNegativeIntegerSchema
-		.nullable()
-		.describe("エントリーフィー・レイク（数値のみ）。不明なら null。"),
-	startingStack: nonNegativeIntegerSchema
-		.nullable()
-		.describe("スターティングスタック（チップ数）。不明なら null。"),
-	tableSize: tableSizeSchema
-		.nullable()
-		.describe("1テーブルの最大人数（通常9または10）。不明なら null。"),
+	buyIn: nonNegativeIntegerSchema.optional(),
 	chipPurchases: z
 		.array(
 			z.object({
-				name: z.string(),
-				cost: nonNegativeIntegerSchema,
 				chips: nonNegativeIntegerSchema,
+				cost: nonNegativeIntegerSchema,
+				name: z.string(),
 			})
 		)
-		.nullable()
-		.describe(
-			"リバイ・アドオン等のチップ購入オプション。存在しない場合は null（空配列は返さない）。"
-		),
+		.optional(),
+	entryFee: nonNegativeIntegerSchema.optional(),
+	name: z.string().optional(),
+	startingStack: nonNegativeIntegerSchema.optional(),
+	tableSize: tableSizeSchema.optional(),
+});
+
+export const TOURNAMENT_OUTPUT_SCHEMA = z.object({
 	blindLevels: z
 		.array(
 			z.object({
-				isBreak: z.boolean().describe("ブレイクは true、通常レベルは false。"),
+				ante: nonNegativeIntegerSchema
+					.nullable()
+					.describe("アンティ。存在しない場合は null。"),
 				blind1: nonNegativeIntegerSchema
 					.nullable()
 					.describe("スモールブラインド（SB）。不明なら null。"),
@@ -113,9 +85,7 @@ export const TOURNAMENT_OUTPUT_SCHEMA = z.object({
 				blind3: nonNegativeIntegerSchema
 					.nullable()
 					.describe("ストラドル。存在しない場合は null。"),
-				ante: nonNegativeIntegerSchema
-					.nullable()
-					.describe("アンティ。存在しない場合は null。"),
+				isBreak: z.boolean().describe("ブレイクは true、通常レベルは false。"),
 				minutes: nonNegativeIntegerSchema
 					.nullable()
 					.describe("レベルの時間（分）。記載がなければ null。"),
@@ -125,6 +95,36 @@ export const TOURNAMENT_OUTPUT_SCHEMA = z.object({
 		.describe(
 			"ブラインドレベル構成（順番通りに配列）。存在しない場合は null。"
 		),
+	buyIn: nonNegativeIntegerSchema
+		.nullable()
+		.describe("バイイン金額（数値のみ）。不明なら null。"),
+	chipPurchases: z
+		.array(
+			z.object({
+				chips: nonNegativeIntegerSchema,
+				cost: nonNegativeIntegerSchema,
+				name: z.string(),
+			})
+		)
+		.nullable()
+		.describe(
+			"リバイ・アドオン等のチップ購入オプション。存在しない場合は null（空配列は返さない）。"
+		),
+	entryFee: nonNegativeIntegerSchema
+		.nullable()
+		.describe("エントリーフィー・レイク（数値のみ）。不明なら null。"),
+	name: z
+		.string()
+		.nullable()
+		.describe(
+			"トーナメント名。ソースに明示されている場合のみ。不明なら null。"
+		),
+	startingStack: nonNegativeIntegerSchema
+		.nullable()
+		.describe("スターティングスタック（チップ数）。不明なら null。"),
+	tableSize: tableSizeSchema
+		.nullable()
+		.describe("1テーブルの最大人数（通常9または10）。不明なら null。"),
 });
 
 const MAX_SEAT_NUMBER = MAX_SEAT_POSITION + 1;
@@ -132,9 +132,9 @@ const MAX_SEAT_NUMBER = MAX_SEAT_POSITION + 1;
 export const TABLE_PLAYERS_OUTPUT_SCHEMA = z.object({
 	seats: z.array(
 		z.object({
-			seatNumber: z.number().int().min(1).max(MAX_SEAT_NUMBER),
-			name: z.string().min(1),
 			isHero: z.boolean().nullable(),
+			name: z.string().min(1),
+			seatNumber: z.number().int().min(1).max(MAX_SEAT_NUMBER),
 		})
 	),
 });
@@ -147,7 +147,7 @@ function missingApiKeyError(): TRPCError {
 }
 
 function createExtractionClient(apiKey: string): OpenAI {
-	return new OpenAI({ apiKey, timeout: 180_000, maxRetries: 1 });
+	return new OpenAI({ apiKey, maxRetries: 1, timeout: 180_000 });
 }
 
 function assertNotTruncated(response: {
@@ -193,14 +193,14 @@ async function parseStructuredResponse<T>(call: Promise<T>): Promise<T> {
 	}
 }
 
-function buildInput(sources: Source[], prompt: string): ResponseInput {
+function buildInput(sources: Source[], prompt: string): [EasyInputMessage] {
 	const content: ResponseInputContent[] = sources.map((source) => ({
-		type: "input_image",
 		detail: "auto",
 		image_url: `data:${source.mediaType};base64,${source.data}`,
+		type: "input_image",
 	}));
-	content.push({ type: "input_text", text: prompt });
-	return [{ role: "user", content }];
+	content.push({ text: prompt, type: "input_text" });
+	return [{ content, role: "user" }];
 }
 
 function withoutNulls(value: unknown): unknown {
@@ -218,52 +218,6 @@ function withoutNulls(value: unknown): unknown {
 }
 
 export const aiExtractRouter = router({
-	extractTournamentData: protectedProcedure
-		.input(
-			z.object({
-				sources: z.array(SourceSchema).min(1).max(5),
-			})
-		)
-		.mutation(async ({ ctx, input }) => {
-			if (!ctx.openaiApiKey) {
-				throw missingApiKeyError();
-			}
-
-			const client = createExtractionClient(ctx.openaiApiKey);
-
-			const response = await parseStructuredResponse(
-				client.responses.parse({
-					model: AI_MODELS.tournamentExtraction,
-					max_output_tokens: EXTRACTION_MAX_OUTPUT_TOKENS,
-					input: buildInput(
-						input.sources,
-						"上記からポーカートーナメントのデータを抽出してください。ソースに明示された値のみ返し、不明なフィールドは null にしてください。"
-					),
-					text: {
-						format: zodTextFormat(
-							TOURNAMENT_OUTPUT_SCHEMA,
-							"extract_tournament_data"
-						),
-					},
-				})
-			);
-
-			assertNotTruncated(response);
-
-			if (!response.output_parsed) {
-				throw missingStructuredOutputError();
-			}
-
-			const parsed = ExtractedTournamentDataSchema.safeParse(
-				withoutNulls(response.output_parsed)
-			);
-			if (!parsed.success) {
-				throw failedToParseError();
-			}
-
-			return parsed.data;
-		}),
-
 	extractTablePlayers: protectedProcedure
 		.input(
 			z.object({
@@ -281,9 +235,9 @@ export const aiExtractRouter = router({
 
 			const response = await parseStructuredResponse(
 				client.responses.parse({
-					model: AI_MODELS.seating,
-					max_output_tokens: EXTRACTION_MAX_OUTPUT_TOKENS,
 					input: buildInput(input.sources, appConfig.prompt),
+					max_output_tokens: EXTRACTION_MAX_OUTPUT_TOKENS,
+					model: AI_MODELS.seating,
 					text: {
 						format: zodTextFormat(
 							TABLE_PLAYERS_OUTPUT_SCHEMA,
@@ -310,5 +264,50 @@ export const aiExtractRouter = router({
 			});
 
 			return { seats: deduped };
+		}),
+	extractTournamentData: protectedProcedure
+		.input(
+			z.object({
+				sources: z.array(SourceSchema).min(1).max(5),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			if (!ctx.openaiApiKey) {
+				throw missingApiKeyError();
+			}
+
+			const client = createExtractionClient(ctx.openaiApiKey);
+
+			const response = await parseStructuredResponse(
+				client.responses.parse({
+					input: buildInput(
+						input.sources,
+						"上記からポーカートーナメントのデータを抽出してください。ソースに明示された値のみ返し、不明なフィールドは null にしてください。"
+					),
+					max_output_tokens: EXTRACTION_MAX_OUTPUT_TOKENS,
+					model: AI_MODELS.tournamentExtraction,
+					text: {
+						format: zodTextFormat(
+							TOURNAMENT_OUTPUT_SCHEMA,
+							"extract_tournament_data"
+						),
+					},
+				})
+			);
+
+			assertNotTruncated(response);
+
+			if (!response.output_parsed) {
+				throw missingStructuredOutputError();
+			}
+
+			const parsed = ExtractedTournamentDataSchema.safeParse(
+				withoutNulls(response.output_parsed)
+			);
+			if (!parsed.success) {
+				throw failedToParseError();
+			}
+
+			return parsed.data;
 		}),
 });

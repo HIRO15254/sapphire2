@@ -14,8 +14,8 @@ const OWNER = "user-1";
 function filterPresetCaller(userId: string, select: Record<string, Rows>) {
 	const mock = createChainableMockDb({ select });
 	const caller = appRouter.createCaller({
-		session: { user: { id: userId } },
 		db: mock.db,
+		session: { user: { id: userId } },
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).filterPreset;
 	return { caller, ...mock };
 }
@@ -29,11 +29,11 @@ async function expectTrpcCode(
 
 const SESSIONS_ROW = {
 	id: "fp-1",
-	userId: OWNER,
-	screenKey: "sessions",
+	isDefault: false,
 	name: "My Preset",
 	payload: { period: "last_7_days" },
-	isDefault: false,
+	screenKey: "sessions",
+	userId: OWNER,
 };
 
 describe("filterPreset.create collision guard", () => {
@@ -42,6 +42,7 @@ describe("filterPreset.create collision guard", () => {
 			[TABLE]: [],
 		});
 		insert.mockImplementation(() => ({
+			select: vi.fn(() => Promise.resolve(undefined)),
 			values: vi.fn(() => {
 				throw new Error("Failed query", {
 					cause: new Error(
@@ -49,10 +50,9 @@ describe("filterPreset.create collision guard", () => {
 					),
 				});
 			}),
-			select: vi.fn(() => Promise.resolve(undefined)),
 		}));
 		await expectTrpcCode(
-			caller.create({ screenKey: "sessions", name: "Dup", payload: {} }),
+			caller.create({ name: "Dup", payload: {}, screenKey: "sessions" }),
 			"CONFLICT"
 		);
 	});
@@ -64,8 +64,8 @@ describe("filterPreset.update behavior", () => {
 			[TABLE]: [
 				{
 					...SESSIONS_ROW,
-					screenKey: "statistics",
 					payload: { normalized: true },
+					screenKey: "statistics",
 				},
 			],
 		});

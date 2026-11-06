@@ -195,9 +195,9 @@ async function findOwnedLedgerEntity(
 		default: {
 			const exhaustive: never = entityType;
 			throw new TRPCError({
+				cause: exhaustive,
 				code: "FORBIDDEN",
 				message: "You do not own this entity",
-				cause: exhaustive,
 			});
 		}
 	}
@@ -320,9 +320,9 @@ async function validateEntityOwnership(
 		default: {
 			const exhaustive: never = entityType;
 			throw new TRPCError({
+				cause: exhaustive,
 				code: "FORBIDDEN",
 				message: "You do not own this entity",
-				cause: exhaustive,
 			});
 		}
 	}

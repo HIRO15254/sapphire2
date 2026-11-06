@@ -18,17 +18,17 @@ const PREV = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
 function input(overrides: Partial<GateInput> = {}): GateInput {
 	return {
-		event: "synchronize",
-		label: null,
+		changedSinceLast: null,
+		devTree: "tree-dev",
 		draft: false,
+		event: "synchronize",
 		headRef: "claude/feature-x",
 		headSha: HEAD,
 		headTree: "tree-head",
-		devTree: "tree-dev",
-		state: null,
-		changedSinceLast: null,
+		label: null,
 		maxAutoRounds: 2,
 		reReviewLabel: "re-review",
+		state: null,
 		...overrides,
 	};
 }
@@ -36,11 +36,11 @@ function input(overrides: Partial<GateInput> = {}): GateInput {
 describe("decideReview — first review", () => {
 	it("runs a full round 1 on a ready PR with no prior state", () => {
 		expect(decideReview(input({ event: "opened" }))).toEqual({
-			run: true,
 			mode: "full",
-			round: 1,
-			sinceSha: null,
 			reason: "first review",
+			round: 1,
+			run: true,
+			sinceSha: null,
 		});
 	});
 
@@ -59,23 +59,23 @@ describe("decideReview — draft handling", () => {
 			"reopened",
 			"ready_for_review",
 		] as const) {
-			expect(decideReview(input({ event, draft: true }))).toEqual({
-				run: false,
+			expect(decideReview(input({ draft: true, event }))).toEqual({
 				reason: "draft",
+				run: false,
 			});
 		}
 	});
 
 	it("still honours the re-review label on a draft", () => {
 		const decision = decideReview(
-			input({ event: "labeled", label: "re-review", draft: true })
+			input({ draft: true, event: "labeled", label: "re-review" })
 		);
 		expect(decision).toEqual({
-			run: true,
 			mode: "full",
-			round: 1,
-			sinceSha: null,
 			reason: "label re-review",
+			round: 1,
+			run: true,
+			sinceSha: null,
 		});
 	});
 });
@@ -83,8 +83,8 @@ describe("decideReview — draft handling", () => {
 describe("decideReview — labeled event", () => {
 	it("ignores labels other than the re-review label", () => {
 		expect(decideReview(input({ event: "labeled", label: "bug" }))).toEqual({
-			run: false,
 			reason: "label bug is not re-review",
+			run: false,
 		});
 	});
 
@@ -93,15 +93,15 @@ describe("decideReview — labeled event", () => {
 			input({
 				event: "labeled",
 				label: "re-review",
-				state: { rounds: 2, lastSha: PREV },
+				state: { lastSha: PREV, rounds: 2 },
 			})
 		);
 		expect(decision).toEqual({
-			run: true,
 			mode: "incremental",
-			round: 3,
-			sinceSha: PREV,
 			reason: "label re-review",
+			round: 3,
+			run: true,
+			sinceSha: PREV,
 		});
 	});
 
@@ -110,13 +110,13 @@ describe("decideReview — labeled event", () => {
 			input({
 				event: "labeled",
 				label: "re-review",
-				state: { rounds: 1, lastSha: HEAD },
+				state: { lastSha: HEAD, rounds: 1 },
 			})
 		);
 		expect(decision).toMatchObject({
-			run: true,
 			mode: "incremental",
 			round: 2,
+			run: true,
 		});
 	});
 });
@@ -126,32 +126,32 @@ describe("decideReview — release branches", () => {
 		expect(
 			decideReview(
 				input({
+					devTree: "same",
 					event: "opened",
 					headRef: "release/v3.5.0",
 					headTree: "same",
-					devTree: "same",
 				})
 			)
-		).toEqual({ run: false, reason: "release branch tree identical to dev" });
+		).toEqual({ reason: "release branch tree identical to dev", run: false });
 	});
 
 	it("reviews a release branch that carries commits beyond dev", () => {
 		expect(
 			decideReview(
 				input({
+					devTree: "dev",
 					event: "opened",
 					headRef: "release/v3.5.0",
 					headTree: "hotfix",
-					devTree: "dev",
 				})
 			)
-		).toMatchObject({ run: true, mode: "full", round: 1 });
+		).toMatchObject({ mode: "full", round: 1, run: true });
 	});
 
 	it("reviews a release branch when the dev tree is unknown", () => {
 		expect(
 			decideReview(
-				input({ event: "opened", headRef: "release/v3.5.0", devTree: null })
+				input({ devTree: null, event: "opened", headRef: "release/v3.5.0" })
 			)
 		).toMatchObject({ run: true });
 	});
@@ -161,25 +161,25 @@ describe("decideReview — subsequent pushes", () => {
 	it("skips when the head sha was already reviewed", () => {
 		expect(
 			decideReview(
-				input({ event: "reopened", state: { rounds: 1, lastSha: HEAD } })
+				input({ event: "reopened", state: { lastSha: HEAD, rounds: 1 } })
 			)
-		).toEqual({ run: false, reason: "head already reviewed" });
+		).toEqual({ reason: "head already reviewed", run: false });
 	});
 
 	it("runs an incremental round 2 after the first review", () => {
 		expect(
 			decideReview(
 				input({
-					state: { rounds: 1, lastSha: PREV },
 					changedSinceLast: ["apps/web/src/a.ts", "docs/design/x.md"],
+					state: { lastSha: PREV, rounds: 1 },
 				})
 			)
 		).toEqual({
-			run: true,
 			mode: "incremental",
-			round: 2,
-			sinceSha: PREV,
 			reason: "automatic round 2 of 2",
+			round: 2,
+			run: true,
+			sinceSha: PREV,
 		});
 	});
 
@@ -187,13 +187,13 @@ describe("decideReview — subsequent pushes", () => {
 		expect(
 			decideReview(
 				input({
-					state: { rounds: 2, lastSha: PREV },
 					changedSinceLast: ["apps/web/src/a.ts"],
+					state: { lastSha: PREV, rounds: 2 },
 				})
 			)
 		).toEqual({
-			run: false,
 			reason: "automatic round cap (2) reached; add the re-review label",
+			run: false,
 		});
 	});
 
@@ -201,34 +201,34 @@ describe("decideReview — subsequent pushes", () => {
 		expect(
 			decideReview(
 				input({
-					state: { rounds: 1, lastSha: PREV },
 					changedSinceLast: [
 						"docs/design/x.md",
 						"AGENTS.md",
 						".claude/rules/y.md",
 					],
+					state: { lastSha: PREV, rounds: 1 },
 				})
 			)
-		).toEqual({ run: false, reason: "docs-only push" });
+		).toEqual({ reason: "docs-only push", run: false });
 	});
 
 	it("does not treat an empty change list as docs-only", () => {
 		expect(
 			decideReview(
-				input({ state: { rounds: 1, lastSha: PREV }, changedSinceLast: [] })
+				input({ changedSinceLast: [], state: { lastSha: PREV, rounds: 1 } })
 			)
-		).toMatchObject({ run: true, mode: "incremental", round: 2 });
+		).toMatchObject({ mode: "incremental", round: 2, run: true });
 	});
 
 	it("reviews when the change list is unknown (last sha rewritten)", () => {
 		expect(
 			decideReview(
-				input({ state: { rounds: 1, lastSha: PREV }, changedSinceLast: null })
+				input({ changedSinceLast: null, state: { lastSha: PREV, rounds: 1 } })
 			)
 		).toMatchObject({
-			run: true,
 			mode: "incremental",
 			round: 2,
+			run: true,
 			sinceSha: PREV,
 		});
 	});
@@ -243,15 +243,15 @@ describe("parseReviewState", () => {
 
 	it("parses the marker payload", () => {
 		const body = `${STATE_MARKER} {"rounds":1,"lastSha":"${PREV}"} -->\nvisible text`;
-		expect(parseReviewState([body])).toEqual({ rounds: 1, lastSha: PREV });
+		expect(parseReviewState([body])).toEqual({ lastSha: PREV, rounds: 1 });
 	});
 
 	it("takes the last marker comment when several exist", () => {
 		const older = `${STATE_MARKER} {"rounds":1,"lastSha":"${PREV}"} -->`;
 		const newer = `${STATE_MARKER} {"rounds":2,"lastSha":"${HEAD}"} -->`;
 		expect(parseReviewState([older, newer])).toEqual({
-			rounds: 2,
 			lastSha: HEAD,
+			rounds: 2,
 		});
 	});
 
@@ -283,11 +283,11 @@ describe("parseReviewState", () => {
 
 	it("round-trips a rendered comment", () => {
 		const body = renderStateComment(
-			{ rounds: 2, lastSha: HEAD },
+			{ lastSha: HEAD, rounds: 2 },
 			2,
 			"re-review"
 		);
-		expect(parseReviewState([body])).toEqual({ rounds: 2, lastSha: HEAD });
+		expect(parseReviewState([body])).toEqual({ lastSha: HEAD, rounds: 2 });
 	});
 });
 
@@ -295,11 +295,11 @@ describe("formatGithubOutputs", () => {
 	it("emits every key for a run decision", () => {
 		expect(
 			formatGithubOutputs({
-				run: true,
 				mode: "incremental",
-				round: 2,
-				sinceSha: PREV,
 				reason: "automatic round 2 of 2",
+				round: 2,
+				run: true,
+				sinceSha: PREV,
 			})
 		).toBe(
 			`run=true\nmode=incremental\nround=2\nsince_sha=${PREV}\nreason=automatic round 2 of 2\n`
@@ -307,7 +307,7 @@ describe("formatGithubOutputs", () => {
 	});
 
 	it("emits empty values for a skip decision so later steps can still read the keys", () => {
-		expect(formatGithubOutputs({ run: false, reason: "draft" })).toBe(
+		expect(formatGithubOutputs({ reason: "draft", run: false })).toBe(
 			"run=false\nmode=\nround=0\nsince_sha=\nreason=draft\n"
 		);
 	});
@@ -318,9 +318,9 @@ const TRAILER =
 
 function resultLog(result: string, subtype = "success"): string {
 	return JSON.stringify([
-		{ type: "system", subtype: "init" },
-		{ type: "assistant", message: { content: "working" } },
-		{ type: "result", subtype, result },
+		{ subtype: "init", type: "system" },
+		{ message: { content: "working" }, type: "assistant" },
+		{ result, subtype, type: "result" },
 	]);
 }
 
@@ -375,8 +375,8 @@ describe("parseReviewResult", () => {
 
 	it("reads a JSONL execution log as well as a JSON array", () => {
 		const jsonl = [
-			JSON.stringify({ type: "system", subtype: "init" }),
-			JSON.stringify({ type: "result", subtype: "success", result: TRAILER }),
+			JSON.stringify({ subtype: "init", type: "system" }),
+			JSON.stringify({ result: TRAILER, subtype: "success", type: "result" }),
 			"",
 		].join("\n");
 		expect(parseReviewResult(jsonl).trailer).toContain('"verdict":"approve"');
@@ -384,7 +384,7 @@ describe("parseReviewResult", () => {
 
 	it("finds a result event nested inside a wrapper object", () => {
 		const nested = JSON.stringify({
-			events: [{ type: "result", subtype: "success", result: TRAILER }],
+			events: [{ result: TRAILER, subtype: "success", type: "result" }],
 		});
 		expect(parseReviewResult(nested).trailer).toContain('"verdict":"approve"');
 	});

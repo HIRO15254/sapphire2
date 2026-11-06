@@ -21,10 +21,10 @@ export type PlaySessionEndState = (typeof PLAY_SESSION_END_STATES)[number];
 
 const END_STATE_KINDS = {
 	bagged: ["tournament"],
-	held: ["cash"],
 	busted: ["tournament"],
 	cashed_out: ["cash"],
 	finished: ["cash", "tournament"],
+	held: ["cash"],
 } as const satisfies Record<PlaySessionEndState, readonly EntryKind[]>;
 
 export const END_STATES_REQUIRING_STACK = [

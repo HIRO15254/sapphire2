@@ -42,14 +42,14 @@ async function registerClient(
 	const clientName = `Sapphire E2E ${crypto.randomUUID()}`;
 	const redirectUri = `${CALLBACK_ORIGIN}/callback?oauth_callback=${crypto.randomUUID()}`;
 	const response = await request.post(metadata.registration_endpoint, {
-		headers: { Origin: API_URL },
 		data: {
 			client_name: clientName,
-			redirect_uris: [redirectUri],
 			grant_types: ["authorization_code"],
+			redirect_uris: [redirectUri],
 			response_types: ["code"],
 			token_endpoint_auth_method: "none",
 		},
+		headers: { Origin: API_URL },
 	});
 	expect(response.ok(), await response.text()).toBe(true);
 	const registered = await response.json();
@@ -75,14 +75,14 @@ async function requestConsent(
 	const url = new URL(client.authorizeUrl);
 	url.search = new URLSearchParams({
 		client_id: client.clientId,
-		redirect_uri: client.redirectUri,
-		response_type: "code",
-		scope: "openid profile",
-		resource: `${API_URL}/mcp`,
 		code_challenge: challenge,
 		code_challenge_method: "S256",
-		state,
 		prompt: "none",
+		redirect_uri: client.redirectUri,
+		resource: `${API_URL}/mcp`,
+		response_type: "code",
+		scope: "openid profile",
+		state,
 	}).toString();
 	let response = await page.goto(url.toString());
 	if (account) {
@@ -121,14 +121,14 @@ async function requestConsent(
 
 async function decideConsent(page: Page, state: string, accept: boolean) {
 	await page.route(`${CALLBACK_ORIGIN}/**`, (route) =>
-		route.fulfill({ status: 200, contentType: "text/plain", body: "callback" })
+		route.fulfill({ body: "callback", contentType: "text/plain", status: 200 })
 	);
 	await Promise.all([
 		page.waitForURL(
 			(url) => url.origin === CALLBACK_ORIGIN && url.pathname === "/callback"
 		),
 		page
-			.getByRole("button", { name: accept ? "Approve" : "Deny", exact: true })
+			.getByRole("button", { exact: true, name: accept ? "Approve" : "Deny" })
 			.click(),
 	]);
 	const callback = new URL(page.url());
@@ -146,15 +146,15 @@ async function authorize(
 	const code = callback.searchParams.get("code");
 	expect(code).toEqual(expect.any(String));
 	const response = await page.request.post(client.tokenUrl, {
-		headers: { Origin: API_URL },
 		form: {
-			grant_type: "authorization_code",
 			client_id: client.clientId,
-			redirect_uri: client.redirectUri,
 			code: code as string,
 			code_verifier: verifier,
+			grant_type: "authorization_code",
+			redirect_uri: client.redirectUri,
 			resource: `${API_URL}/mcp`,
 		},
+		headers: { Origin: API_URL },
 	});
 	expect(response.ok(), await response.text()).toBe(true);
 	const token = await response.json();
@@ -171,12 +171,12 @@ async function rpc<T>(
 ): Promise<T> {
 	const id = crypto.randomUUID();
 	const response = await request.post(`${API_URL}/mcp`, {
+		data: { id, jsonrpc: "2.0", method, params },
 		headers: {
-			Authorization: `Bearer ${token}`,
 			Accept: "application/json, text/event-stream",
+			Authorization: `Bearer ${token}`,
 			"MCP-Protocol-Version": "2025-03-26",
 		},
-		data: { jsonrpc: "2.0", id, method, params },
 	});
 	expect(response.ok(), await response.text()).toBe(true);
 	const body = await response.text();
@@ -202,12 +202,12 @@ async function callTool<T>(
 	args: Record<string, unknown> = {}
 ): Promise<T> {
 	const result = await rpc<ToolResult>(request, token, "tools/call", {
-		name,
 		arguments: args,
+		name,
 	});
 	expect(result.isError, JSON.stringify(result.content)).not.toBe(true);
 	const [content] = result.content;
-	if (!content || content.type !== "text") {
+	if (content?.type !== "text") {
 		throw new Error("Expected a text tool result");
 	}
 	return JSON.parse(content.text) as T;
@@ -225,9 +225,9 @@ test("OAuth login continuation and PKCE connect MCP writes to cookie reads with 
 		token,
 		"initialize",
 		{
-			protocolVersion: "2025-03-26",
 			capabilities: {},
 			clientInfo: { name: "sapphire-e2e", version: "1.0.0" },
+			protocolVersion: "2025-03-26",
 		}
 	);
 	expect(initialized.serverInfo.name).toBe("sapphire2");
@@ -245,8 +245,8 @@ test("OAuth login continuation and PKCE connect MCP writes to cookie reads with 
 		])
 	);
 	const room = await callTool<Room>(page.request, token, "room_create", {
-		name: "OAuth private room",
 		memo: "Only the granting account can read or change this room.",
+		name: "OAuth private room",
 	});
 	expect(room.name).toBe("OAuth private room");
 	const rooms = await callTool<Room[]>(page.request, token, "room_list");
@@ -268,12 +268,12 @@ test("OAuth login continuation and PKCE connect MCP writes to cookie reads with 
 		const registration = await otherContext.request.post(
 			`${API_URL}/api/auth/sign-up/email`,
 			{
-				headers: { Origin: "https://localhost:13001" },
 				data: {
 					email: `other-${crypto.randomUUID()}@example.test`,
-					password: account.password,
 					name: "Other account",
+					password: account.password,
 				},
+				headers: { Origin: "https://localhost:13001" },
 			}
 		);
 		expect(registration.ok(), await registration.text()).toBe(true);
@@ -282,23 +282,24 @@ test("OAuth login continuation and PKCE connect MCP writes to cookie reads with 
 			await callTool<Room[]>(otherContext.request, otherToken, "room_list")
 		).toEqual([]);
 		for (const name of ["room_get_by_id", "room_update"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Requests share server state and must retain their original order.
 			const result = await rpc<ToolResult>(
 				otherContext.request,
 				otherToken,
 				"tools/call",
 				{
-					name,
 					arguments: {
 						id: room.id,
 						...(name === "room_update" ? { name: "Stolen" } : {}),
 					},
+					name,
 				}
 			);
 			expect(result).toEqual({
-				isError: true,
 				content: [
-					{ type: "text", text: "You do not have access to that resource." },
+					{ text: "You do not have access to that resource.", type: "text" },
 				],
+				isError: true,
 			});
 		}
 		const forbiddenHttp = await otherContext.request.get(
@@ -314,8 +315,8 @@ test("OAuth login continuation and PKCE connect MCP writes to cookie reads with 
 				id: room.id,
 			})
 		).toMatchObject({
-			name: "OAuth private room",
 			memo: room.memo,
+			name: "OAuth private room",
 		});
 	} finally {
 		await otherContext.close();
@@ -347,14 +348,14 @@ test("a wrong PKCE verifier cannot exchange an approved authorization code", asy
 	const { state } = await requestConsent(page, client);
 	const callback = await decideConsent(page, state, true);
 	const response = await page.request.post(client.tokenUrl, {
-		headers: { Origin: API_URL },
 		form: {
-			grant_type: "authorization_code",
 			client_id: client.clientId,
-			redirect_uri: client.redirectUri,
 			code: callback.searchParams.get("code") as string,
 			code_verifier: randomBytes(32).toString("base64url"),
+			grant_type: "authorization_code",
+			redirect_uri: client.redirectUri,
 		},
+		headers: { Origin: API_URL },
 	});
 	expect(response.status()).toBe(400);
 	const body = await response.json();
@@ -367,9 +368,10 @@ test("missing and invalid bearer tokens receive an OAuth discovery challenge", a
 	request,
 }) => {
 	for (const token of [undefined, "invalid-e2e-access-token"]) {
+		// biome-ignore lint/performance/noAwaitInLoops: Authentication requests share rate limits and must remain sequential.
 		const response = await request.post(`${API_URL}/mcp`, {
+			data: { id: 1, jsonrpc: "2.0", method: "tools/list" },
 			headers: token ? { Authorization: `Bearer ${token}` } : {},
-			data: { jsonrpc: "2.0", id: 1, method: "tools/list" },
 		});
 		expect(response.status()).toBe(401);
 		expect(response.headers()["www-authenticate"]).toBe(

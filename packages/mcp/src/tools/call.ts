@@ -30,7 +30,7 @@ export async function callTool(
 			throw new Error(`caller has no procedure at "${def.procedurePath}"`);
 		}
 		const result = await procedure(input);
-		return { content: [{ type: "text", text: JSON.stringify(result) }] };
+		return { content: [{ text: JSON.stringify(result), type: "text" }] };
 	} catch (error) {
 		return mapToolError(error, log);
 	}

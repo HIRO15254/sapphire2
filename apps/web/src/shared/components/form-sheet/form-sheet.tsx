@@ -8,6 +8,7 @@ import {
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
 import { IconButton } from "@/shared/components/ui/icon-button";
+import { useFormSheet } from "./use-form-sheet";
 
 interface FormSheetProps {
 	children: ReactNode;
@@ -32,14 +33,15 @@ export function FormSheet({
 	open,
 	title,
 }: FormSheetProps) {
+	const { onCancel } = useFormSheet(onOpenChange);
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent className={className}>
-				<div className="grid min-h-[var(--m-navbar-height)] shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center border-border border-b px-1 py-0.5">
+				<div className="border-border grid min-h-[var(--m-navbar-height)] shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center border-b px-1 py-0.5">
 					<IconButton
-						className="justify-self-start text-foreground [&_svg:not([class*='size-'])]:size-6"
+						className="text-foreground justify-self-start [&_svg:not([class*='size-'])]:size-6"
 						label="Cancel"
-						onClick={() => onOpenChange(false)}
+						onClick={onCancel}
 						size="xl"
 						type="button"
 					>
@@ -48,7 +50,7 @@ export function FormSheet({
 					<DrawerTitle className="text-center">{title}</DrawerTitle>
 					<IconButton
 						aria-busy={isLoading}
-						className="justify-self-end text-primary-text hover:text-primary-text [&_svg:not([class*='size-'])]:size-6"
+						className="text-primary-text hover:text-primary-text justify-self-end [&_svg:not([class*='size-'])]:size-6"
 						disabled={isLoading || isSaveDisabled}
 						form={formId}
 						label={confirmLabel}

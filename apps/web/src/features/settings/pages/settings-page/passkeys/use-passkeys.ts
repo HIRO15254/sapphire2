@@ -11,31 +11,7 @@ export interface PasskeyEntry {
 	name?: string | null;
 }
 
-interface UsePasskeysResult {
-	deleteTarget: PasskeyEntry | null;
-	error: string | null;
-	isAddOpen: boolean;
-	isDeletePending: boolean;
-	isPasskeySupported: boolean;
-	isRefreshPending: boolean;
-	isRenamePending: boolean;
-	loading: boolean;
-	menuTarget: PasskeyEntry | null;
-	onAddOpenChange: (open: boolean) => void;
-	onDeletePasskey: () => Promise<void>;
-	onDeleteTargetChange: (entry: PasskeyEntry | null) => void;
-	onMenuTargetChange: (entry: PasskeyEntry | null) => void;
-	onRemoveFromMenu: () => void;
-	onRenameFromMenu: () => void;
-	onRenamePasskey: (name: string) => Promise<void>;
-	onRenameTargetChange: (entry: PasskeyEntry | null) => void;
-	passkeys: PasskeyEntry[];
-	refreshPasskeys: () => Promise<void>;
-	renameTarget: PasskeyEntry | null;
-	totalPasskeys: number;
-}
-
-export function usePasskeys(): UsePasskeysResult {
+export function usePasskeys() {
 	const [passkeys, setPasskeys] = useState<PasskeyEntry[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -145,9 +121,22 @@ export function usePasskeys(): UsePasskeysResult {
 		loading,
 		menuTarget,
 		onAddOpenChange: setIsAddOpen,
+		onCancelDelete: () => setDeleteTarget(null),
+		onCloseMenu: () => setMenuTarget(null),
+		onDeleteOpenChange: (open: boolean) => {
+			if (!open) {
+				setDeleteTarget(null);
+			}
+		},
 		onDeletePasskey,
 		onDeleteTargetChange: setDeleteTarget,
+		onMenuOpenChange: (open: boolean) => {
+			if (!open) {
+				setMenuTarget(null);
+			}
+		},
 		onMenuTargetChange: setMenuTarget,
+		onOpenAdd: () => setIsAddOpen(true),
 		onRemoveFromMenu: () => {
 			setDeleteTarget(menuTarget);
 			setMenuTarget(null);
@@ -156,8 +145,14 @@ export function usePasskeys(): UsePasskeysResult {
 			setRenameTarget(menuTarget);
 			setMenuTarget(null);
 		},
+		onRenameOpenChange: (open: boolean) => {
+			if (!open) {
+				setRenameTarget(null);
+			}
+		},
 		onRenamePasskey,
 		onRenameTargetChange: setRenameTarget,
+		onSelectPasskey: (entry: PasskeyEntry) => () => setMenuTarget(entry),
 		passkeys,
 		refreshPasskeys,
 		renameTarget,

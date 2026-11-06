@@ -11,7 +11,7 @@ export function SettingsSection({
 }) {
 	return (
 		<section aria-label={heading} className="flex flex-col gap-1.5">
-			<h2 className="m-0 px-1 font-semibold text-[length:var(--m-text-footnote)] text-muted-foreground uppercase tracking-[var(--tracking-caps)]">
+			<h2 className="text-muted-foreground m-0 px-1 font-semibold tracking-[var(--tracking-caps)] text-[length:var(--m-text-footnote)] uppercase">
 				{heading}
 			</h2>
 			{children}
@@ -22,7 +22,7 @@ export function SettingsSection({
 
 export function SettingsNote({ children }: { children: ReactNode }) {
 	return (
-		<p className="m-0 px-1 text-[length:var(--m-text-footnote)] text-muted-foreground leading-normal">
+		<p className="text-muted-foreground m-0 px-1 leading-normal text-[length:var(--m-text-footnote)]">
 			{children}
 		</p>
 	);

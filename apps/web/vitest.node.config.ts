@@ -8,7 +8,6 @@ export default defineConfig({
 		},
 	},
 	test: {
-		name: "web-node",
 		environment: "node",
 		include: [
 			"src/utils/__tests__/*.test.ts",
@@ -17,5 +16,6 @@ export default defineConfig({
 			"src/features/**/utils/__tests__/*.test.ts",
 		],
 		isolate: false,
+		name: "web-node",
 	},
 });

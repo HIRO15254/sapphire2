@@ -10,7 +10,6 @@ export interface AuditCommand {
 
 const RUNS: Record<AuditAgent, { args: string[]; command: string }> = {
 	claude: {
-		command: "claude",
 		args: [
 			"-p",
 			"--model",
@@ -19,9 +18,9 @@ const RUNS: Record<AuditAgent, { args: string[]; command: string }> = {
 			"xhigh",
 			"--dangerously-skip-permissions",
 		],
+		command: "claude",
 	},
 	codex: {
-		command: "codex",
 		args: [
 			"exec",
 			"-m",
@@ -31,6 +30,7 @@ const RUNS: Record<AuditAgent, { args: string[]; command: string }> = {
 			"--dangerously-bypass-approvals-and-sandbox",
 			"-",
 		],
+		command: "codex",
 	},
 };
 
@@ -59,8 +59,8 @@ function main(args: string[]): void {
 	}
 	const result = spawnSync(run.command, run.args, {
 		input: run.input,
-		stdio: ["pipe", "inherit", "inherit"],
 		shell: process.platform === "win32",
+		stdio: ["pipe", "inherit", "inherit"],
 	});
 	if (result.error) {
 		console.error(

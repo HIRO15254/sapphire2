@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LinkedAccounts } from "./linked-accounts";
 
-const NEW_PASSWORD_RE = /New password/;
-const CONFIRM_PASSWORD_RE = /Confirm password/;
+const NEW_PASSWORD_RE = /New password/u;
+const CONFIRM_PASSWORD_RE = /Confirm password/u;
 
 const mocks = vi.hoisted(() => ({
 	fetchSetPassword: vi.fn(),
@@ -117,8 +117,8 @@ describe("LinkedAccounts", () => {
 			expect(mocks.fetchSetPassword).toHaveBeenCalledTimes(1);
 		});
 		expect(mocks.fetchSetPassword).toHaveBeenCalledWith("/set-password", {
-			method: "POST",
 			body: { newPassword: "supersecret1" },
+			method: "POST",
 		});
 		expect(mocks.toastSuccess).toHaveBeenCalledWith("Password set", {
 			description: "You can now sign in with your email.",

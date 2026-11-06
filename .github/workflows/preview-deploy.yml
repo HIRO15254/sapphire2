@@ -2,7 +2,7 @@ name: Preview Deploy
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [ opened, synchronize, reopened ]
 
 concurrency:
   group: preview-deploy-${{ github.event.pull_request.number }}
@@ -103,7 +103,7 @@ jobs:
           echo "is_new_db=${IS_NEW}" >> "$GITHUB_OUTPUT"
 
   db-migrate:
-    needs: [setup, d1-setup]
+    needs: [ setup, d1-setup ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -226,7 +226,7 @@ jobs:
           bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote
 
   deploy-api:
-    needs: [setup, d1-setup, db-migrate]
+    needs: [ setup, d1-setup, db-migrate ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -255,7 +255,7 @@ jobs:
           echo "${{ secrets.GOOGLE_MAPS_API_KEY }}" | bunx wrangler secret put GOOGLE_MAPS_API_KEY --name "${{ needs.setup.outputs.worker_name }}"
 
   deploy-web:
-    needs: [setup, deploy-api]
+    needs: [ setup, deploy-api ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -277,7 +277,7 @@ jobs:
             --branch "pr-${{ needs.setup.outputs.pr_number }}"
 
   comment:
-    needs: [setup, deploy-api, deploy-web]
+    needs: [ setup, deploy-api, deploy-web ]
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

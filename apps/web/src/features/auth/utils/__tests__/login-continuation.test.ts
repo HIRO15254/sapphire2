@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	pendingAuthorizeUrl,
+	socialCallbackUrl,
+} from "@/features/auth/utils/login-continuation";
 
 const mocks = vi.hoisted(() => ({
 	env: { VITE_SERVER_URL: "http://localhost:8787" },
@@ -9,11 +13,6 @@ vi.mock("@sapphire2/env/web", () => ({
 		get: (target, prop) => target[prop as keyof typeof target],
 	}),
 }));
-
-import {
-	pendingAuthorizeUrl,
-	socialCallbackUrl,
-} from "@/features/auth/utils/login-continuation";
 
 const OAUTH_AUTHORIZE_SEARCH =
 	"?client_id=c1&response_type=code&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&state=s1";

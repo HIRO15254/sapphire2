@@ -17,14 +17,17 @@ import {
 	ItemTitle,
 } from "@/shared/components/ui/item";
 import { Spinner } from "@/shared/components/ui/spinner";
-import { useSetPasswordForm } from "@/shared/hooks/use-set-password-form";
-import { SOCIAL_PROVIDERS, useLinkedAccounts } from "./use-linked-accounts";
+import {
+	SOCIAL_PROVIDERS,
+	useLinkedAccounts,
+	useLinkedPasswordForm,
+} from "./use-linked-accounts";
 
 const SET_PASSWORD_FORM_ID = "set-password-form";
 
 const PROVIDER_ICONS = {
-	google: <GoogleIcon className="size-[18px]" />,
 	discord: <DiscordIcon className="size-[18px]" />,
+	google: <GoogleIcon className="size-[18px]" />,
 };
 
 function SetPasswordForm({
@@ -38,20 +41,19 @@ function SetPasswordForm({
 	onOpenChange: (open: boolean) => void;
 	onSuccess: () => void;
 }) {
-	const { form } = useSetPasswordForm({ onOpenChange, onSuccess });
+	const { form, onSubmit, onFieldChange } = useLinkedPasswordForm({
+		onOpenChange,
+		onSuccess,
+	});
 
 	return (
 		<form
 			className="flex flex-col gap-4 pt-1 pb-2"
 			id={formId}
 			noValidate
-			onSubmit={(event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				form.handleSubmit();
-			}}
+			onSubmit={onSubmit}
 		>
-			<p className="m-0 text-muted-foreground leading-normal">{intro}</p>
+			<p className="text-muted-foreground m-0 leading-normal">{intro}</p>
 
 			<form.Field name="newPassword">
 				{(field) => (
@@ -67,7 +69,7 @@ function SetPasswordForm({
 							id={field.name}
 							name={field.name}
 							onBlur={field.handleBlur}
-							onChange={(event) => field.handleChange(event.target.value)}
+							onChange={onFieldChange(field)}
 							size="xl"
 							type="password"
 							value={field.state.value}
@@ -89,7 +91,7 @@ function SetPasswordForm({
 							id={field.name}
 							name={field.name}
 							onBlur={field.handleBlur}
-							onChange={(event) => field.handleChange(event.target.value)}
+							onChange={onFieldChange(field)}
 							size="xl"
 							type="password"
 							value={field.state.value}
@@ -114,8 +116,6 @@ export function LinkedAccounts() {
 		email,
 		error,
 		fetchAccounts,
-		handleLink,
-		handleUnlink,
 		hasCredential,
 		isRefreshPending,
 		isSetPasswordOpen,
@@ -124,13 +124,16 @@ export function LinkedAccounts() {
 		loading,
 		note,
 		onSetPasswordOpenChange,
+		onLink,
+		onUnlink,
+		onOpenSetPassword,
 		totalLinked,
 	} = useLinkedAccounts();
 
 	if (loading) {
 		return (
 			<SettingsSection heading="Sign-in methods">
-				<div className="flex justify-center py-3 text-muted-foreground">
+				<div className="text-muted-foreground flex justify-center py-3">
 					<Spinner />
 				</div>
 			</SettingsSection>
@@ -165,7 +168,7 @@ export function LinkedAccounts() {
 					{hasCredential ? null : (
 						<ItemActions>
 							<Button
-								onClick={() => onSetPasswordOpenChange(true)}
+								onClick={onOpenSetPassword}
 								size="sm"
 								type="button"
 								variant="outline"
@@ -192,7 +195,7 @@ export function LinkedAccounts() {
 									<Button
 										aria-label={`Unlink ${provider.label}`}
 										disabled={totalLinked <= 1}
-										onClick={() => handleUnlink(provider.id)}
+										onClick={onUnlink(provider.id)}
 										size="sm"
 										type="button"
 										variant="ghost"
@@ -203,7 +206,7 @@ export function LinkedAccounts() {
 								) : (
 									<Button
 										aria-label={`Link ${provider.label}`}
-										onClick={() => handleLink(provider.id)}
+										onClick={onLink(provider.id)}
 										size="sm"
 										type="button"
 										variant="outline"

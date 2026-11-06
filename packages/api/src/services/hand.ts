@@ -54,7 +54,7 @@ function cardListSchema(maxCards: number) {
 	return z
 		.string()
 		.max(cardListMaxLength(maxCards))
-		.regex(new RegExp(`^${CARD_PATTERN}(?: ${CARD_PATTERN})*$`))
+		.regex(new RegExp(`^${CARD_PATTERN}(?: ${CARD_PATTERN})*$`, "u"))
 		.refine((value) => {
 			const cards = value.split(" ");
 			return new Set(cards).size === cards.length;
@@ -68,24 +68,24 @@ const chipResultSchema = z.number().int();
 
 export const handStakesSchema = z
 	.object({
+		ante: chipsSchema.optional(),
+		anteType: anteTypeSchema.optional(),
 		blind1: chipsSchema.optional(),
 		blind2: chipsSchema.optional(),
 		blind3: chipsSchema.optional(),
-		ante: chipsSchema.optional(),
-		anteType: anteTypeSchema.optional(),
 	})
 	.strict();
 
 const handContextFields = {
 	buttonSeat: seatNumberSchema.nullable(),
+	levelOrdinal: z.number().int().min(1).nullable(),
+	stakes: handStakesSchema.nullable(),
 	tableSize: z
 		.number()
 		.int()
 		.min(MIN_HAND_TABLE_SIZE)
 		.max(MAX_HAND_TABLE_SIZE)
 		.nullable(),
-	levelOrdinal: z.number().int().min(1).nullable(),
-	stakes: handStakesSchema.nullable(),
 	variantId: z.string().min(1).nullable(),
 };
 
@@ -97,25 +97,25 @@ export const handAddInputSchema = z.object({
 
 const handSummaryFields = {
 	boards: z.array(cardListSchema(MAX_BOARD_CARDS)).max(MAX_HAND_BOARDS),
+	memo: z.string().max(MAX_HAND_MEMO_LENGTH).nullable(),
 	pot: chipsSchema.nullable(),
 	rake: chipsSchema.nullable(),
-	memo: z.string().max(MAX_HAND_MEMO_LENGTH).nullable(),
 };
 
 const handSeatSchema = z.object({
-	seat: seatNumberSchema,
-	playerId: z.string().min(1).nullable(),
-	startStack: chipsSchema.nullable(),
 	holeCards: cardListSchema(MAX_HOLE_CARDS).nullable(),
 	net: chipResultSchema.nullable(),
+	playerId: z.string().min(1).nullable(),
+	seat: seatNumberSchema,
 	showed: z.boolean(),
+	startStack: chipsSchema.nullable(),
 });
 
 const tagReviewsSchema = z
 	.array(
 		z.object({
-			tagId: z.string().min(1),
 			reviewedAt: instantSchema.nullable(),
+			tagId: z.string().min(1),
 		})
 	)
 	.max(MAX_LINKED_TAGS)
@@ -133,11 +133,11 @@ const handUpdateFields = {
 };
 
 const handActionSchema = z.object({
-	street: z.number().int().min(0).max(MAX_HAND_STREET),
-	seat: seatNumberSchema,
 	action: z.enum(HAND_ACTIONS),
-	amount: chipsSchema.nullable(),
 	allIn: z.boolean(),
+	amount: chipsSchema.nullable(),
+	seat: seatNumberSchema,
+	street: z.number().int().min(0).max(MAX_HAND_STREET),
 });
 
 function checkShowedCards(
@@ -148,8 +148,8 @@ function checkShowedCards(
 	if (seat.showed && seat.holeCards === null) {
 		ctx.addIssue({
 			code: "custom",
-			path: [...path, "holeCards"],
 			message: "A shown seat needs its hole cards",
+			path: [...path, "holeCards"],
 		});
 	}
 }
@@ -174,11 +174,11 @@ export const handUpdateInputSchema = z.discriminatedUnion("detail", [
 			...handUpdateFields,
 			detail: z.literal("full"),
 			...handSummaryFields,
+			actions: z.array(handActionSchema).max(MAX_HAND_ACTIONS),
 			seats: z
 				.array(handSeatSchema)
 				.min(1)
 				.max(MAX_SEAT_POSITION + 1),
-			actions: z.array(handActionSchema).max(MAX_HAND_ACTIONS),
 		})
 		.superRefine((input, ctx) => {
 			const seats = new Set(input.seats.map(({ seat }) => seat));
@@ -188,8 +188,8 @@ export const handUpdateInputSchema = z.discriminatedUnion("detail", [
 			if (seats.size !== input.seats.length) {
 				ctx.addIssue({
 					code: "custom",
-					path: ["seats"],
 					message: "A seat appears more than once",
+					path: ["seats"],
 				});
 			}
 			const playerIds = input.seats.flatMap(({ playerId }) =>
@@ -198,8 +198,8 @@ export const handUpdateInputSchema = z.discriminatedUnion("detail", [
 			if (new Set(playerIds).size !== playerIds.length) {
 				ctx.addIssue({
 					code: "custom",
-					path: ["seats"],
 					message: "A player sits in more than one seat",
+					path: ["seats"],
 				});
 			}
 			const shownSeats = new Set(
@@ -209,14 +209,14 @@ export const handUpdateInputSchema = z.discriminatedUnion("detail", [
 				if (!seats.has(action.seat)) {
 					ctx.addIssue({
 						code: "custom",
-						path: ["actions", index, "seat"],
 						message: "The action's seat is not in the hand",
+						path: ["actions", index, "seat"],
 					});
 				} else if (action.action === "show" && !shownSeats.has(action.seat)) {
 					ctx.addIssue({
 						code: "custom",
-						path: ["actions", index, "seat"],
 						message: "A seat that shows must be marked as shown",
+						path: ["actions", index, "seat"],
 					});
 				}
 			}
@@ -297,7 +297,7 @@ async function loadBoards(
 		handIds,
 		(chunk) =>
 			db
-				.select({ handId: handBoard.handId, cards: handBoard.cards })
+				.select({ cards: handBoard.cards, handId: handBoard.handId })
 				.from(handBoard)
 				.where(
 					and(inArray(handBoard.handId, chunk), eq(handBoard.userId, userId))
@@ -403,8 +403,8 @@ export async function hydrateHandDetails(
 	]);
 	return rows.map((row) => ({
 		...toHandOutput(row, boards.get(row.id) ?? [], tags.get(row.id) ?? []),
-		seats: seats.get(row.id) ?? [],
 		actions: actions.get(row.id) ?? [],
+		seats: seats.get(row.id) ?? [],
 	}));
 }
 
@@ -483,11 +483,11 @@ async function loadOwnedHand(
 ): Promise<OwnedHand> {
 	const [found] = await db
 		.select({
+			detail: hand.detail,
+			handNo: hand.handNo,
 			id: hand.id,
 			playSessionId: hand.playSessionId,
-			handNo: hand.handNo,
 			seq: hand.seq,
-			detail: hand.detail,
 		})
 		.from(hand)
 		.where(and(eq(hand.id, handId), eq(hand.userId, userId)));
@@ -516,20 +516,20 @@ export function buildHandAddStatement(
 	return db
 		.insert(hand)
 		.values({
-			id: crypto.randomUUID(),
-			userId,
-			playSessionId: input.playSessionId,
+			buttonSeat: input.buttonSeat ?? null,
+			detail: "count",
 			handNo: sql`(SELECT COALESCE(MAX(${hand.handNo}), 0) + 1 FROM ${hand} WHERE ${hand.playSessionId} = ${input.playSessionId})`,
-			seq: sql`(SELECT ${playSession.nextHandSeq} FROM ${playSession} WHERE ${playSession.id} = ${input.playSessionId})`,
+			id: crypto.randomUUID(),
+			levelOrdinal: input.levelOrdinal ?? null,
 			playedAt:
 				input.playedAt === undefined ? now : new Date(input.playedAt * 1000),
-			detail: "count",
-			buttonSeat: input.buttonSeat ?? null,
-			tableSize: input.tableSize ?? null,
-			levelOrdinal: input.levelOrdinal ?? null,
+			playSessionId: input.playSessionId,
+			seq: sql`(SELECT ${playSession.nextHandSeq} FROM ${playSession} WHERE ${playSession.id} = ${input.playSessionId})`,
 			stakes: input.stakes ? JSON.stringify(input.stakes) : null,
-			variantId: input.variantId ?? null,
+			tableSize: input.tableSize ?? null,
 			updatedAt: now,
+			userId,
+			variantId: input.variantId ?? null,
 		})
 		.returning();
 }
@@ -545,14 +545,14 @@ function seatRows(
 	const seats = input.detail === "summary" ? [input.hero] : input.seats;
 	return seats.map((seat) => ({
 		handId: input.id,
-		userId,
-		seat: seat.seat,
-		playerId: seat.playerId,
-		isHero: seat.playerId !== null && seat.playerId === selfPlayerId,
-		startStack: seat.startStack,
 		holeCards: seat.holeCards,
+		isHero: seat.playerId !== null && seat.playerId === selfPlayerId,
 		net: seat.net,
+		playerId: seat.playerId,
+		seat: seat.seat,
 		showed: seat.showed,
+		startStack: seat.startStack,
+		userId,
 	}));
 }
 
@@ -561,14 +561,14 @@ function actionRows(userId: string, input: HandUpdateInput) {
 		return [];
 	}
 	return input.actions.map((action, index) => ({
+		action: action.action,
+		allIn: action.allIn,
+		amount: action.amount,
 		handId: input.id,
-		userId,
+		seat: action.seat,
 		seq: index + 1,
 		street: action.street,
-		seat: action.seat,
-		action: action.action,
-		amount: action.amount,
-		allIn: action.allIn,
+		userId,
 	}));
 }
 
@@ -592,10 +592,10 @@ function tagLinkStatements(
 		return [];
 	}
 	const rows = tagLinks.map(({ tagId, reviewedAt }) => ({
-		userId,
 		handId,
-		tagId,
 		reviewedAt,
+		tagId,
+		userId,
 	}));
 	const statements: BatchStatement[] = [
 		db
@@ -619,16 +619,16 @@ export function buildHandUpdateStatements(
 ): BatchStatement[] {
 	const summary =
 		input.detail === "count"
-			? { pot: null, rake: null, memo: null }
-			: { pot: input.pot, rake: input.rake, memo: input.memo };
+			? { memo: null, pot: null, rake: null }
+			: { memo: input.memo, pot: input.pot, rake: input.rake };
 	const boards =
 		input.detail === "count"
 			? []
 			: input.boards.map((cards, index) => ({
-					handId: input.id,
-					userId,
 					boardNo: index + 1,
 					cards,
+					handId: input.id,
+					userId,
 				}));
 	const seats = seatRows(userId, input, plan.selfPlayerId);
 	const actions = actionRows(userId, input);
@@ -647,11 +647,11 @@ export function buildHandUpdateStatements(
 		db
 			.update(hand)
 			.set({
-				detail: input.detail,
 				buttonSeat: input.buttonSeat,
-				tableSize: input.tableSize,
+				detail: input.detail,
 				levelOrdinal: input.levelOrdinal,
 				stakes: input.stakes ? JSON.stringify(input.stakes) : null,
+				tableSize: input.tableSize,
 				variantId: input.variantId,
 				...summary,
 				updatedAt: now,
@@ -740,11 +740,11 @@ export async function undoLastHand(
 	await assertActivePlaySession(db, userId, playSessionId);
 	const [last] = await db
 		.select({
+			detail: hand.detail,
+			handNo: hand.handNo,
 			id: hand.id,
 			playSessionId: hand.playSessionId,
-			handNo: hand.handNo,
 			seq: hand.seq,
-			detail: hand.detail,
 		})
 		.from(hand)
 		.where(and(eq(hand.playSessionId, playSessionId), eq(hand.userId, userId)))
@@ -800,7 +800,7 @@ async function planTagLinks(
 		userId
 	);
 	const current = await db
-		.select({ tagId: handTagLink.tagId, reviewedAt: handTagLink.reviewedAt })
+		.select({ reviewedAt: handTagLink.reviewedAt, tagId: handTagLink.tagId })
 		.from(handTagLink)
 		.where(
 			and(eq(handTagLink.handId, input.id), eq(handTagLink.userId, userId))
@@ -826,8 +826,8 @@ async function planTagLinks(
 	return tagIds.map((tagId) => {
 		const review = reviews.get(tagId);
 		return {
-			tagId,
 			reviewedAt: review === undefined ? (kept.get(tagId) ?? null) : review,
+			tagId,
 		};
 	});
 }
@@ -880,9 +880,9 @@ export async function deleteHand(
 }
 
 const handCursorSchema = z.object({
+	id: z.string(),
 	playSessionId: z.string(),
 	seq: z.number().int().min(0),
-	id: z.string(),
 });
 
 export async function listHands(
@@ -932,9 +932,9 @@ export async function listHands(
 		})),
 		nextCursor: boundary
 			? encodeCursor({
+					id: boundary.id,
 					playSessionId: input.playSessionId,
 					seq: boundary.seq,
-					id: boundary.id,
 				})
 			: null,
 	};

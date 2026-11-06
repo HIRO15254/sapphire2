@@ -16,7 +16,12 @@ export function TagNameForm({
 	label?: string;
 	onSubmit: (name: string) => void;
 }) {
-	const { form, label: resolvedLabel } = useTagNameForm({
+	const {
+		form,
+		label: resolvedLabel,
+		onFormSubmit,
+		onNameChange,
+	} = useTagNameForm({
 		defaultName,
 		label,
 		onSubmit,
@@ -26,11 +31,7 @@ export function TagNameForm({
 		<form
 			className="flex flex-col gap-4 pt-1 pb-2"
 			id={formId}
-			onSubmit={(e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				form.handleSubmit();
-			}}
+			onSubmit={onFormSubmit}
 		>
 			<form.Field name="name">
 				{(field) => (
@@ -44,7 +45,7 @@ export function TagNameForm({
 							id={field.name}
 							name={field.name}
 							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
+							onChange={onNameChange(field.handleChange)}
 							size="xl"
 							value={field.state.value}
 						/>

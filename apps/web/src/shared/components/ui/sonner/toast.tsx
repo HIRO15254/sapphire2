@@ -12,10 +12,10 @@ export const TOAST_CARD_CLASS =
 export type ToastVariant = "neutral" | "success" | "warning" | "destructive";
 
 const VARIANT_ICONS = {
-	neutral: <IconInfoCircle className="size-4 text-muted-foreground" />,
-	success: <IconCircleCheck className="size-4 text-success-text" />,
-	warning: <IconAlertTriangle className="size-4 text-warning-text" />,
-	destructive: <IconCircleX className="size-4 text-destructive-text" />,
+	destructive: <IconCircleX className="text-destructive-text size-4" />,
+	neutral: <IconInfoCircle className="text-muted-foreground size-4" />,
+	success: <IconCircleCheck className="text-success-text size-4" />,
+	warning: <IconAlertTriangle className="text-warning-text size-4" />,
 } satisfies Record<ToastVariant, ReactNode>;
 
 export function Toast({
@@ -43,11 +43,13 @@ export function Toast({
 				{icon ?? VARIANT_ICONS[variant]}
 			</span>
 			<div className="min-w-0 flex-1">
-				<p className="font-medium text-sm leading-[1.4]">{title}</p>
-				{description && (
-					<p className="mt-0.5 text-muted-foreground text-xs leading-[1.4]">
+				<p className="text-sm leading-[1.4] font-medium">{title}</p>
+				{description ? (
+					<p className="text-muted-foreground mt-0.5 text-xs leading-[1.4]">
 						{description}
 					</p>
+				) : (
+					description
 				)}
 			</div>
 			{action}

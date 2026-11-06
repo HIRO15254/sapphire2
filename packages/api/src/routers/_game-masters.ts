@@ -38,9 +38,9 @@ export function compareBuiltinFirst(
 }
 
 const LABELLED_MASTERS = {
-	"game group": { table: gameGroup, index: "game_group_label_uq" },
-	"game variant": { table: gameVariant, index: "game_variant_label_uq" },
-	"game mix": { table: gameMix, index: "game_mix_label_uq" },
+	"game group": { index: "game_group_label_uq", table: gameGroup },
+	"game mix": { index: "game_mix_label_uq", table: gameMix },
+	"game variant": { index: "game_variant_label_uq", table: gameVariant },
 } as const;
 
 export async function runLabelWrite<T>(
@@ -67,7 +67,9 @@ export async function runLabelWrite<T>(
 				)
 			)
 			.limit(1);
+		// biome-ignore lint/style/useErrorCause: TRPCError receives the original error in its cause option.
 		throw new TRPCError({
+			cause: error,
 			code: "CONFLICT",
 			message: holder?.archivedAt
 				? `An archived ${master} already has this label; restore it instead`

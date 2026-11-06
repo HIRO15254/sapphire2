@@ -32,29 +32,29 @@ const SEAT_RANGE = sql.raw(`BETWEEN 0 AND ${MAX_SEAT_POSITION}`);
 export const hand = sqliteTable(
 	"hand",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		playSessionId: text("play_session_id").notNull(),
-		handNo: integer("hand_no").notNull(),
-		seq: integer("seq").notNull().default(0),
-		playedAt: integer("played_at", { mode: "timestamp" }),
-		detail: text("detail", { enum: HAND_DETAILS }).notNull(),
 		buttonSeat: integer("button_seat"),
-		tableSize: integer("table_size"),
-		levelOrdinal: integer("level_ordinal"),
-		stakes: text("stakes"),
-		variantId: text("variant_id"),
-		pot: integer("pot"),
-		rake: integer("rake"),
-		memo: text("memo"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		detail: text("detail", { enum: HAND_DETAILS }).notNull(),
+		handNo: integer("hand_no").notNull(),
+		id: text("id").primaryKey(),
+		levelOrdinal: integer("level_ordinal"),
+		memo: text("memo"),
+		playedAt: integer("played_at", { mode: "timestamp" }),
+		playSessionId: text("play_session_id").notNull(),
+		pot: integer("pot"),
+		rake: integer("rake"),
+		seq: integer("seq").notNull().default(0),
+		stakes: text("stakes"),
+		tableSize: integer("table_size"),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		variantId: text("variant_id"),
 	},
 	(t) => [
 		uniqueIndex("hand_id_user_id_unique").on(t.id, t.userId),
@@ -97,12 +97,12 @@ export const hand = sqliteTable(
 export const handBoard = sqliteTable(
 	"hand_board",
 	{
+		boardNo: integer("board_no").notNull(),
+		cards: text("cards").notNull(),
 		handId: text("hand_id").notNull(),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		boardNo: integer("board_no").notNull(),
-		cards: text("cards").notNull(),
 	},
 	(t) => [
 		primaryKey({ columns: [t.handId, t.boardNo] }),
@@ -126,16 +126,16 @@ export const handSeat = sqliteTable(
 	"hand_seat",
 	{
 		handId: text("hand_id").notNull(),
+		holeCards: text("hole_cards"),
+		isHero: integer("is_hero", { mode: "boolean" }).notNull().default(false),
+		net: integer("net"),
+		playerId: text("player_id"),
+		seat: integer("seat").notNull(),
+		showed: integer("showed", { mode: "boolean" }).notNull().default(false),
+		startStack: integer("start_stack"),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		seat: integer("seat").notNull(),
-		playerId: text("player_id"),
-		isHero: integer("is_hero", { mode: "boolean" }).notNull().default(false),
-		startStack: integer("start_stack"),
-		holeCards: text("hole_cards"),
-		net: integer("net"),
-		showed: integer("showed", { mode: "boolean" }).notNull().default(false),
 	},
 	(t) => [
 		primaryKey({ columns: [t.handId, t.seat] }),
@@ -176,16 +176,16 @@ export const handSeat = sqliteTable(
 export const handAction = sqliteTable(
 	"hand_action",
 	{
+		action: text("action", { enum: HAND_ACTIONS }).notNull(),
+		allIn: integer("all_in", { mode: "boolean" }).notNull().default(false),
+		amount: integer("amount"),
 		handId: text("hand_id").notNull(),
+		seat: integer("seat").notNull(),
+		seq: integer("seq").notNull(),
+		street: integer("street").notNull(),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		seq: integer("seq").notNull(),
-		street: integer("street").notNull(),
-		seat: integer("seat").notNull(),
-		action: text("action", { enum: HAND_ACTIONS }).notNull(),
-		amount: integer("amount"),
-		allIn: integer("all_in", { mode: "boolean" }).notNull().default(false),
 	},
 	(t) => [
 		primaryKey({ columns: [t.handId, t.seq] }),

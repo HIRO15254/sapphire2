@@ -18,22 +18,22 @@ const actionsBot = { __typename: "Bot", login: "github-actions" };
 const stranger = { __typename: "User", login: "stranger" };
 type Author = typeof owner;
 const target = {
-	number: 700,
 	branch: "feature/sa2-400",
-	owner: "o",
 	name: "r",
+	number: 700,
+	owner: "o",
 };
 
 function snapshot(parts: Partial<Snapshot>): Snapshot {
 	return {
-		state: "OPEN",
-		url: PR,
-		headRefName: "feature/sa2-400",
 		comments: { nodes: [] },
+		commits: { nodes: [] },
+		headRefName: "feature/sa2-400",
 		reviews: { nodes: [] },
 		reviewThreads: { nodes: [] },
+		state: "OPEN",
 		timelineItems: { nodes: [] },
-		commits: { nodes: [] },
+		url: PR,
 		...parts,
 	};
 }
@@ -56,10 +56,10 @@ function run(
 	return {
 		__typename: "CheckRun",
 		checkSuite: { workflowRun: { workflow: { name: workflow } } },
-		name,
-		status,
 		conclusion,
 		detailsUrl: `https://ci/${name}`,
+		name,
+		status,
 	};
 }
 
@@ -77,20 +77,20 @@ function head(oid: string, checks: Check[]): Snapshot["commits"] {
 }
 
 function post(id: string, author: Author, body: string) {
-	return { id, url: `${PR}#${id}`, body, author };
+	return { author, body, id, url: `${PR}#${id}` };
 }
 
 function inline(id: string, author: Author, body: string) {
 	return {
 		...post(id, author, body),
-		path: "src/a.ts",
 		line: 3,
 		originalLine: 3,
+		path: "src/a.ts",
 	};
 }
 
 function event(__typename: string, id: string, label?: { name: string }) {
-	return { __typename, id, actor: owner, label };
+	return { __typename, actor: owner, id, label };
 }
 
 describe("scan", () => {
@@ -248,7 +248,7 @@ describe("createWatcher", () => {
 	});
 
 	afterEach(() => {
-		rmSync(dir, { recursive: true, force: true });
+		rmSync(dir, { force: true, recursive: true });
 	});
 
 	it("treats what is already on the PR as seen, waits out the debounce, and reports only new items once", () => {
@@ -269,8 +269,8 @@ describe("createWatcher", () => {
 		const onSnapshot = createWatcher(target, stateFile);
 		onSnapshot(snapshot({}), 0);
 		const merged = snapshot({
-			state: "MERGED",
 			comments: { nodes: [post("c1", owner, "Thanks!")] },
+			state: "MERGED",
 		});
 		expect(onSnapshot(merged, 30_000)).toContain("Thanks!");
 		expect(existsSync(stateFile)).toBe(false);
@@ -284,8 +284,8 @@ describe("createWatcher", () => {
 		expect(onSnapshot(snapshot({ timelineItems: ready }), 30_000)).toBeNull();
 		expect(onSnapshot(snapshot({ timelineItems: ready }), day)).toBeNull();
 		const withComment = snapshot({
-			timelineItems: ready,
 			comments: { nodes: [post("c1", owner, "Please look.")] },
+			timelineItems: ready,
 		});
 		expect(onSnapshot(withComment, day + 30_000)).toBeNull();
 		const batch = onSnapshot(withComment, day + 90_000);
@@ -334,8 +334,8 @@ describe("createWatcher", () => {
 			run("review", "IN_PROGRESS", null, "PR review"),
 		]);
 		const summary = snapshot({
-			commits: reviewing,
 			comments: { nodes: [post("c1", owner, "Round summary.")] },
+			commits: reviewing,
 		});
 		const watcher = createWatcher(target, stateFile);
 		watcher(summary, 0);
@@ -346,8 +346,8 @@ describe("createWatcher", () => {
 		]);
 		const nextWatch = createWatcher(target, stateFile);
 		const later = snapshot({
-			commits: reviewFailed,
 			comments: { nodes: [post("c1", owner, "Round summary.")] },
+			commits: reviewFailed,
 		});
 		nextWatch(later, 0);
 		expect(nextWatch(later, 600_000)).toBeNull();

@@ -79,7 +79,7 @@ function restoreQueryData(queryClient: QueryClient, snapshot: QuerySnapshot) {
 	if (snapshot.data === undefined) {
 		queryClient
 			.getQueryCache()
-			.find({ queryKey: snapshot.queryKey, exact: true })
+			.find({ exact: true, queryKey: snapshot.queryKey })
 			?.setState({ data: undefined, dataUpdatedAt: 0, status: "pending" });
 		return;
 	}
@@ -187,7 +187,12 @@ export function beginOptimisticQueryUpdate(
 	} finally {
 		group.writing = false;
 	}
-	const update = { apply, failed: false, replayFailed: false, settled: false };
+	const update: PendingQueryUpdate = {
+		apply,
+		failed: false,
+		replayFailed: false,
+		settled: false,
+	};
 	group.updates.push(update);
 	return {
 		replaceApply(replacement: () => void): void {

@@ -13,24 +13,24 @@ import { user } from "./auth";
 export const room = sqliteTable(
 	"room",
 	{
+		archivedAt: integer("archived_at", { mode: "timestamp" }),
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.default(sql`(unixepoch())`)
+			.notNull(),
 		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
-		memo: text("memo"),
 		isFavorite: integer("is_favorite", { mode: "boolean" })
 			.notNull()
 			.default(false),
 		latitude: real("latitude"),
 		longitude: real("longitude"),
-		archivedAt: integer("archived_at", { mode: "timestamp" }),
-		createdAt: integer("created_at", { mode: "timestamp" })
-			.default(sql`(unixepoch())`)
-			.notNull(),
+		memo: text("memo"),
+		name: text("name").notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table) => [
 		uniqueIndex("room_id_user_id_unique").on(table.id, table.userId),

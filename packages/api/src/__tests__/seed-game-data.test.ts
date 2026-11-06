@@ -69,6 +69,7 @@ describe("seedDefaultGameData", () => {
 			expect(row?.blind2Required).toBe(def.blind2Required);
 			expect(row?.blind3Required).toBe(def.blind3Required);
 			expect(typeof row?.id).toBe("string");
+			// biome-ignore lint/correctness/noUnsafeOptionalChaining: Preserve the failure when the expected seeded ID is missing.
 			expect((row?.id as string).length).toBeGreaterThan(0);
 		}
 	});
@@ -154,6 +155,7 @@ describe("seedDefaultGameData", () => {
 			expect(row, def.key).toBeDefined();
 			expect(row?.label).toBe(def.label);
 			expect(typeof row?.id).toBe("string");
+			// biome-ignore lint/correctness/noUnsafeOptionalChaining: Preserve the failure when the expected seeded ID is missing.
 			expect((row?.id as string).length).toBeGreaterThan(0);
 		}
 	});
@@ -238,6 +240,7 @@ describe("seedDefaultGameData", () => {
 			"game_group label already exists",
 		]) {
 			batch.mockRejectedValueOnce(new Error(message));
+			// biome-ignore lint/performance/noAwaitInLoops: Each rejection must consume its own sequential mock setup.
 			await expect(seedDefaultGameData(db, USER_ID)).rejects.toThrow(message);
 		}
 	});

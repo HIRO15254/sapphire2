@@ -5,12 +5,12 @@ import { UpdateNotesSheet } from "./update-notes-sheet";
 
 const mocks = vi.hoisted(() => ({
 	sheetState: {
-		isOpen: true,
-		open: vi.fn(),
 		close: vi.fn(),
+		isOpen: true,
+		markViewed: vi.fn(),
+		open: vi.fn(),
 		setIsOpen: vi.fn(),
 		viewedVersions: new Set<string>(),
-		markViewed: vi.fn(),
 	},
 }));
 
@@ -21,34 +21,34 @@ vi.mock(
 	})
 );
 
-const RELEASE_ROW = /1\.0\.0/;
+const RELEASE_ROW = /1\.0\.0/u;
 
 vi.mock("@/features/update-notes/constants", () => ({
+	LATEST_VERSION: "1.0.0",
 	UPDATE_NOTES: [
 		{
-			version: "1.0.0",
-			releasedAt: "2026-04-11",
-			title: "Update Notes Feature",
 			changes: [
 				{
-					section: "New Features",
 					items: ["Added update notes modal to view past release information"],
+					section: "New Features",
 				},
 				{
-					section: "UI Improvements",
 					items: [
 						"Unviewed updates are highlighted with a NEW badge",
 						"Update notes sheet automatically opens after a new release",
 					],
+					section: "UI Improvements",
 				},
 				{
-					section: "",
 					items: ["orphan bullet"],
+					section: "",
 				},
 			],
+			releasedAt: "2026-04-11",
+			title: "Update Notes Feature",
+			version: "1.0.0",
 		},
 	],
-	LATEST_VERSION: "1.0.0",
 }));
 
 vi.mock("@/shared/components/ui/badge", () => ({

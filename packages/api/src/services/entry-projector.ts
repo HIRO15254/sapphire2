@@ -145,11 +145,11 @@ function readClock(
 function readCashEnd(event: ProjectorEvent) {
 	const data = cashSessionEndPayload.parse(JSON.parse(event.payload));
 	return {
-		endState: data.endState ?? "cashed_out",
 		endStack: data.payments.reduce(
 			(sum, payment) => addSafeIntegers(sum, payment.quantity),
 			0
 		),
+		endState: data.endState ?? "cashed_out",
 	};
 }
 
@@ -186,12 +186,12 @@ function readEnd(
 ): Pick<PlaySessionProjection, "endState" | "endStack"> {
 	if (endEvent.type === "day_end") {
 		const data = dayEndPayload.parse(JSON.parse(endEvent.payload));
-		return { endState: data.endState, endStack: data.stackAmount };
+		return { endStack: data.stackAmount, endState: data.endState };
 	}
 	if (kind === "cash") {
 		return readCashEnd(endEvent);
 	}
-	return { endState: readTournamentEndState(endEvent), endStack: null };
+	return { endStack: null, endState: readTournamentEndState(endEvent) };
 }
 
 function foldPlaySession(
@@ -240,13 +240,13 @@ function foldPlaySession(
 	return {
 		endEvent: closingEvent,
 		projection: {
+			breakMinutes: Math.floor(breakMs / MS_PER_MINUTE),
+			endedAt: closingEvent?.occurredAt ?? null,
 			id,
 			startedAt: startEvent?.occurredAt ?? null,
-			endedAt: closingEvent?.occurredAt ?? null,
-			breakMinutes: Math.floor(breakMs / MS_PER_MINUTE),
 			status,
 			...(closingEvent === null
-				? { endState: null, endStack: null }
+				? { endStack: null, endState: null }
 				: readEnd(closingEvent, kind)),
 			...readClock(startEvent, kind),
 		},
@@ -263,7 +263,7 @@ function projectCash(events: readonly ProjectorEvent[]): EntryDetailProjection {
 				(data.potSize / data.trials) * data.wins;
 		}
 	}
-	return { kind: "cash", evDiff: safeInteger(Math.round(evDiff)) };
+	return { evDiff: safeInteger(Math.round(evDiff)), kind: "cash" };
 }
 
 function latestStackTotalEntries(
@@ -274,7 +274,7 @@ function latestStackTotalEntries(
 		if (event.type === "update_stack") {
 			const data = updateStackPayload.parse(JSON.parse(event.payload));
 			if (data.totalEntries !== undefined) {
-				totalEntries = data.totalEntries;
+				({ totalEntries } = data);
 			}
 		}
 	}
@@ -289,8 +289,8 @@ function projectTournament(
 		return { kind: "tournament", ...readTournamentResult(finalEndEvent) };
 	}
 	return {
-		kind: "tournament",
 		beforeDeadline: false,
+		kind: "tournament",
 		placement: null,
 		totalEntries: latestStackTotalEntries(events),
 	};
@@ -354,15 +354,15 @@ function projectLines(
 ): ProjectedLine[] {
 	return ordered.flatMap((event) =>
 		eventPayments(event, kind, closingEventIds).map((payment, n) => ({
-			id: `${event.id}:${n}`,
 			assetId: payment.assetId,
+			effect: payment.effect,
+			id: `${event.id}:${n}`,
+			occurredAt: event.occurredAt,
+			playSessionId: event.playSessionId,
 			priceId: payment.priceId ?? null,
 			quantity: signedLedgerQuantity(payment.role, payment.quantity),
 			role: payment.role,
-			effect: payment.effect,
-			playSessionId: event.playSessionId,
 			sourceEventId: event.id,
-			occurredAt: event.occurredAt,
 		}))
 	);
 }
@@ -408,11 +408,6 @@ export function projectEntry(
 		);
 
 	return {
-		status: settled ? "settled" : "open",
-		playedOn: sessions
-			.map((session) => session.localDate)
-			.reduce((earliest, date) => (date < earliest ? date : earliest)),
-		playSessions,
 		detail:
 			context.kind === "cash"
 				? projectCash(ordered)
@@ -426,6 +421,12 @@ export function projectEntry(
 				)
 			)
 		),
+		playedOn: sessions
+			.map((session) => session.localDate)
+			// biome-ignore lint/complexity/useMathMinMax: Calendar dates are compared lexicographically, not numerically.
+			.reduce((earliest, date) => (date < earliest ? date : earliest)),
+		playSessions,
+		status: settled ? "settled" : "open",
 	};
 }
 
@@ -451,10 +452,10 @@ export function projectTournamentProgress(
 			const data = updateStackPayload.parse(JSON.parse(event.payload));
 			currentStack = data.stackAmount;
 			if (data.remainingPlayers !== undefined) {
-				remainingPlayers = data.remainingPlayers;
+				({ remainingPlayers } = data);
 			}
 			if (data.totalEntries !== undefined) {
-				totalEntries = data.totalEntries;
+				({ totalEntries } = data);
 			}
 			if (data.chipPurchaseCounts !== undefined) {
 				reportedChips = data.chipPurchaseCounts.reduce(
@@ -478,10 +479,6 @@ export function projectTournamentProgress(
 	}
 	const chipTotal = addSafeIntegers(reportedChips, purchasedChips);
 	return {
-		currentStack,
-		remainingPlayers,
-		totalEntries,
-		chipTotal,
 		averageStack:
 			startingStack === null ||
 			totalEntries === null ||
@@ -494,6 +491,10 @@ export function projectTournamentProgress(
 							BigInt(Math.floor(remainingPlayers / 2))) /
 							BigInt(remainingPlayers)
 					),
+		chipTotal,
+		currentStack,
+		remainingPlayers,
+		totalEntries,
 	};
 }
 
@@ -534,9 +535,9 @@ export function buildProjectionStatements(
 			db
 				.update(entryTournament)
 				.set({
+					beforeDeadline: detail.beforeDeadline,
 					placement: detail.placement,
 					totalEntries: detail.totalEntries,
-					beforeDeadline: detail.beforeDeadline,
 				})
 				.where(
 					and(
@@ -550,7 +551,7 @@ export function buildProjectionStatements(
 	statements.push(
 		db
 			.update(entry)
-			.set({ status: projection.status, playedOn: projection.playedOn })
+			.set({ playedOn: projection.playedOn, status: projection.status })
 			.where(and(eq(entry.id, scope.entryId), eq(entry.userId, scope.userId)))
 	);
 
@@ -565,10 +566,10 @@ export function buildProjectionLineStatements(
 ): BatchStatement[] {
 	const rows = lines.map((line) => ({
 		...line,
-		userId: scope.userId,
-		entryId: scope.entryId,
 		createdAt: now,
+		entryId: scope.entryId,
 		updatedAt: now,
+		userId: scope.userId,
 	}));
 	const statements: BatchStatement[] = [
 		db

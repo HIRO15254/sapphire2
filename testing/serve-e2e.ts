@@ -33,23 +33,23 @@ const configPath = path.join(runtime, "wrangler.json");
 await writeFile(
 	configPath,
 	JSON.stringify({
-		name: "sapphire2-test",
-		main: path.join(root, "apps/server/src/worker.ts"),
 		compatibility_date: compatibilityDate,
 		compatibility_flags: compatibilityFlags,
+		main: path.join(root, "apps/server/src/worker.ts"),
+		name: "sapphire2-test",
 	})
 );
 
 async function build(command: [string, ...string[]], cwd = root) {
 	const child = spawn(command[0], command.slice(1), {
 		cwd,
-		stdio: ["ignore", "pipe", "pipe"],
 		env: {
 			...process.env,
-			WRANGLER_SEND_METRICS: "false",
-			VITE_SERVER_URL: apiUrl,
 			VITE_PREVIEW_AUTO_LOGIN: "false",
+			VITE_SERVER_URL: apiUrl,
+			WRANGLER_SEND_METRICS: "false",
 		},
+		stdio: ["ignore", "pipe", "pipe"],
 	});
 	child.stdout.on("data", (chunk) => {
 		appendFileSync(workerLog, chunk);
@@ -93,46 +93,46 @@ await build(
 );
 
 const api = new Miniflare({
-	log: new TestLog(),
-	name: "sapphire2-test-api",
-	modules: [
-		{ type: "ESModule", path: path.join(workerDirectory, "worker.js") },
-	],
-	compatibilityDate,
-	compatibilityFlags,
-	host: "127.0.0.1",
-	port: 18_787,
-	https: true,
-	cf: false,
-	d1Databases: ["DB"],
 	bindings: {
 		BETTER_AUTH_SECRET: "local-test-secret-with-at-least-32-characters",
 		BETTER_AUTH_URL: apiUrl,
 		CORS_ORIGIN: webUrl,
 	},
+	cf: false,
+	compatibilityDate,
+	compatibilityFlags,
+	d1Databases: ["DB"],
+	host: "127.0.0.1",
+	https: true,
+	log: new TestLog(),
+	modules: [
+		{ path: path.join(workerDirectory, "worker.js"), type: "ESModule" },
+	],
+	name: "sapphire2-test-api",
 	outboundService: () =>
 		new Response("Unexpected external request in test", { status: 502 }),
+	port: 18_787,
 });
 let web: Miniflare | undefined;
 
 try {
 	await applyMigrations(await api.getD1Database("DB"));
 	web = new Miniflare({
-		log: new TestLog(),
-		name: "sapphire2-test-web",
-		modules: true,
-		script:
-			"export default {fetch() {return new Response(null, {status: 404})}}",
-		compatibilityDate,
-		host: "127.0.0.1",
-		port: 13_001,
-		https: true,
-		cf: false,
 		assets: {
+			assetConfig: { not_found_handling: "single-page-application" },
 			directory: webDirectory,
 			routerConfig: { has_user_worker: false },
-			assetConfig: { not_found_handling: "single-page-application" },
 		},
+		cf: false,
+		compatibilityDate,
+		host: "127.0.0.1",
+		https: true,
+		log: new TestLog(),
+		modules: true,
+		name: "sapphire2-test-web",
+		port: 13_001,
+		script:
+			"export default {fetch() {return new Response(null, {status: 404})}}",
 	});
 	await web.ready;
 	console.log(`Test environment ready: ${webUrl} → ${apiUrl}`);

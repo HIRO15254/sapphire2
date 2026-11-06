@@ -45,10 +45,10 @@ interface Plan {
 function settle(check: Check, status: CheckStatus, detail: string | null) {
 	return {
 		audit: check.audit,
-		part: check.part,
-		status,
 		detail,
+		part: check.part,
 		rows: [],
+		status,
 	} satisfies CheckResult;
 }
 
@@ -85,18 +85,18 @@ function findingsResult(planned: Plan, rows: Row[]): CheckResult {
 	const status: CheckStatus = rows.length > 0 ? "violation" : "pass";
 	return {
 		audit: check.audit,
-		part: check.part,
-		status,
 		detail: null,
+		part: check.part,
 		rows,
+		status,
 	};
 }
 
 function errorResult(planned: Plan, error: unknown): CheckResult {
 	return {
 		...findingsResult(planned, []),
-		status: "error",
 		detail: error instanceof Error ? error.message : String(error),
+		status: "error",
 	};
 }
 

@@ -5,15 +5,15 @@ import { expectAccepts, expectRejects } from "./test-utils";
 describe("room.create input validation", () => {
 	it("accepts name + coordinates", () => {
 		expectAccepts(appRouter.room.create, {
-			name: "Casino Tokyo",
 			latitude: 35.6812,
 			longitude: 139.7671,
+			name: "Casino Tokyo",
 		});
 	});
 
 	it("rejects a single coordinate without its pair", () => {
-		expectRejects(appRouter.room.create, { name: "x", latitude: 35.6 });
-		expectRejects(appRouter.room.create, { name: "x", longitude: 139.7 });
+		expectRejects(appRouter.room.create, { latitude: 35.6, name: "x" });
+		expectRejects(appRouter.room.create, { longitude: 139.7, name: "x" });
 	});
 });
 

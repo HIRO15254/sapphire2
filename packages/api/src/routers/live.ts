@@ -50,12 +50,12 @@ const memoSchema = z.string().max(5000);
 const positiveCountSchema = z.number().int().min(1);
 
 const startSharedFields = {
-	roomId: idSchema.optional(),
 	assetId: idSchema.optional(),
-	memo: memoSchema.optional(),
-	startedAt: instantSchema.optional(),
-	localDate: dateOnlySchema.optional(),
 	label: z.string().max(50).optional(),
+	localDate: dateOnlySchema.optional(),
+	memo: memoSchema.optional(),
+	roomId: idSchema.optional(),
+	startedAt: instantSchema.optional(),
 };
 
 export const liveCreateInputSchema = z.discriminatedUnion("kind", [
@@ -69,43 +69,43 @@ export const liveCreateInputSchema = z.discriminatedUnion("kind", [
 	z.object({
 		kind: z.literal("tournament"),
 		...startSharedFields,
-		payments: paymentsSchema(["buy_in", "fee"]).max(MAX_ENTRY_PAYMENTS),
-		tournamentId: idSchema.optional(),
-		rule: tournamentRuleInputSchema.optional(),
 		initialStack: z.number().int().min(0).optional(),
-		timerStartedAt: instantSchema.optional(),
+		payments: paymentsSchema(["buy_in", "fee"]).max(MAX_ENTRY_PAYMENTS),
+		rule: tournamentRuleInputSchema.optional(),
 		startLevel: positiveCountSchema.optional(),
+		timerStartedAt: instantSchema.optional(),
+		tournamentId: idSchema.optional(),
 	}),
 ]);
 
 export const liveCompleteInputSchema = z.object({
+	beforeDeadline: z.boolean().optional(),
+	endState: z.enum(SETTLING_END_STATES),
 	id: idSchema,
 	occurredAt: instantSchema.optional(),
-	endState: z.enum(SETTLING_END_STATES),
 	payments: paymentsSchema(["cash_out", "prize", "bounty"]).max(
 		MAX_ENTRY_PAYMENTS
 	),
-	beforeDeadline: z.boolean().optional(),
 	placement: positiveCountSchema.optional(),
 	totalEntries: positiveCountSchema.optional(),
 });
 
 export const liveEndPlayInputSchema = z.object({
+	endState: z.enum(END_STATES_REQUIRING_STACK),
 	id: idSchema,
 	occurredAt: instantSchema.optional(),
-	endState: z.enum(END_STATES_REQUIRING_STACK),
 	stackAmount: z.number().int().min(0),
 });
 
 export const liveStartNextPlayInputSchema = z.object({
 	id: idSchema,
-	startedAt: instantSchema.optional(),
-	localDate: dateOnlySchema.optional(),
 	label: z.string().max(50).optional(),
-	startLevel: positiveCountSchema.optional(),
+	localDate: dateOnlySchema.optional(),
 	payments: paymentsSchema(["reentry", "fee"])
 		.max(MAX_ENTRY_PAYMENTS)
 		.optional(),
+	startedAt: instantSchema.optional(),
+	startLevel: positiveCountSchema.optional(),
 });
 
 const liveIdInputSchema = z.object({ id: idSchema });
@@ -121,6 +121,100 @@ function liveRuleContext(): RuleOperationContext {
 }
 
 export const liveRouter = router({
+	applyMasterRule: protectedProcedure
+		.input(liveIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await applyMasterRule(ctx.db, userId, input.id, liveRuleContext());
+			return await getLiveEntry(ctx.db, userId, input.id);
+		}),
+
+	complete: protectedProcedure
+		.input(liveCompleteInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await completeLiveEntry(ctx.db, userId, input, new Date());
+			return await getLiveEntry(ctx.db, userId, input.id);
+		}),
+
+	create: protectedProcedure
+		.input(liveCreateInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const id = await startLiveEntry(ctx.db, userId, input, new Date());
+			return await getLiveEntry(ctx.db, userId, id);
+		}),
+
+	createAndAssignRingGame: protectedProcedure
+		.input(liveCreateAndAssignRingGameInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const { entryId, ...master } = input;
+			const masterId = crypto.randomUUID();
+			const context = liveRuleContext();
+			await assignCreatedMaster(
+				ctx.db,
+				userId,
+				{
+					entryId,
+					kind: "cash",
+					masterId,
+					plan: () =>
+						planRingGameCreate(ctx.db, {
+							id: masterId,
+							input: master,
+							now: context.now,
+							userId,
+						}),
+					tableSize: master.rule.tableSize ?? null,
+				},
+				context
+			);
+			return await getLiveEntry(ctx.db, userId, entryId);
+		}),
+
+	createAndAssignTournament: protectedProcedure
+		.input(liveCreateAndAssignTournamentInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const { entryId, ...master } = input;
+			const masterId = crypto.randomUUID();
+			await assignCreatedMaster(
+				ctx.db,
+				userId,
+				{
+					entryId,
+					kind: "tournament",
+					masterId,
+					plan: () => planTournamentCreate(ctx.db, userId, masterId, master),
+					tableSize: master.rule.tableSize ?? null,
+				},
+				liveRuleContext()
+			);
+			return await getLiveEntry(ctx.db, userId, entryId);
+		}),
+
+	discard: protectedProcedure
+		.input(liveIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			await discardLiveEntry(ctx.db, ctx.session.user.id, input.id);
+			return { success: true as const };
+		}),
+
+	endPlay: protectedProcedure
+		.input(liveEndPlayInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await endLivePlay(ctx.db, userId, input, new Date());
+			return await getLiveEntry(ctx.db, userId, input.id);
+		}),
+
+	getById: protectedProcedure
+		.input(liveIdInputSchema)
+		.query(
+			async ({ ctx, input }) =>
+				await getLiveEntryDetail(ctx.db, ctx.session.user.id, input.id)
+		),
 	list: protectedProcedure
 		.input(entryListInputSchema)
 		.query(async ({ ctx, input }) => {
@@ -133,49 +227,35 @@ export const liveRouter = router({
 			);
 		}),
 
-	getById: protectedProcedure
+	overrideRule: protectedProcedure
+		.input(entryOverrideRuleInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await overrideEntryRule(ctx.db, userId, input, liveRuleContext());
+			return await getLiveEntry(ctx.db, userId, input.id);
+		}),
+
+	pushRuleToMaster: protectedProcedure
 		.input(liveIdInputSchema)
-		.query(
-			async ({ ctx, input }) =>
-				await getLiveEntryDetail(ctx.db, ctx.session.user.id, input.id)
-		),
-
-	create: protectedProcedure
-		.input(liveCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const id = await startLiveEntry(ctx.db, userId, input, new Date());
-			return await getLiveEntry(ctx.db, userId, id);
-		}),
-
-	update: protectedProcedure
-		.input(
-			z.object({
-				id: idSchema,
-				memo: memoSchema.nullable().optional(),
-				roomId: idSchema.nullable().optional(),
-				assetId: idSchema.nullable().optional(),
-			})
-		)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await updateLiveEntry(ctx.db, userId, input, new Date());
+			await pushRuleToMaster(ctx.db, userId, input.id, liveRuleContext());
 			return await getLiveEntry(ctx.db, userId, input.id);
 		}),
 
-	complete: protectedProcedure
-		.input(liveCompleteInputSchema)
+	relink: protectedProcedure
+		.input(entryRelinkInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await completeLiveEntry(ctx.db, userId, input, new Date());
+			await relinkEntry(ctx.db, userId, input, liveRuleContext());
 			return await getLiveEntry(ctx.db, userId, input.id);
 		}),
 
-	endPlay: protectedProcedure
-		.input(liveEndPlayInputSchema)
+	restoreRule: protectedProcedure
+		.input(entryRestoreRuleInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await endLivePlay(ctx.db, userId, input, new Date());
+			await restoreEntryRule(ctx.db, userId, input, liveRuleContext());
 			return await getLiveEntry(ctx.db, userId, input.id);
 		}),
 
@@ -203,99 +283,18 @@ export const liveRouter = router({
 			return await getLiveEntry(ctx.db, userId, input.id);
 		}),
 
-	discard: protectedProcedure
-		.input(liveIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			await discardLiveEntry(ctx.db, ctx.session.user.id, input.id);
-			return { success: true as const };
-		}),
-
-	createAndAssignRingGame: protectedProcedure
-		.input(liveCreateAndAssignRingGameInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const { entryId, ...master } = input;
-			const masterId = crypto.randomUUID();
-			const context = liveRuleContext();
-			await assignCreatedMaster(
-				ctx.db,
-				userId,
-				{
-					entryId,
-					kind: "cash",
-					masterId,
-					tableSize: master.rule.tableSize ?? null,
-					plan: () =>
-						planRingGameCreate(ctx.db, {
-							id: masterId,
-							input: master,
-							userId,
-							now: context.now,
-						}),
-				},
-				context
-			);
-			return await getLiveEntry(ctx.db, userId, entryId);
-		}),
-
-	createAndAssignTournament: protectedProcedure
-		.input(liveCreateAndAssignTournamentInputSchema)
+	update: protectedProcedure
+		.input(
+			z.object({
+				assetId: idSchema.nullable().optional(),
+				id: idSchema,
+				memo: memoSchema.nullable().optional(),
+				roomId: idSchema.nullable().optional(),
+			})
+		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const { entryId, ...master } = input;
-			const masterId = crypto.randomUUID();
-			await assignCreatedMaster(
-				ctx.db,
-				userId,
-				{
-					entryId,
-					kind: "tournament",
-					masterId,
-					tableSize: master.rule.tableSize ?? null,
-					plan: () => planTournamentCreate(ctx.db, userId, masterId, master),
-				},
-				liveRuleContext()
-			);
-			return await getLiveEntry(ctx.db, userId, entryId);
-		}),
-
-	overrideRule: protectedProcedure
-		.input(entryOverrideRuleInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await overrideEntryRule(ctx.db, userId, input, liveRuleContext());
-			return await getLiveEntry(ctx.db, userId, input.id);
-		}),
-
-	applyMasterRule: protectedProcedure
-		.input(liveIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await applyMasterRule(ctx.db, userId, input.id, liveRuleContext());
-			return await getLiveEntry(ctx.db, userId, input.id);
-		}),
-
-	pushRuleToMaster: protectedProcedure
-		.input(liveIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await pushRuleToMaster(ctx.db, userId, input.id, liveRuleContext());
-			return await getLiveEntry(ctx.db, userId, input.id);
-		}),
-
-	relink: protectedProcedure
-		.input(entryRelinkInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await relinkEntry(ctx.db, userId, input, liveRuleContext());
-			return await getLiveEntry(ctx.db, userId, input.id);
-		}),
-
-	restoreRule: protectedProcedure
-		.input(entryRestoreRuleInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await restoreEntryRule(ctx.db, userId, input, liveRuleContext());
+			await updateLiveEntry(ctx.db, userId, input, new Date());
 			return await getLiveEntry(ctx.db, userId, input.id);
 		}),
 });

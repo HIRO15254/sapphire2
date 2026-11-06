@@ -14,119 +14,120 @@ interface Check {
 	rule: string;
 }
 
-const IGNORED_DIRS = /(^|\/)(node_modules|dist|\.wrangler|coverage|\.git)\//;
+const IGNORED_DIRS =
+	/(?:^|\/)(?:node_modules|dist|\.wrangler|coverage|\.git)\//u;
 
 const CHECKS: Check[] = [
 	{
-		name: "Japanese text in agent rule files — write rules in English",
-		rule: "AGENTS.md (Communication)",
 		globs: ["AGENTS.md", "CLAUDE.md"],
+		name: "Japanese text in agent rule files — write rules in English",
 		pattern: /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u,
+		rule: "AGENTS.md (Communication)",
 	},
 	{
-		name: "Japanese text in agent rule files — write rules in English",
-		rule: "AGENTS.md (Communication)",
 		cwd: ".claude/rules",
 		globs: ["**/*.md"],
+		name: "Japanese text in agent rule files — write rules in English",
 		pattern: /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u,
+		rule: "AGENTS.md (Communication)",
 	},
 	{
-		name: 'named zod import — use `import z from "zod"`',
-		rule: "AGENTS.md (Vite bundler breaks the namespace import)",
 		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
-		pattern: /import \{ z \} from "zod"/,
+		name: 'named zod import — use `import z from "zod"`',
+		pattern: /import \{ z \} from "zod"/u,
+		rule: "AGENTS.md (Vite bundler breaks the namespace import)",
 	},
 	{
+		globs: ["apps/web/src/**/*.{ts,tsx}"],
 		name: "lucide-react import — use @tabler/icons-react",
+		pattern: /from "lucide-react"|require\("lucide-react"\)/u,
 		rule: ".claude/rules/web-ui.md",
-		globs: ["apps/web/src/**/*.{ts,tsx}"],
-		pattern: /from "lucide-react"|require\("lucide-react"\)/,
 	},
 	{
-		name: "hsl(var(--token)) — tokens hold complete color values; use var(--token)",
-		rule: ".claude/rules/web-theme.md",
+		excludeLine: /never hsl/u,
 		globs: ["apps/web/src/**/*.{ts,tsx,css}"],
-		pattern: /hsl\(var\(/,
-		excludeLine: /never hsl/,
+		name: "hsl(var(--token)) — tokens hold complete color values; use var(--token)",
+		pattern: /hsl\(var\(/u,
+		rule: ".claude/rules/web-theme.md",
 	},
 	{
-		name: '<input type="number"> — use type="text" inputMode="numeric"',
-		rule: ".claude/rules/web-forms.md",
+		excludePath: /__tests__|\.test\./u,
 		globs: ["apps/web/src/**/*.tsx"],
-		pattern: /<[Ii]nput[^>]*type="number"/,
-		excludePath: /__tests__|\.test\./,
+		name: '<input type="number"> — use type="text" inputMode="numeric"',
+		pattern: /<[Ii]nput[^>]*type="number"/u,
+		rule: ".claude/rules/web-forms.md",
 	},
 	{
-		name: "Number.parseInt in web input handling — validate the whole value with Number()",
-		rule: ".claude/rules/web-forms.md (SA2-103)",
+		excludePath: /__tests__|\.test\./u,
 		globs: ["apps/web/src/**/*.{ts,tsx}"],
-		pattern: /Number\.parseInt\(/,
-		excludePath: /__tests__|\.test\./,
+		name: "Number.parseInt in web input handling — validate the whole value with Number()",
+		pattern: /Number\.parseInt\(/u,
+		rule: ".claude/rules/web-forms.md (SA2-103)",
 	},
 	{
-		name: "React/library hooks called directly in a component file — move into a use-*.ts hook",
-		rule: ".claude/rules/web-hooks-separation.md",
+		excludePath: /__tests__|\.test\.tsx$|[\\/]use-[^\\/]*\.tsx$/u,
 		globs: [
 			"apps/web/src/**/components/**/*.tsx",
 			"apps/web/src/**/pages/**/*.tsx",
 			"apps/web/src/routes/**/*.tsx",
 		],
+		name: "React/library hooks called directly in a component file — move into a use-*.ts hook",
 		pattern:
-			/\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutation|useQueryClient|useReducer|useDeferredValue|useTransition|useLayoutEffect|useIsMutating)\b/,
-		excludePath: /__tests__|\.test\.tsx$|[\\/]use-[^\\/]*\.tsx$/,
+			/\b(?:useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutation|useQueryClient|useReducer|useDeferredValue|useTransition|useLayoutEffect|useIsMutating)\b/u,
+		rule: ".claude/rules/web-hooks-separation.md",
 	},
 	{
-		name: "raw queryClient cache write in a feature — use optimistic-update helpers",
-		rule: ".claude/rules/web-data-fetching.md (SA2-162)",
+		excludePath: /__tests__|\.test\./u,
 		globs: ["apps/web/src/features/**/*.{ts,tsx}"],
-		pattern: /queryClient\.(setQueryData|setQueriesData)\b/,
-		excludePath: /__tests__|\.test\./,
+		name: "raw queryClient cache write in a feature — use optimistic-update helpers",
+		pattern: /queryClient\.(?:setQueryData|setQueriesData)\b/u,
+		rule: ".claude/rules/web-data-fetching.md (SA2-162)",
 	},
 	{
-		name: "play-event append pre-read — allocate order inside the INSERT",
-		rule: ".claude/rules/api-data-integrity.md (SA2-196)",
+		excludePath: /__tests__|\.test\./u,
 		globs: ["packages/api/src/**/*.ts"],
+		name: "play-event append pre-read — allocate order inside the INSERT",
 		pattern:
-			/max\s*\(\s*playEvent\.sortOrder\s*\)|orderBy\(desc\(playEvent\.sortOrder\)\)[\s\S]{0,300}\+\s*1|nextAppendSortOrder(?!Sql)\s*\(/,
-		excludePath: /__tests__|\.test\./,
+			/max\s*\(\s*playEvent\.sortOrder\s*\)|orderBy\(desc\(playEvent\.sortOrder\)\)[\s\S]{0,300}\+\s*1|nextAppendSortOrder(?!Sql)\s*\(/u,
+		rule: ".claude/rules/api-data-integrity.md (SA2-196)",
 	},
 	{
-		name: "inline OpenAI model id — import it from packages/api/src/ai/models.ts",
-		rule: ".claude/rules/ai-models.md",
-		globs: [
-			"apps/**/*.{ts,tsx}",
-			"packages/**/*.{ts,tsx}",
-			"scripts/**/*.{ts,tsx}",
-		],
-		pattern: /["'`]gpt-[\dA-Za-z._-]+["'`]/,
 		excludePath:
-			/packages\/api\/src\/ai\/models\.ts$|scripts\/audit-run\.ts$|scripts\/__tests__\/audit-run\.test\.ts$/,
-	},
-	{
-		name: "direct DB access in the MCP tool layer — go through appRouter.createCaller",
-		rule: ".claude/rules/mcp-tools.md",
-		globs: ["packages/mcp/src/**/*.ts"],
-		pattern: /from "drizzle-orm|from "@sapphire2\/db/,
-		excludePath: /__tests__|\.test\./,
-	},
-	{
-		name: "comment divider / banner line — comments are near-zero, delete it",
-		rule: ".claude/rules/comments.md",
+			/packages\/api\/src\/ai\/models\.ts$|scripts\/audit-run\.ts$|scripts\/__tests__\/audit-run\.test\.ts$/u,
 		globs: [
 			"apps/**/*.{ts,tsx}",
 			"packages/**/*.{ts,tsx}",
 			"scripts/**/*.{ts,tsx}",
 		],
-		pattern: /^\s*(?:\{?\/\*+|\/{2,}|\*)\s*\S*[-=*#_~─═]{4,}/m,
-		excludePath: /routeTree\.gen\.ts$/,
+		name: "inline OpenAI model id — import it from packages/api/src/ai/models.ts",
+		pattern: /["'`]gpt-[\dA-Za-z._-]+["'`]/u,
+		rule: ".claude/rules/ai-models.md",
 	},
 	{
-		name: "GitHub pull-request head ref assigned inside a run script — pass it through step env",
-		rule: "GitHub Actions shell-injection prevention",
+		excludePath: /__tests__|\.test\./u,
+		globs: ["packages/mcp/src/**/*.ts"],
+		name: "direct DB access in the MCP tool layer — go through appRouter.createCaller",
+		pattern: /from "drizzle-orm|from "@sapphire2\/db/u,
+		rule: ".claude/rules/mcp-tools.md",
+	},
+	{
+		excludePath: /routeTree\.gen\.ts$/u,
+		globs: [
+			"apps/**/*.{ts,tsx}",
+			"packages/**/*.{ts,tsx}",
+			"scripts/**/*.{ts,tsx}",
+		],
+		name: "comment divider / banner line — comments are near-zero, delete it",
+		pattern: /^\s*(?:\{?\/\*+|\/{2,}|\*)\s*\S*[-=*#_~─═]{4,}/mu,
+		rule: ".claude/rules/comments.md",
+	},
+	{
 		cwd: ".github",
 		globs: ["workflows/*.yml", "workflows/*.yaml"],
+		name: "GitHub pull-request head ref assigned inside a run script — pass it through step env",
 		pattern:
-			/^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*["']?\$\{\{\s*github\.event\.pull_request\.head\.ref\s*\}\}["']?\s*$/m,
+			/^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*["']?\$\{\{\s*github\.event\.pull_request\.head\.ref\s*\}\}["']?\s*$/mu,
+		rule: "GitHub Actions shell-injection prevention",
 	},
 ];
 
@@ -137,6 +138,7 @@ for (const check of CHECKS) {
 	const seen = new Set<string>();
 	for (const glob of check.globs) {
 		const cwd = check.cwd ?? ".";
+		// biome-ignore lint/performance/noAwaitInLoops: Sequential scans preserve deduplication and diagnostic order.
 		for await (const scannedPath of new Glob(glob).scan(cwd)) {
 			const path = normalizeRulePath(
 				cwd === "." ? scannedPath : `${cwd}/${scannedPath}`
@@ -223,18 +225,20 @@ for await (const scannedPath of new Glob("apps/web/src/**/*.{ts,tsx}").scan(
 	"."
 )) {
 	const path = normalizeRulePath(scannedPath);
-	const sourceFeature = /^apps\/web\/src\/features\/([^/]+)\//.exec(path)?.[1];
+	const sourceFeature = /^apps\/web\/src\/features\/(?<feature>[^/]+)\//u.exec(
+		path
+	)?.groups?.feature;
 	const restricted =
-		/^apps\/web\/src\/(?:shared|utils|lib)\//.test(path) &&
+		/^apps\/web\/src\/(?:shared|utils|lib)\//u.test(path) &&
 		!path.startsWith("apps/web/src/shared/components/authenticated-shell/");
 	if (!(sourceFeature || restricted)) {
 		continue;
 	}
 	const text = await readFile(path, "utf8");
 	const imports =
-		/\b(?:import|export)\s+(?:type\s+)?(?:[^"'();]*?\s+from\s*)?["']([^"']+)["']|\b(?:import|require)\s*\(\s*["']([^"']+)["']/g;
+		/\b(?:import|export)\s+(?:type\s+)?(?:[^"'();]*?\s+from\s*)?["'](?<staticImport>[^"']+)["']|\b(?:import|require)\s*\(\s*["'](?<dynamicImport>[^"']+)["']/gu;
 	for (const match of text.matchAll(imports)) {
-		const value = match[1] ?? match[2];
+		const value = match.groups?.staticImport ?? match.groups?.dynamicImport;
 		if (value === undefined) {
 			continue;
 		}
@@ -246,9 +250,9 @@ for await (const scannedPath of new Glob("apps/web/src/**/*.{ts,tsx}").scan(
 				posix.join(dirname(path).replaceAll("\\", "/"), value)
 			);
 		}
-		const destination = /^apps\/web\/src\/features\/([^/]+)(?:\/|$)/.exec(
-			target
-		)?.[1];
+		const destination =
+			/^apps\/web\/src\/features\/(?<feature>[^/]+)(?:\/|$)/u.exec(target)
+				?.groups?.feature;
 		if (
 			destination &&
 			(restricted ||
@@ -270,9 +274,9 @@ if (featureHits.length > 0) {
 }
 
 const SESSION_ENTRY_GLOB = "apps/web/src/**/*.{ts,tsx}";
-const SESSION_ENTRY_CALL = /authClient\s*\.\s*(signIn|signUp)\b/;
-const LOGIN_CONTINUATION_IMPORT = /features\/auth\/utils\/login-continuation/;
-const LOGIN_CONTINUATION_SELF = /login-continuation\.ts$/;
+const SESSION_ENTRY_CALL = /authClient\s*\.\s*(?:signIn|signUp)\b/u;
+const LOGIN_CONTINUATION_IMPORT = /features\/auth\/utils\/login-continuation/u;
+const LOGIN_CONTINUATION_SELF = /login-continuation\.ts$/u;
 const unguardedEntries: string[] = [];
 
 for await (const scannedPath of new Glob(SESSION_ENTRY_GLOB).scan(".")) {
@@ -280,7 +284,7 @@ for await (const scannedPath of new Glob(SESSION_ENTRY_GLOB).scan(".")) {
 	if (
 		IGNORED_DIRS.test(path) ||
 		LOGIN_CONTINUATION_SELF.test(path) ||
-		/__tests__|\.test\./.test(path)
+		/__tests__|\.test\./u.test(path)
 	) {
 		continue;
 	}
@@ -311,21 +315,21 @@ if (unguardedEntries.length > 0) {
 const SEED_RESTORE_MARKER = "--file=dump.sql";
 const SEED_GUARD_MARKERS: { hint: string; marker: string }[] = [
 	{
-		marker: "FROM sqlite_master WHERE type = 'trigger'",
 		hint: "read the live trigger DDL back out of sqlite_master",
+		marker: "FROM sqlite_master WHERE type = 'trigger'",
 	},
-	{ marker: "DROP TRIGGER IF EXISTS", hint: "drop them for the restore" },
+	{ hint: "drop them for the restore", marker: "DROP TRIGGER IF EXISTS" },
 	{
-		marker: "rearm-triggers.sql",
 		hint: "re-arm from drops-then-creates so it converges from a partial drop",
+		marker: "rearm-triggers.sql",
 	},
 	{
-		marker: "--file=fk-on.sql",
 		hint: "re-enable foreign keys with a separate import after the restore",
+		marker: "--file=fk-on.sql",
 	},
 	{
-		marker: '--command="PRAGMA foreign_keys"',
 		hint: "verify foreign keys are back on before the stashed migrations",
+		marker: '--command="PRAGMA foreign_keys"',
 	},
 ];
 
@@ -365,16 +369,17 @@ const COMMENT_GLOBS = [
 	"e2e/**/*.{ts,tsx}",
 	"testing/**/*.{ts,tsx}",
 ];
-const COMMENT_EXCLUDE_PATH = /routeTree\.gen\.ts$/;
-const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*\/|\*(?![\w([])|\{\/\*)/;
+const COMMENT_EXCLUDE_PATH = /routeTree\.gen\.ts$/u;
+const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*\/|\*(?![\w([])|\{\/\*)/u;
 const DIRECTIVE_LINE =
-	/biome-ignore|@ts-expect-error|@ts-nocheck|@__PURE__|^\s*\/\/\/\s*<reference\b/;
-const NOTE_MARKER_START = /^\s*\/\/\s*NOTE\((ops|rule)\):\s*\S/;
-const LINE_COMMENT_START = /^\s*\/\//;
+	/biome-ignore|@ts-expect-error|@ts-nocheck|@__PURE__|^\s*\/\/\/\s*<reference\b/u;
+const NOTE_MARKER_START = /^\s*\/\/\s*NOTE\((?:ops|rule)\):\s*\S/u;
+const LINE_COMMENT_START = /^\s*\/\//u;
 
 const commentHits: string[] = [];
 const commentSeen = new Set<string>();
 for (const glob of COMMENT_GLOBS) {
+	// biome-ignore lint/performance/noAwaitInLoops: Sequential scans preserve deduplication and diagnostic order.
 	for await (const scannedPath of new Glob(glob).scan(".")) {
 		const path = normalizeRulePath(scannedPath);
 		if (

@@ -17,25 +17,25 @@ import { tournamentRule } from "./rule";
 export const tournament = sqliteTable(
 	"tournament",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
+		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
-		updatedAt: integer("updated_at", { mode: "timestamp" })
-			.$onUpdate(() => /* @__PURE__ */ new Date())
-			.notNull(),
-		roomId: text("room_id"),
-		name: text("name").notNull(),
-		memo: text("memo"),
+		currentRuleId: text("current_rule_id").notNull(),
+		defaultAssetId: text("default_asset_id"),
+		id: text("id").primaryKey(),
 		isFavorite: integer("is_favorite", { mode: "boolean" })
 			.notNull()
 			.default(false),
-		archivedAt: integer("archived_at", { mode: "timestamp" }),
-		defaultAssetId: text("default_asset_id"),
-		currentRuleId: text("current_rule_id").notNull(),
+		memo: text("memo"),
+		name: text("name").notNull(),
+		roomId: text("room_id"),
+		updatedAt: integer("updated_at", { mode: "timestamp" })
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t): SQLiteTableExtraConfigValue[] => [
 		uniqueIndex("tournament_id_user_id_unique").on(t.id, t.userId),

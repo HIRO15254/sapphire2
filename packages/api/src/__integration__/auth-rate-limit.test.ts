@@ -23,6 +23,7 @@ test("a client rotating X-Forwarded-For still exhausts the sign-in limit of its 
 		"198.51.100.3",
 		"198.51.100.4",
 	]) {
+		// biome-ignore lint/performance/noAwaitInLoops: Rate-limit assertions depend on request order.
 		const response = await request(
 			"/api/auth/sign-in/email",
 			jsonPost(

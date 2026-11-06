@@ -101,10 +101,10 @@ async function loadTarget(
 ): Promise<EntryRuleTarget> {
 	const [row] = await db
 		.select({
-			kind: entry.kind,
-			source: entry.source,
-			ringGameId: entryCash.ringGameId,
 			cashRuleId: entryCash.cashRuleId,
+			kind: entry.kind,
+			ringGameId: entryCash.ringGameId,
+			source: entry.source,
 			tournamentId: entryTournament.tournamentId,
 			tournamentRuleId: entryTournament.tournamentRuleId,
 		})
@@ -138,9 +138,9 @@ async function loadTarget(
 	return {
 		id,
 		kind: row.kind,
-		source: row.source,
 		masterId: row.kind === "cash" ? row.ringGameId : row.tournamentId,
 		ruleVersionId,
+		source: row.source,
 	};
 }
 
@@ -240,10 +240,10 @@ async function planVersionUnder(
 			userId,
 			hydrated(rules.get(source.id)),
 			{
-				ringGameId: target.masterId,
 				parent: target.currentRuleId
 					? hydrated(rules.get(target.currentRuleId))
 					: null,
+				ringGameId: target.masterId,
 			}
 		);
 		return {
@@ -258,10 +258,10 @@ async function planVersionUnder(
 		userId,
 		hydrated(rules.get(source.id)),
 		{
-			tournamentId: target.masterId,
 			parent: target.currentRuleId
 				? hydrated(rules.get(target.currentRuleId))
 				: null,
+			tournamentId: target.masterId,
 		}
 	);
 	return {
@@ -295,10 +295,10 @@ async function assertSeatsFit(
 	const snapshot = JSON.stringify(
 		events.map((event) => ({
 			id: event.id,
-			type: event.type,
+			occurredAt: Math.floor(event.occurredAt.getTime() / 1000),
 			payload: event.payload,
 			sortOrder: event.sortOrder,
-			occurredAt: Math.floor(event.occurredAt.getTime() / 1000),
+			type: event.type,
 		}))
 	);
 	const detail = target.kind === "cash" ? entryCash : entryTournament;
@@ -339,7 +339,7 @@ function linkStatements(
 		target.kind === "cash"
 			? db
 					.update(entryCash)
-					.set({ ringGameId: link.masterId, cashRuleId: link.ruleVersionId })
+					.set({ cashRuleId: link.ruleVersionId, ringGameId: link.masterId })
 					.where(
 						and(eq(entryCash.entryId, target.id), eq(entryCash.userId, userId))
 					)
@@ -512,8 +512,8 @@ export async function pushRuleToMaster(
 		target.ruleVersionId
 	);
 	const planned = await planVersionUnder(db, userId, target.kind, source, {
-		masterId,
 		currentRuleId: master.currentRuleId,
+		masterId,
 	});
 	await runGuardedBatch(db, [
 		...planned.statements,
@@ -556,8 +556,8 @@ export async function relinkEntry(
 	let planned: PlannedVersion;
 	if (destinationId === null) {
 		planned = await planVersionUnder(db, userId, target.kind, source, {
-			masterId: null,
 			currentRuleId: null,
+			masterId: null,
 		});
 	} else {
 		if (destinationId !== target.masterId) {
@@ -572,8 +572,8 @@ export async function relinkEntry(
 		const master = await loadMaster(db, userId, target.kind, destinationId);
 		planned = input.keepRule
 			? await planVersionUnder(db, userId, target.kind, source, {
-					masterId: destinationId,
 					currentRuleId: master.currentRuleId,
+					masterId: destinationId,
 				})
 			: {
 					ruleVersionId: master.currentRuleId,

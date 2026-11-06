@@ -14,22 +14,22 @@ import { gameGroup } from "./game-group";
 export const gameVariant = sqliteTable(
 	"game_variant",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		builtinKey: text("builtin_key"),
-		label: text("label").notNull(),
-		shortLabel: text("short_label"),
-		groupId: text("group_id").notNull(),
-		sortOrder: integer("sort_order").notNull().default(0),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
+		builtinKey: text("builtin_key"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		groupId: text("group_id").notNull(),
+		id: text("id").primaryKey(),
+		label: text("label").notNull(),
+		shortLabel: text("short_label"),
+		sortOrder: integer("sort_order").notNull().default(0),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table) => [
 		uniqueIndex("game_variant_id_user_id_unique").on(table.id, table.userId),

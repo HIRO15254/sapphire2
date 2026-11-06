@@ -7,7 +7,7 @@ export function useAboutSection() {
 	return {
 		hasUnviewedNotes:
 			LATEST_VERSION !== null && !viewedVersions.has(LATEST_VERSION),
-		version: LATEST_VERSION,
 		onViewUpdateNotes: open,
+		version: LATEST_VERSION,
 	};
 }

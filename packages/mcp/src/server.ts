@@ -21,8 +21,8 @@ export function createSapphireMcpServer({
 	);
 	for (const def of TOOL_DEFINITIONS) {
 		const config = {
-			description: def.description,
 			annotations: toolAnnotations(def),
+			description: def.description,
 		};
 		if (def.inputSchema === undefined) {
 			server.registerTool(def.name, config, () =>

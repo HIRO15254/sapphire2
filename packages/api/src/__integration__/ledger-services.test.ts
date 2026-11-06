@@ -30,20 +30,20 @@ function minutes(count: number): Date {
 
 async function seedAssets(db: Database) {
 	await db.insert(asset).values([
-		{ id: JPY, userId: "alice", name: "JPY", updatedAt: NOW },
-		{ id: USD, userId: "alice", name: "USD", updatedAt: NOW },
+		{ id: JPY, name: "JPY", updatedAt: NOW, userId: "alice" },
+		{ id: USD, name: "USD", updatedAt: NOW, userId: "alice" },
 		{
 			id: TICKET,
-			userId: "alice",
-			name: "Main ticket",
 			kind: "item",
+			name: "Main ticket",
 			updatedAt: NOW,
+			userId: "alice",
 		},
-		{ id: "bob-jpy", userId: "bob", name: "JPY", updatedAt: NOW },
+		{ id: "bob-jpy", name: "JPY", updatedAt: NOW, userId: "bob" },
 	]);
 	await db.insert(ledgerCategory).values([
-		{ id: "alice-deposit", userId: "alice", name: "Deposit", updatedAt: NOW },
-		{ id: "bob-deposit", userId: "bob", name: "Deposit", updatedAt: NOW },
+		{ id: "alice-deposit", name: "Deposit", updatedAt: NOW, userId: "alice" },
+		{ id: "bob-deposit", name: "Deposit", updatedAt: NOW, userId: "bob" },
 	]);
 }
 
@@ -53,12 +53,12 @@ async function seedSettledCash(db: Database): Promise<string> {
 		"alice",
 		{
 			kind: "cash",
+			payments: [
+				{ assetId: JPY, effect: "real", quantity: 30_000, role: "buy_in" },
+				{ assetId: JPY, effect: "real", quantity: 50_000, role: "cash_out" },
+			],
 			playedOn: "2026-09-01",
 			rule: await nlhGame(db),
-			payments: [
-				{ role: "buy_in", assetId: JPY, quantity: 30_000, effect: "real" },
-				{ role: "cash_out", assetId: JPY, quantity: 50_000, effect: "real" },
-			],
 		},
 		NOW
 	);
@@ -70,15 +70,15 @@ function liveStart(
 	payload: unknown
 ): LiveEntryStart {
 	return {
-		id,
-		userId: "alice",
-		detail,
 		assetId: JPY,
-		roomId: null,
-		memo: null,
+		detail,
+		id,
 		localDate: "2026-09-05",
+		memo: null,
 		now: NOW,
+		roomId: null,
 		startEvent: { occurredAt: NOW, payload },
+		userId: "alice",
 	};
 }
 
@@ -89,11 +89,11 @@ async function appendAndProject(
 ) {
 	const state = await loadEntryEventState(db, "alice", entryId);
 	await commitEntryEventChange(db, {
-		userId: "alice",
+		change: { events, op: "append" },
 		entryId,
-		state,
-		change: { op: "append", events },
 		now: minutes(600),
+		state,
+		userId: "alice",
 	});
 }
 
@@ -110,18 +110,18 @@ describe("entry ledger real profit and loss", () => {
 		});
 		const tournamentRule = await planEntryRule(db, "alice", {
 			kind: "tournament",
-			tournamentId: null,
 			rule: {
 				prices: [
 					{
-						kind: "entry",
-						assetId: JPY,
 						amount: 10_000,
-						fee: 1000,
+						assetId: JPY,
 						chips: null,
+						fee: 1000,
+						kind: "entry",
 					},
 				],
 			},
+			tournamentId: null,
 		});
 		await runBatch(db, [...cashRule.statements, ...tournamentRule.statements]);
 		await runBatch(
@@ -131,9 +131,9 @@ describe("entry ledger real profit and loss", () => {
 				liveStart(
 					"live-cash",
 					{
+						cashRuleId: cashRule.ruleVersionId,
 						kind: "cash",
 						ringGameId: null,
-						cashRuleId: cashRule.ruleVersionId,
 					},
 					{ payments: [{ assetId: JPY, quantity: 30_000, role: "buy_in" }] }
 				)
@@ -141,23 +141,23 @@ describe("entry ledger real profit and loss", () => {
 		);
 		await appendAndProject(db, "live-cash", [
 			{
-				type: "chips_add_remove",
 				occurredAt: minutes(30),
 				payload: { amount: 10_000, assetId: JPY, effect: "real" },
+				type: "chips_add_remove",
 			},
 			{
-				type: "chips_add_remove",
 				occurredAt: minutes(60),
 				payload: { amount: -5000, assetId: JPY, effect: "real" },
+				type: "chips_add_remove",
 			},
 		]);
 		await appendAndProject(db, "live-cash", [
 			{
-				type: "session_end",
 				occurredAt: minutes(240),
 				payload: {
 					payments: [{ assetId: JPY, quantity: 20_000, role: "cash_out" }],
 				},
+				type: "session_end",
 			},
 		]);
 		const cashPl = -15_000;
@@ -183,48 +183,48 @@ describe("entry ledger real profit and loss", () => {
 						tournamentRuleId: tournamentRule.ruleVersionId,
 					},
 					{
-						timerStartedAt: null,
 						payments: [
 							{ assetId: JPY, quantity: 10_000, role: "buy_in" },
 							{ assetId: JPY, quantity: 1000, role: "fee" },
 						],
+						timerStartedAt: null,
 					}
 				)
 			)
 		);
 		await appendAndProject(db, "live-mtt", [
 			{
-				type: "purchase_chips",
 				occurredAt: minutes(60),
 				payload: {
-					priceId: "rebuy",
-					label: "Rebuy",
 					chips: 10_000,
+					label: "Rebuy",
 					payments: [{ assetId: JPY, quantity: 2000, role: "chip_purchase" }],
+					priceId: "rebuy",
 				},
+				type: "purchase_chips",
 			},
 			{
-				type: "purchase_chips",
 				occurredAt: minutes(90),
 				payload: {
-					priceId: "rebuy",
-					label: "Rebuy",
 					chips: 10_000,
+					label: "Rebuy",
 					payments: [{ assetId: JPY, quantity: 2000, role: "chip_purchase" }],
+					priceId: "rebuy",
 				},
+				type: "purchase_chips",
 			},
 			{
-				type: "session_end",
 				occurredAt: minutes(400),
 				payload: {
 					beforeDeadline: false,
-					placement: 4,
-					totalEntries: 120,
 					payments: [
 						{ assetId: JPY, quantity: 50_000, role: "prize" },
 						{ assetId: JPY, quantity: 3000, role: "bounty" },
 					],
+					placement: 4,
+					totalEntries: 120,
 				},
+				type: "session_end",
 			},
 		]);
 		const tournamentPl = 50_000 + 3000 - 10_000 - 1000 - 2 * 2000;
@@ -254,9 +254,9 @@ describe("entry ledger real profit and loss", () => {
 				...liveStart(
 					"no-currency",
 					{
+						cashRuleId: cashRule.ruleVersionId,
 						kind: "cash",
 						ringGameId: null,
-						cashRuleId: cashRule.ruleVersionId,
 					},
 					{ payments: [] }
 				),
@@ -265,11 +265,11 @@ describe("entry ledger real profit and loss", () => {
 		);
 		await appendAndProject(db, "no-currency", [
 			{
-				type: "session_end",
 				occurredAt: minutes(60),
 				payload: {
 					payments: [{ assetId: JPY, quantity: 10_000, role: "cash_out" }],
 				},
+				type: "session_end",
 			},
 		]);
 		expect(
@@ -295,10 +295,10 @@ describe("wallet history", () => {
 			"alice",
 			{
 				assetId: JPY,
-				quantity: 100_000,
 				categoryId: "alice-deposit",
-				occurredAt: new Date("2026-08-01T00:00:00.000Z"),
 				memo: "Opening balance",
+				occurredAt: new Date("2026-08-01T00:00:00.000Z"),
+				quantity: 100_000,
 			},
 			NOW
 		);
@@ -306,11 +306,11 @@ describe("wallet history", () => {
 			db,
 			"alice",
 			{
-				from: { assetId: JPY, quantity: 15_000 },
-				to: { assetId: USD, quantity: 100 },
 				categoryId: null,
-				occurredAt: new Date("2026-09-03T00:00:00.000Z"),
+				from: { assetId: JPY, quantity: 15_000 },
 				memo: null,
+				occurredAt: new Date("2026-09-03T00:00:00.000Z"),
+				to: { assetId: USD, quantity: 100 },
 			},
 			NOW
 		);
@@ -319,23 +319,23 @@ describe("wallet history", () => {
 		const firstPage = await selectAssetHistory(db, "alice", JPY, { limit: 2 });
 		expect(firstPage).toMatchObject([
 			{ id: exchange.ids[0], quantity: -15_000, role: "exchange" },
-			{ id: settled, entryId: settled, quantity: 20_000, role: null },
+			{ entryId: settled, id: settled, quantity: 20_000, role: null },
 		]);
 		const last = firstPage.at(-1);
 		if (!last) {
 			throw new Error("Expected a first page");
 		}
 		const secondPage = await selectAssetHistory(db, "alice", JPY, {
-			limit: 2,
 			cursor: { id: last.id, occurredAt: last.occurredAt },
+			limit: 2,
 		});
 		expect(secondPage).toMatchObject([
 			{
-				id: deposit.id,
-				quantity: 100_000,
 				categoryId: "alice-deposit",
+				id: deposit.id,
 				memo: "Opening balance",
 				occurredAt: new Date("2026-08-01T00:00:00.000Z"),
+				quantity: 100_000,
 			},
 		]);
 	});

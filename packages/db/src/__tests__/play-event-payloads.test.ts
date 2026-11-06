@@ -32,13 +32,13 @@ describe("play event payload v2 registry", () => {
 	});
 
 	it("rejects an all-in with more wins than trials (SA2-156)", () => {
-		const allIn = { potSize: 1000, trials: 2, equity: 50 };
+		const allIn = { equity: 50, potSize: 1000, trials: 2 };
 		expect(accepts("cash", "all_in", { ...allIn, wins: 2 })).toBe(true);
 		expect(accepts("cash", "all_in", { ...allIn, wins: 2.5 })).toBe(false);
 	});
 
 	it("rejects a tournament finish placed below the field", () => {
-		const end = { beforeDeadline: false, totalEntries: 10, payments: [] };
+		const end = { beforeDeadline: false, payments: [], totalEntries: 10 };
 		expect(
 			accepts("tournament", "session_end", { ...end, placement: 10 })
 		).toBe(true);

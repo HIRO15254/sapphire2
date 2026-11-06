@@ -21,7 +21,7 @@ import {
 } from "./sqlite";
 
 const TARGET_MIGRATION = "0065_game_master_final.sql";
-const LABELS_GATE = /NOT NULL constraint failed: __gate_0065\.labels_unique/;
+const LABELS_GATE = /NOT NULL constraint failed: __gate_0065\.labels_unique/u;
 
 const beforeEntryCutover = migrationFiles("0061_").map(statementsOf);
 const cutoversBeforeTarget = migrationFiles(TARGET_MIGRATION)
@@ -66,13 +66,13 @@ INSERT INTO game_lineup_variant (user_id, lineup_id, lineup_group_id, variant_id
 `;
 
 const REFERENCE_QUERIES = {
-	variants:
-		"SELECT id, user_id, builtin_key, label, short_label, group_id, sort_order, created_at, updated_at FROM game_variant ORDER BY id",
-	mixVariants:
-		"SELECT mix_id, variant_id, user_id, position FROM game_mix_variant ORDER BY mix_id, position",
+	handLinks: "SELECT id, user_id, variant_id FROM hand ORDER BY id",
 	lineupVariants:
 		"SELECT lineup_group_id, variant_id, user_id, lineup_id, position FROM game_lineup_variant ORDER BY lineup_group_id, position",
-	handLinks: "SELECT id, user_id, variant_id FROM hand ORDER BY id",
+	mixVariants:
+		"SELECT mix_id, variant_id, user_id, position FROM game_mix_variant ORDER BY mix_id, position",
+	variants:
+		"SELECT id, user_id, builtin_key, label, short_label, group_id, sort_order, created_at, updated_at FROM game_variant ORDER BY id",
 } as const;
 
 function references(db: Database) {
@@ -91,7 +91,8 @@ const seededPath = join(snapshotDirectory, "seeded.sqlite");
 let databaseIndex = 0;
 
 function seededDatabase(): Database {
-	const path = join(snapshotDirectory, `${databaseIndex++}.sqlite`);
+	const path = join(snapshotDirectory, `${databaseIndex}.sqlite`);
+	databaseIndex += 1;
 	copyFileSync(seededPath, path);
 	const db = openDatabase(path);
 	db.exec(
@@ -132,7 +133,7 @@ describe("migration 0065 — final game master DDL", () => {
 	});
 
 	afterAll(() => {
-		rmSync(snapshotDirectory, { recursive: true, force: true });
+		rmSync(snapshotDirectory, { force: true, recursive: true });
 	});
 
 	beforeEach(() => {

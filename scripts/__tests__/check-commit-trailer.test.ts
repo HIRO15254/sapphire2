@@ -33,10 +33,13 @@ describe("missingTrailers", () => {
 			{ GEMINI_CLI: "1" },
 			"Co-Authored-By: Gemini CLI (gemini-3-pro) <noreply@google.com>",
 		],
-	])("requires the %s trailer only when that agent commits", (name, env, trailer) => {
-		expect(names(commit(), env)).toEqual([name]);
-		expect(names(commit(trailer), env)).toEqual([]);
-	});
+	])(
+		"requires the %s trailer only when that agent commits",
+		(name, env, trailer) => {
+			expect(names(commit(), env)).toEqual([name]);
+			expect(names(commit(trailer), env)).toEqual([]);
+		}
+	);
 
 	it("does not let another agent's trailer stand in", () => {
 		expect(

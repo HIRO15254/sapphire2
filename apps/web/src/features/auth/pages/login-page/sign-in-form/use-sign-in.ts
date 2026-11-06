@@ -48,11 +48,6 @@ export function useSignIn() {
 					password: value.password,
 				},
 				{
-					onSuccess: () => {
-						if (enterApp()) {
-							offerAutomaticPasskey();
-						}
-					},
 					onError: (error) => {
 						if (error.error.status === 401) {
 							formApi.setFieldValue("password", "");
@@ -62,6 +57,11 @@ export function useSignIn() {
 						setErrorMessage(
 							error.error.message || error.error.statusText || RETRY_MESSAGE
 						);
+					},
+					onSuccess: () => {
+						if (enterApp()) {
+							offerAutomaticPasskey();
+						}
 					},
 				}
 			);
@@ -73,6 +73,15 @@ export function useSignIn() {
 			}),
 		},
 	});
+	const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		event.stopPropagation();
+		form.handleSubmit();
+	};
+	const onFieldChange =
+		(field: { handleChange: (value: string) => void }) =>
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			field.handleChange(event.target.value);
 	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
 
 	const onSignInWithPasskey = async () => {
@@ -99,9 +108,9 @@ export function useSignIn() {
 	const signInWithProvider = async (provider: SocialProvider) => {
 		setErrorMessage(null);
 		const result = await authClient.signIn.social({
-			provider,
 			callbackURL: socialCallbackUrl(),
 			errorCallbackURL: socialErrorCallbackUrl(provider),
+			provider,
 		});
 		if (result.error) {
 			setErrorMessage(result.error.message || RETRY_MESSAGE);
@@ -116,8 +125,10 @@ export function useSignIn() {
 		isPasskeySupported: isPasskeySupported(),
 		isPending,
 		isSubmitting,
+		onFieldChange,
 		onSignInWithDiscord: () => signInWithProvider("discord"),
 		onSignInWithGoogle: () => signInWithProvider("google"),
 		onSignInWithPasskey,
+		onSubmit,
 	};
 }

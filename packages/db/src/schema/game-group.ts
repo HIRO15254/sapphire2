@@ -13,31 +13,31 @@ import { user } from "./auth";
 export const gameGroup = sqliteTable(
 	"game_group",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		builtinKey: text("builtin_key").$type<BuiltinGroupKey>(),
-		label: text("label").notNull(),
+		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		blind1Label: text("blind1_label"),
-		blind2Label: text("blind2_label"),
-		blind3Label: text("blind3_label"),
 		blind1Required: integer("blind1_required", { mode: "boolean" })
 			.notNull()
 			.default(false),
+		blind2Label: text("blind2_label"),
 		blind2Required: integer("blind2_required", { mode: "boolean" })
 			.notNull()
 			.default(false),
+		blind3Label: text("blind3_label"),
 		blind3Required: integer("blind3_required", { mode: "boolean" })
 			.notNull()
 			.default(false),
-		archivedAt: integer("archived_at", { mode: "timestamp" }),
+		builtinKey: text("builtin_key").$type<BuiltinGroupKey>(),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		id: text("id").primaryKey(),
+		label: text("label").notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table) => [
 		uniqueIndex("game_group_id_user_id_unique").on(table.id, table.userId),

@@ -15,16 +15,14 @@ describe("createServerEnv", () => {
 		expect(env.BETTER_AUTH_URL).toBe("https://app.example.com");
 	});
 
-	it.each([
-		"BETTER_AUTH_SECRET",
-		"BETTER_AUTH_URL",
-		"CORS_ORIGIN",
-		"DB",
-	])("rejects when %s is absent", (key) => {
-		const invalid = { ...validEnv } as Record<string, unknown>;
-		delete invalid[key];
-		expect(() => createServerEnv(invalid)).toThrow();
-	});
+	it.each(["BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "CORS_ORIGIN", "DB"])(
+		"rejects when %s is absent",
+		(key) => {
+			const invalid = { ...validEnv } as Record<string, unknown>;
+			delete invalid[key];
+			expect(() => createServerEnv(invalid)).toThrow();
+		}
+	);
 
 	it("rejects a null D1 binding", () => {
 		expect(() => createServerEnv({ ...validEnv, DB: null })).toThrow();

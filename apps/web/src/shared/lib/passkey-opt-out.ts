@@ -15,7 +15,6 @@ export function setAutomaticPasskeyOptOut(optedOut: boolean): void {
 		} else {
 			window.localStorage.removeItem(STORAGE_KEY);
 		}
-	} catch {
-		return;
-	}
+		// biome-ignore lint/suspicious/noEmptyBlockStatements: Storage failures are intentionally ignored.
+	} catch {}
 }

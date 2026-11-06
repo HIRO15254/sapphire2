@@ -4,13 +4,13 @@ import type { ComponentType } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+	env: { VITE_SERVER_URL: "http://localhost:8787" },
 	getSession: vi.fn(),
 	redirect: vi.fn((input: unknown) => {
 		const err = new Error("redirect");
 		(err as Error & { redirectTo?: unknown }).redirectTo = input;
 		return err;
 	}),
-	env: { VITE_SERVER_URL: "http://localhost:8787" },
 }));
 
 vi.mock("@sapphire2/env/web", () => ({

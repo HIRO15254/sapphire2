@@ -56,18 +56,18 @@ export function defineTagTables<
 	const tag = sqliteTable(
 		tagTableName,
 		{
-			id: text("id").primaryKey(),
-			userId: text("user_id")
-				.notNull()
-				.references(() => user.id, { onDelete: "cascade" }),
-			name: text("name").notNull(),
-			sortOrder: integer("sort_order").notNull().default(0),
 			createdAt: integer("created_at", { mode: "timestamp" })
 				.default(sql`(unixepoch())`)
 				.notNull(),
+			id: text("id").primaryKey(),
+			name: text("name").notNull(),
+			sortOrder: integer("sort_order").notNull().default(0),
 			updatedAt: integer("updated_at", { mode: "timestamp" })
 				.$onUpdate(() => /* @__PURE__ */ new Date())
 				.notNull(),
+			userId: text("user_id")
+				.notNull()
+				.references(() => user.id, { onDelete: "cascade" }),
 			...(options.tagColumns as TTagColumns),
 		},
 		(t) => [

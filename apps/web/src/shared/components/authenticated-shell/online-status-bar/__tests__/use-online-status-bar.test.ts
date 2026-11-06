@@ -1,9 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useOnlineStatusBar } from "@/shared/components/authenticated-shell/online-status-bar/use-online-status-bar";
 
 const mocks = vi.hoisted(() => ({
-	onlineStatus: true,
 	mutatingCount: 0,
+	onlineStatus: true,
 }));
 
 vi.mock("@/shared/hooks/use-online-status", () => ({
@@ -13,8 +14,6 @@ vi.mock("@/shared/hooks/use-online-status", () => ({
 vi.mock("@tanstack/react-query", () => ({
 	useIsMutating: () => mocks.mutatingCount,
 }));
-
-import { useOnlineStatusBar } from "@/shared/components/authenticated-shell/online-status-bar/use-online-status-bar";
 
 describe("useOnlineStatusBar", () => {
 	beforeEach(() => {

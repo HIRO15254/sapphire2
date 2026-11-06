@@ -12,7 +12,7 @@ const migrationPath = fileURLToPath(
 );
 const migrationSql = readFileSync(migrationPath, "utf8");
 const UNIQUE_ORDER_CONFLICT_RE =
-	/UNIQUE constraint failed: session_event\.session_id, session_event\.sort_order/;
+	/UNIQUE constraint failed: session_event\.session_id, session_event\.sort_order/u;
 
 const baseSchema = [
 	"CREATE TABLE session_event (",

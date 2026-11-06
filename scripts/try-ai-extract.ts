@@ -28,9 +28,10 @@ async function readApiKey(): Promise<string> {
 	let devVars = "";
 	try {
 		devVars = await readFile("apps/server/.dev.vars", "utf8");
-	} catch {
+	} catch (error) {
 		throw new Error(
-			"OPENAI_API_KEY is not set and apps/server/.dev.vars was not found"
+			"OPENAI_API_KEY is not set and apps/server/.dev.vars was not found",
+			{ cause: error }
 		);
 	}
 	const line = devVars
@@ -39,7 +40,7 @@ async function readApiKey(): Promise<string> {
 		.find((entry) => entry.startsWith("OPENAI_API_KEY="));
 	const value = line
 		?.slice("OPENAI_API_KEY=".length)
-		.replace(/^["']|["']$/g, "");
+		.replace(/^["']|["']$/gu, "");
 	if (!value) {
 		throw new Error("apps/server/.dev.vars does not define OPENAI_API_KEY");
 	}
@@ -55,8 +56,8 @@ async function readSource(path: string) {
 	}
 	const data = await readFile(path);
 	return {
-		kind: "image" as const,
 		data: data.toString("base64"),
+		kind: "image" as const,
 		mediaType: mediaType as
 			| "image/gif"
 			| "image/jpeg"
@@ -74,8 +75,8 @@ async function main(): Promise<void> {
 	const openaiApiKey = await readApiKey();
 	const sources = await Promise.all(paths.map(readSource));
 	const caller = appRouter.createCaller({
-		session: { user: { id: "try-ai-extract" } },
 		openaiApiKey,
+		session: { user: { id: "try-ai-extract" } },
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).aiExtract;
 
 	process.stderr.write(

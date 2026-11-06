@@ -38,6 +38,7 @@ describe("installed D1 referential integrity", () => {
 				.bind(id, token)
 				.run();
 		for (const table of ["oauth_access_token", "oauth_refresh_token"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await insertToken(table, "token", "token-key");
 			await expect(
 				insertToken(table, "duplicate-token", "token-key")
@@ -51,6 +52,7 @@ describe("installed D1 referential integrity", () => {
 		).toEqual([{ id: "client" }]);
 		for (const table of ["oauth_access_token", "oauth_refresh_token"]) {
 			expect(
+				// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 				(await api.d1.prepare(`SELECT id, token FROM ${table}`).all()).results
 			).toEqual([{ id: "token", token: "token-key" }]);
 		}
@@ -92,47 +94,47 @@ describe("installed D1 referential integrity", () => {
 			await api.bob.player.create({ name: "Bob stays" })
 		);
 		const wallet = requireCreatedRow(
-			await api.alice.asset.create({ name: "Owned wallet", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "Owned wallet" })
 		);
 		const category = requireCreatedRow(
 			await api.alice.ledgerCategory.create({ name: "Deposit" })
 		);
 		await api.db.insert(entry).values({
 			id: "owned-entry",
-			userId: "alice",
 			kind: "cash",
-			status: "open",
-			source: "live",
 			playedOn: "2026-09-05",
+			source: "live",
+			status: "open",
 			updatedAt: day,
+			userId: "alice",
 		});
 		await api.db.insert(playSession).values({
-			id: "owned-play",
-			userId: "alice",
 			entryId: "owned-entry",
+			id: "owned-play",
 			kind: "cash",
-			seq: 1,
 			localDate: "2026-09-05",
+			seq: 1,
 			status: "active",
 			updatedAt: day,
+			userId: "alice",
 		});
 		await api.db.insert(playEvent).values({
-			id: "owned-event",
-			userId: "alice",
 			entryId: "owned-entry",
-			playSessionId: "owned-play",
-			type: "session_start",
-			schemaVersion: 1,
-			payload: "{}",
+			id: "owned-event",
 			occurredAt: day,
+			payload: "{}",
+			playSessionId: "owned-play",
+			schemaVersion: 1,
 			sortOrder: 0,
+			type: "session_start",
 			updatedAt: day,
+			userId: "alice",
 		});
 		await api.alice.ledger.createAdjustment({
 			assetId: wallet.id,
-			quantity: 100,
 			categoryId: category.id,
 			occurredAt: day.getTime() / 1000,
+			quantity: 100,
 		});
 		await api.db.delete(user).where(eq(user.id, "alice"));
 		expect(await api.db.select().from(entry)).toEqual([]);

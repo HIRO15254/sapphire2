@@ -13,24 +13,24 @@ import { user } from "./auth";
 export const filterPreset = sqliteTable(
 	"filter_preset",
 	{
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.default(sql`(unixepoch())`)
+			.notNull(),
 		id: text("id").primaryKey(),
-		userId: text("user_id")
+		isDefault: integer("is_default", { mode: "boolean" })
 			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		screenKey: text("screen_key").notNull(),
+			.default(false),
 		name: text("name").notNull(),
 		payload: text("payload", { mode: "json" })
 			.$type<FilterPresetPayload>()
 			.notNull(),
-		isDefault: integer("is_default", { mode: "boolean" })
-			.notNull()
-			.default(false),
-		createdAt: integer("created_at", { mode: "timestamp" })
-			.default(sql`(unixepoch())`)
-			.notNull(),
+		screenKey: text("screen_key").notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table) => [
 		check("filterPreset_payload_json_check", sql`json_valid(${table.payload})`),

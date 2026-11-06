@@ -10,6 +10,7 @@ async function setup(api: ApiFixture) {
 	const tags: { id: string; name: string }[] = [];
 	for (const name of ["First", "Second", "Third"]) {
 		tags.push(
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential tag creation and ordering.
 			requireCreatedRow(await api.alice.tournamentTag.create({ name }))
 		);
 	}
@@ -31,8 +32,8 @@ describe("tournament tagIds on D1", () => {
 			string,
 		];
 		const created = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Daily",
+			roomId: room.id,
 			rule: {},
 			tagIds: [third, first],
 		});
@@ -75,18 +76,19 @@ describe("tournament tagIds on D1", () => {
 			await api.bob.tournamentTag.create({ name: "Private" })
 		);
 		const saved = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Daily",
+			roomId: room.id,
 			rule: {},
 			tagIds: [own],
 		});
 		const tournamentsBefore = await api.db.select().from(tournament);
 		const linksBefore = await api.db.select().from(tournamentTagLink);
 		for (const id of [foreign.id, "missing-tag"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(
 				api.alice.tournament.create({
-					roomId: room.id,
 					name: "Rejected",
+					roomId: room.id,
 					rule: {},
 					tagIds: [own, id],
 				})
@@ -115,15 +117,16 @@ describe("tournament tagIds on D1", () => {
 			await api.bob.tournamentTag.create({ name: "Secret" })
 		);
 		const saved = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Daily",
+			roomId: room.id,
 			rule: {},
 		});
 		for (const userId of ["alice", "bob"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(
 				api.db
 					.insert(tournamentTagLink)
-					.values({ userId, tournamentId: saved.id, tagId: foreign.id })
+					.values({ tagId: foreign.id, tournamentId: saved.id, userId })
 			).rejects.toThrow();
 		}
 		expect((await api.alice.tournament.getById({ id: saved.id })).tags).toEqual(
@@ -136,15 +139,16 @@ describe("tournament tagIds on D1", () => {
 	}) => {
 		const { room, tags } = await setup(api);
 		const saved = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Original",
+			roomId: room.id,
 			rule: {},
 			tagIds: [tags[0]?.id as string],
 		});
 		const ids: string[] = [];
-		for (let index = 0; index < MAX_LINKED_TAGS; index++) {
+		for (let index = 0; index < MAX_LINKED_TAGS; index += 1) {
 			ids.push(
 				requireCreatedRow(
+					// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential tag creation and ordering.
 					await api.alice.tournamentTag.create({ name: `Bulk ${index}` })
 				).id
 			);

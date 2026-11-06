@@ -29,12 +29,12 @@ async function failure(promise: Promise<unknown>) {
 
 function ruleState(output: EntryOutput) {
 	return {
-		ringGameId: output.ringGameId,
-		tournamentId: output.tournamentId,
-		ruleVersionId: output.ruleVersionId,
 		currentMasterRuleId: output.currentMasterRuleId,
+		ringGameId: output.ringGameId,
 		ruleDrift: output.ruleDrift,
 		ruleVersion: output.ruleVersion,
+		ruleVersionId: output.ruleVersionId,
+		tournamentId: output.tournamentId,
 	};
 }
 
@@ -44,10 +44,10 @@ function withoutIds(output: EntryOutput) {
 	}
 	const { levels, prices, startingStack, tableSize } = output.ruleVersion;
 	return {
-		startingStack,
-		tableSize,
 		levels: levels.map(({ id: _id, ...level }) => level),
 		prices: prices.map(({ id: _id, ...price }) => price),
+		startingStack,
+		tableSize,
 	};
 }
 
@@ -55,16 +55,16 @@ async function cashSetup(api: ApiFixture) {
 	const rule = await nlhGame(api.db);
 	const room = requireCreatedRow(await api.alice.room.create({ name: "Club" }));
 	const ringA = await api.alice.ringGame.create({
-		roomId: room.id,
 		name: "A",
+		roomId: room.id,
 		rule: { ...rule, minBuyIn: 100, tableSize: 9 },
 	});
 	const ringB = await api.alice.ringGame.create({
-		roomId: room.id,
 		name: "B",
+		roomId: room.id,
 		rule: { ...rule, minBuyIn: 300, tableSize: 6 },
 	});
-	return { rule, room, ringA, ringB };
+	return { ringA, ringB, room, rule };
 }
 
 async function cashVersions(api: ApiFixture) {
@@ -77,15 +77,15 @@ describe("entry rule operations on D1", () => {
 	}) => {
 		const { ringA } = await cashSetup(api);
 		const jpy = requireCreatedRow(
-			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "JPY" })
 		);
 		const started = await api.alice.live.create({
 			kind: "cash",
+			payments: [
+				{ assetId: jpy.id, effect: "real", quantity: 100, role: "buy_in" },
+			],
 			ringGameId: ringA.id,
 			startedAt: Math.floor(Date.now() / 1000) - HOUR,
-			payments: [
-				{ role: "buy_in", assetId: jpy.id, quantity: 100, effect: "real" },
-			],
 		});
 		const player = requireCreatedRow(
 			await api.alice.player.create({ name: "Villain" })
@@ -119,15 +119,15 @@ describe("entry rule operations on D1", () => {
 	}) => {
 		const { ringA } = await cashSetup(api);
 		const jpy = requireCreatedRow(
-			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "JPY" })
 		);
 		const started = await api.alice.live.create({
 			kind: "cash",
+			payments: [
+				{ assetId: jpy.id, effect: "real", quantity: 100, role: "buy_in" },
+			],
 			ringGameId: ringA.id,
 			startedAt: Math.floor(Date.now() / 1000) - HOUR,
-			payments: [
-				{ role: "buy_in", assetId: jpy.id, quantity: 100, effect: "real" },
-			],
 		});
 		const player = requireCreatedRow(
 			await api.alice.player.create({ name: "Villain" })
@@ -155,20 +155,20 @@ describe("entry rule operations on D1", () => {
 		api,
 	}) => {
 		const { room, ringA, ringB } = await cashSetup(api);
-		const currentOf = async (id: string) =>
+		const currentOf = async (gameId: string) =>
 			(await api.alice.ringGame.listByRoom({ roomId: room.id })).find(
-				(row) => row.id === id
+				(row) => row.id === gameId
 			)?.currentRuleId;
 		const created = await api.alice.entry.create({
 			kind: "cash",
 			playedOn: "2026-09-01",
 			ringGameId: ringA.id,
 		});
-		const id = created.id;
+		const { id } = created;
 		expect(ruleState(created)).toMatchObject({
 			ringGameId: ringA.id,
-			ruleVersionId: ringA.currentRuleId,
 			ruleDrift: false,
+			ruleVersionId: ringA.currentRuleId,
 		});
 		const linked = ruleState(created);
 
@@ -185,13 +185,13 @@ describe("entry rule operations on D1", () => {
 			rule: { minBuyIn: 200 },
 		});
 		expect(overridden).toMatchObject({
-			ringGameId: ringA.id,
 			currentMasterRuleId: ringA.currentRuleId,
+			ringGameId: ringA.id,
 			ruleDrift: true,
 			ruleVersion: {
-				ringGameId: ringA.id,
-				parentRuleId: ringA.currentRuleId,
 				minBuyIn: 200,
+				parentRuleId: ringA.currentRuleId,
+				ringGameId: ringA.id,
 				tableSize: 9,
 			},
 		});
@@ -225,9 +225,9 @@ describe("entry rule operations on D1", () => {
 
 		const pushed = await api.alice.entry.pushRuleToMaster({ id });
 		expect(pushed).toMatchObject({
-			ruleVersionId: child.ruleVersionId,
 			currentMasterRuleId: child.ruleVersionId,
 			ruleDrift: false,
+			ruleVersionId: child.ruleVersionId,
 		});
 		expect(await currentOf(ringA.id)).toBe(child.ruleVersionId);
 		expect(
@@ -235,8 +235,8 @@ describe("entry rule operations on D1", () => {
 				await api.alice.entry.restoreRule({
 					id,
 					masterId: ringA.id,
-					ruleVersionId: child.ruleVersionId,
 					masterRuleVersionId: ringA.currentRuleId,
+					ruleVersionId: child.ruleVersionId,
 				})
 			)
 		).toEqual(child);
@@ -245,17 +245,17 @@ describe("entry rule operations on D1", () => {
 		const before = await cashVersions(api);
 		const kept = await api.alice.entry.relink({
 			id,
-			ringGameId: ringB.id,
 			keepRule: true,
+			ringGameId: ringB.id,
 		});
 		expect(kept).toMatchObject({
-			ringGameId: ringB.id,
 			currentMasterRuleId: ringB.currentRuleId,
+			ringGameId: ringB.id,
 			ruleDrift: true,
 			ruleVersion: {
-				ringGameId: ringB.id,
-				parentRuleId: ringB.currentRuleId,
 				minBuyIn: 200,
+				parentRuleId: ringB.currentRuleId,
+				ringGameId: ringB.id,
 				tableSize: 9,
 			},
 		});
@@ -272,13 +272,13 @@ describe("entry rule operations on D1", () => {
 
 		const adopted = await api.alice.entry.relink({
 			id,
-			ringGameId: ringB.id,
 			keepRule: false,
+			ringGameId: ringB.id,
 		});
 		expect(adopted).toMatchObject({
 			ringGameId: ringB.id,
-			ruleVersionId: ringB.currentRuleId,
 			ruleDrift: false,
+			ruleVersionId: ringB.currentRuleId,
 		});
 		await api.alice.entry.restoreRule({
 			id,
@@ -288,14 +288,14 @@ describe("entry rule operations on D1", () => {
 
 		const unlinked = await api.alice.entry.relink({
 			id,
-			ringGameId: null,
 			keepRule: true,
+			ringGameId: null,
 		});
 		expect(unlinked).toMatchObject({
-			ringGameId: null,
 			currentMasterRuleId: null,
+			ringGameId: null,
 			ruleDrift: false,
-			ruleVersion: { ringGameId: null, parentRuleId: null, minBuyIn: 200 },
+			ruleVersion: { minBuyIn: 200, parentRuleId: null, ringGameId: null },
 		});
 		expect(
 			ruleState(
@@ -337,15 +337,15 @@ describe("entry rule operations on D1", () => {
 		await api.alice.ringGame.archive({ id: ringB.id });
 		const kept = await api.alice.entry.relink({
 			id: created.id,
-			ringGameId: ringA.id,
 			keepRule: true,
+			ringGameId: ringA.id,
 		});
 		expect(kept.ruleVersionId).toBe(created.ruleVersionId);
 		await expect(
 			api.alice.entry.relink({
 				id: created.id,
-				ringGameId: ringB.id,
 				keepRule: true,
+				ringGameId: ringB.id,
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
@@ -359,26 +359,26 @@ describe("entry rule operations on D1", () => {
 		const nlhRule = await nlhGame(api.db);
 		const group = requireCreatedRow(
 			await api.alice.gameGroup.create({
-				label: "Custom",
 				blind1Label: "Small",
 				blind2Label: "Big",
+				label: "Custom",
 			})
 		);
 		const variant = requireCreatedRow(
 			await api.alice.gameVariant.create({
-				label: "Custom game",
 				groupId: group.id,
+				label: "Custom game",
 			})
 		);
-		const stake = { gameGroupId: group.id, blind2: 2 };
+		const stake = { blind2: 2, gameGroupId: group.id };
 		const ring = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Cash",
+			roomId: room.id,
 			rule: nlhRule,
 		});
 		const tournament = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "MTT",
+			roomId: room.id,
 			rule: {},
 		});
 		const cash = await api.alice.entry.create({
@@ -394,19 +394,19 @@ describe("entry rule operations on D1", () => {
 				levels: [{ isBreak: false, minutes: 20, stakes: [stake] }],
 			},
 		});
-		await api.alice.gameGroup.update({ id: group.id, blind1Required: true });
+		await api.alice.gameGroup.update({ blind1Required: true, id: group.id });
 		await expect(
 			api.alice.entry.relink({
 				id: cash.id,
-				ringGameId: ring.id,
 				keepRule: true,
+				ringGameId: ring.id,
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(
 			api.alice.entry.relink({
 				id: mtt.id,
-				tournamentId: tournament.id,
 				keepRule: true,
+				tournamentId: tournament.id,
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		expect((await api.alice.entry.getById({ id: cash.id })).ruleVersionId).toBe(
@@ -421,39 +421,39 @@ describe("entry rule operations on D1", () => {
 		api,
 	}) => {
 		const asset = requireCreatedRow(
-			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "JPY" })
 		);
 		const room = requireCreatedRow(
 			await api.alice.room.create({ name: "Hall" })
 		);
 		const master = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Main",
+			roomId: room.id,
 			rule: {
 				prices: [
 					{
-						kind: "entry",
-						assetId: asset.id,
 						amount: 1000,
-						fee: 0,
+						assetId: asset.id,
 						chips: null,
+						fee: 0,
+						kind: "entry",
 					},
 				],
 			},
 		});
 		const priceId = master.ruleVersion.prices[0]?.id ?? "";
 		const payment = {
-			role: "buy_in" as const,
 			assetId: asset.id,
-			quantity: 1000,
 			effect: "real" as const,
 			priceId,
+			quantity: 1000,
+			role: "buy_in" as const,
 		};
 		const created = await api.alice.entry.create({
 			kind: "tournament",
+			payments: [payment],
 			playedOn: "2026-09-01",
 			tournamentId: master.id,
-			payments: [payment],
 		});
 		await api.alice.entry.overrideRule({
 			id: created.id,
@@ -481,54 +481,54 @@ describe("entry rule operations on D1", () => {
 		api,
 	}) => {
 		const jpy = requireCreatedRow(
-			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "JPY" })
 		);
 		const room = requireCreatedRow(
 			await api.alice.room.create({ name: "Hall" })
 		);
 		const nlh = await nlhGame(api.db);
 		const rule = {
-			startingStack: 20_000,
 			levels: [
 				{ isBreak: false, minutes: 20, stakes: nlh.stakes },
 				{ isBreak: true, minutes: 10 },
 			],
 			prices: [
 				{
-					kind: "entry" as const,
-					assetId: jpy.id,
 					amount: 1000,
-					fee: 100,
+					assetId: jpy.id,
 					chips: 20_000,
+					fee: 100,
+					kind: "entry" as const,
 				},
 			],
+			startingStack: 20_000,
 		};
 		const main = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Main",
+			roomId: room.id,
 			rule,
 		});
 		const side = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Side",
+			roomId: room.id,
 			rule: {},
 		});
 		const priceId = main.ruleVersion.prices[0]?.id ?? "";
 		const created = await api.alice.entry.create({
 			kind: "tournament",
-			playedOn: "2026-09-01",
-			tournamentId: main.id,
 			payments: [
 				{
-					role: "buy_in",
 					assetId: jpy.id,
-					quantity: 1000,
 					effect: "real",
 					priceId,
+					quantity: 1000,
+					role: "buy_in",
 				},
 			],
+			playedOn: "2026-09-01",
+			tournamentId: main.id,
 		});
-		const id = created.id;
+		const { id } = created;
 
 		const overridden = await api.alice.entry.overrideRule({
 			id,
@@ -538,9 +538,9 @@ describe("entry rule operations on D1", () => {
 		expect(overridden).toMatchObject({
 			ruleDrift: true,
 			ruleVersion: {
-				tournamentId: main.id,
 				parentRuleId: main.currentRuleId,
 				startingStack: 30_000,
+				tournamentId: main.id,
 			},
 		});
 		expect(overridden.lines[0]?.priceId).toBe(priceId);
@@ -549,8 +549,8 @@ describe("entry rule operations on D1", () => {
 
 		const pushed = await api.alice.entry.pushRuleToMaster({ id });
 		expect(pushed).toMatchObject({
-			ruleVersionId: overridden.ruleVersionId,
 			ruleDrift: false,
+			ruleVersionId: overridden.ruleVersionId,
 		});
 		expect(
 			(await api.alice.tournament.getById({ id: main.id })).currentRuleId
@@ -558,13 +558,13 @@ describe("entry rule operations on D1", () => {
 
 		const kept = await api.alice.entry.relink({
 			id,
-			tournamentId: side.id,
 			keepRule: true,
+			tournamentId: side.id,
 		});
 		expect(kept).toMatchObject({
-			tournamentId: side.id,
 			ruleDrift: true,
-			ruleVersion: { tournamentId: side.id, parentRuleId: side.currentRuleId },
+			ruleVersion: { parentRuleId: side.currentRuleId, tournamentId: side.id },
+			tournamentId: side.id,
 		});
 		expect(withoutIds(kept)).toEqual(withoutIds(overridden));
 		expect(kept.lines[0]?.priceId).toBe(priceId);
@@ -577,8 +577,8 @@ describe("entry rule operations on D1", () => {
 		const restored = await api.alice.entry.restoreRule({
 			id,
 			masterId: main.id,
-			ruleVersionId: overridden.ruleVersionId,
 			masterRuleVersionId: main.currentRuleId,
+			ruleVersionId: overridden.ruleVersionId,
 		});
 		expect(ruleState(restored)).toEqual(ruleState(overridden));
 		expect(
@@ -612,8 +612,8 @@ describe("entry rule operations on D1", () => {
 			await api.bob.room.create({ name: "Bob" })
 		);
 		const bobRing = await api.bob.ringGame.create({
-			roomId: bobRoom.id,
 			name: "Bob",
+			roomId: bobRoom.id,
 			rule: await nlhGame(api.db, "bob"),
 		});
 		const before = await cashVersions(api);
@@ -640,8 +640,8 @@ describe("entry rule operations on D1", () => {
 				() =>
 					api.alice.entry.relink({
 						id: linked.id,
-						tournamentId: null,
 						keepRule: true,
+						tournamentId: null,
 					}),
 				"BAD_REQUEST",
 			],
@@ -649,8 +649,8 @@ describe("entry rule operations on D1", () => {
 				() =>
 					api.alice.entry.relink({
 						id: linked.id,
-						ringGameId: bobRing.id,
 						keepRule: false,
+						ringGameId: bobRing.id,
 					}),
 				"FORBIDDEN",
 			],
@@ -677,8 +677,8 @@ describe("entry rule operations on D1", () => {
 					api.alice.entry.restoreRule({
 						id: standalone.id,
 						masterId: null,
-						ruleVersionId: standalone.ruleVersionId,
 						masterRuleVersionId: ringA.currentRuleId,
+						ruleVersionId: standalone.ruleVersionId,
 					}),
 				"BAD_REQUEST",
 			],
@@ -687,8 +687,8 @@ describe("entry rule operations on D1", () => {
 					api.alice.entry.restoreRule({
 						id: linked.id,
 						masterId: ringA.id,
-						ruleVersionId: ringA.currentRuleId,
 						masterRuleVersionId: ringB.currentRuleId,
+						ruleVersionId: ringA.currentRuleId,
 					}),
 				"BAD_REQUEST",
 			],
@@ -713,6 +713,7 @@ describe("entry rule operations on D1", () => {
 			[() => api.alice.live.applyMasterRule({ id: linked.id }), "BAD_REQUEST"],
 		] as const;
 		for (const [call, code] of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			expect(await failure(call())).toMatchObject({ code });
 		}
 
@@ -721,8 +722,8 @@ describe("entry rule operations on D1", () => {
 			await failure(
 				api.alice.entry.relink({
 					id: linked.id,
-					ringGameId: ringB.id,
 					keepRule: false,
+					ringGameId: ringB.id,
 				})
 			)
 		).toMatchObject({ code: "BAD_REQUEST" });
@@ -734,8 +735,8 @@ describe("entry rule operations on D1", () => {
 		await api.alice.ringGame.restore({ id: ringB.id });
 		await api.alice.entry.relink({
 			id: linked.id,
-			ringGameId: ringB.id,
 			keepRule: false,
+			ringGameId: ringB.id,
 		});
 		await api.alice.ringGame.archive({ id: ringA.id });
 		expect(
@@ -754,17 +755,17 @@ describe("entry rule operations on D1", () => {
 	}) => {
 		const { rule, ringA, ringB } = await cashSetup(api);
 		const jpy = requireCreatedRow(
-			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "JPY" })
 		);
 		const started = await api.alice.live.create({
 			kind: "cash",
+			payments: [
+				{ assetId: jpy.id, effect: "real", quantity: 100, role: "buy_in" },
+			],
 			ringGameId: ringA.id,
 			startedAt: Math.floor(Date.now() / 1000) - HOUR,
-			payments: [
-				{ role: "buy_in", assetId: jpy.id, quantity: 100, effect: "real" },
-			],
 		});
-		const id = started.id;
+		const { id } = started;
 		const villain = requireCreatedRow(
 			await api.alice.player.create({ name: "Villain" })
 		);
@@ -800,7 +801,7 @@ describe("entry rule operations on D1", () => {
 					rule: { tableSize: 6 },
 				}),
 			() =>
-				api.alice.live.relink({ id, ringGameId: ringB.id, keepRule: false }),
+				api.alice.live.relink({ id, keepRule: false, ringGameId: ringB.id }),
 			() =>
 				api.alice.live.restoreRule({
 					id,
@@ -809,6 +810,7 @@ describe("entry rule operations on D1", () => {
 				}),
 		];
 		for (const call of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			expect(await failure(call())).toMatchObject({ code: "BAD_REQUEST" });
 		}
 		await api.alice.ringGame.update({ id: ringA.id, rule: { tableSize: 6 } });
@@ -821,8 +823,8 @@ describe("entry rule operations on D1", () => {
 			)
 		).toEqual(before);
 		expect(ruleState(await api.alice.live.getById({ id }))).toMatchObject({
-			ruleVersionId: started.ruleVersionId,
 			ringGameId: ringA.id,
+			ruleVersionId: started.ruleVersionId,
 		});
 
 		await api.alice.tablePlayer.updateSeat({
@@ -832,9 +834,9 @@ describe("entry rule operations on D1", () => {
 		});
 		const applied = await api.alice.live.applyMasterRule({ id });
 		expect(applied).toMatchObject({
+			progress: null,
 			ruleDrift: false,
 			ruleVersion: { tableSize: 6 },
-			progress: null,
 		});
 	});
 
@@ -843,34 +845,34 @@ describe("entry rule operations on D1", () => {
 	}) => {
 		const { rule, room } = await cashSetup(api);
 		const jpy = requireCreatedRow(
-			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "JPY" })
 		);
 		const started = await api.alice.live.create({
 			kind: "cash",
+			payments: [
+				{ assetId: jpy.id, effect: "real", quantity: 100, role: "buy_in" },
+			],
 			rule,
 			startedAt: Math.floor(Date.now() / 1000) - HOUR,
-			payments: [
-				{ role: "buy_in", assetId: jpy.id, quantity: 100, effect: "real" },
-			],
 		});
 		const assigned = await api.alice.live.createAndAssignRingGame({
 			entryId: started.id,
-			roomId: room.id,
 			name: "New table",
+			roomId: room.id,
 			rule: { ...rule, minBuyIn: 500 },
 		});
 		expect(assigned.ringGameId).not.toBeNull();
 		expect(assigned).toMatchObject({
-			ruleVersionId: assigned.currentMasterRuleId,
 			ruleDrift: false,
-			ruleVersion: { ringGameId: assigned.ringGameId, minBuyIn: 500 },
+			ruleVersion: { minBuyIn: 500, ringGameId: assigned.ringGameId },
+			ruleVersionId: assigned.currentMasterRuleId,
 		});
 		expect(
 			await failure(
 				api.alice.live.createAndAssignTournament({
 					entryId: started.id,
-					roomId: room.id,
 					name: "Wrong kind",
+					roomId: room.id,
 					rule: { levels: [] },
 				})
 			)
@@ -894,39 +896,39 @@ describe("entry rule operations on D1", () => {
 		api,
 	}) => {
 		const jpy = requireCreatedRow(
-			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "JPY" })
 		);
 		const room = requireCreatedRow(
 			await api.alice.room.create({ name: "Hall" })
 		);
 		const { groupCount, levels } = await seedMaxRuleLevels(api);
 		const prices = Array.from({ length: MAX_RULE_PRICES }, (_, index) => ({
-			kind: "addon" as const,
-			assetId: jpy.id,
 			amount: index,
-			fee: 0,
+			assetId: jpy.id,
 			chips: 1000,
+			fee: 0,
+			kind: "addon" as const,
 		}));
 		const other = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Other",
+			roomId: room.id,
 			rule: {},
 		});
 		const started = await api.alice.live.create({
 			kind: "tournament",
-			startedAt: Math.floor(Date.now() / 1000) - HOUR,
 			payments: [
-				{ role: "buy_in", assetId: jpy.id, quantity: 100, effect: "real" },
+				{ assetId: jpy.id, effect: "real", quantity: 100, role: "buy_in" },
 			],
+			startedAt: Math.floor(Date.now() / 1000) - HOUR,
 		});
-		const id = started.id;
+		const { id } = started;
 		const tagIds: string[] = [];
 		for (let index = 0; index < MAX_LINKED_TAGS; index += 1) {
-			tagIds.push(
-				requireCreatedRow(
-					await api.alice.tournamentTag.create({ name: `Tag ${index}` })
-				).id
-			);
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
+			const tag = await api.alice.tournamentTag.create({
+				name: `Tag ${index}`,
+			});
+			tagIds.push(requireCreatedRow(tag).id);
 		}
 		const measured: Record<string, number> = {};
 		async function metered<Output>(
@@ -942,10 +944,10 @@ describe("entry rule operations on D1", () => {
 		const assigned = await metered("createAndAssignTournament", (caller) =>
 			caller.live.createAndAssignTournament({
 				entryId: id,
-				roomId: room.id,
 				name: "Max",
+				roomId: room.id,
+				rule: { levels, prices, startingStack: 30_000 },
 				tagIds,
-				rule: { startingStack: 30_000, levels, prices },
 			})
 		);
 		expect(assigned.ruleVersion).toMatchObject({
@@ -976,17 +978,17 @@ describe("entry rule operations on D1", () => {
 			caller.live.pushRuleToMaster({ id })
 		);
 		await metered("relink", (caller) =>
-			caller.live.relink({ id, tournamentId: other.id, keepRule: true })
+			caller.live.relink({ id, keepRule: true, tournamentId: other.id })
 		);
 		await metered("relinkAdopt", (caller) =>
-			caller.live.relink({ id, tournamentId: masterId, keepRule: false })
+			caller.live.relink({ id, keepRule: false, tournamentId: masterId })
 		);
 		await metered("restoreRule", (caller) =>
 			caller.live.restoreRule({
 				id,
 				masterId,
-				ruleVersionId: assigned.ruleVersionId,
 				masterRuleVersionId: assigned.ruleVersionId,
+				ruleVersionId: assigned.ruleVersionId,
 			})
 		);
 		await metered("applyMasterRule", (caller) =>

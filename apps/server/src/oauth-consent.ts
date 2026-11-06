@@ -4,7 +4,7 @@ export function forceConsentPrompt(url: string): string {
 	return parsed.toString();
 }
 
-const TRAILING_SLASHES = /\/+$/;
+const TRAILING_SLASHES = /\/+$/u;
 
 export function isAuthorizePath(path: string): boolean {
 	return path.replace(TRAILING_SLASHES, "").endsWith("/authorize");

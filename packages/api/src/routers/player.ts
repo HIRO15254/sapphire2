@@ -53,10 +53,10 @@ async function tagsByPlayer(
 		(chunk) =>
 			db
 				.select({
-					playerId: playerTagLink.playerId,
+					color: playerTag.color,
 					id: playerTag.id,
 					name: playerTag.name,
-					color: playerTag.color,
+					playerId: playerTagLink.playerId,
 				})
 				.from(playerTagLink)
 				.innerJoin(
@@ -91,7 +91,7 @@ function linkStatements(
 	tagIds: string[]
 ): BatchStatement[] {
 	return insertChunks(
-		tagIds.map((tagId, position) => ({ userId, playerId, tagId, position })),
+		tagIds.map((tagId, position) => ({ playerId, position, tagId, userId })),
 		(chunk) => db.insert(playerTagLink).values(chunk)
 	);
 }
@@ -106,6 +106,120 @@ async function withTags<T extends { id: string }>(
 }
 
 export const playerRouter = router({
+	create: protectedProcedure
+		.input(
+			z.object({
+				memo: memoSchema.optional(),
+				name: playerNameSchema,
+				tagIds: tagIdsSchema.optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateTagsOwnership(ctx.db, playerTag, input.tagIds, userId);
+
+			const id = crypto.randomUUID();
+			await runBatch(ctx.db, [
+				ctx.db.insert(player).values({
+					id,
+					memo: input.memo ?? null,
+					name: input.name,
+					updatedAt: new Date(),
+					userId,
+				}),
+				...linkStatements(ctx.db, userId, id, input.tagIds ?? []),
+			]);
+
+			const [created] = await ctx.db
+				.select()
+				.from(player)
+				.where(and(eq(player.id, id), eq(player.userId, userId)));
+			if (!created) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+			}
+			return withTags(ctx.db, userId, created);
+		}),
+
+	delete: protectedProcedure
+		.input(z.object({ id: idSchema }))
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "player", input.id, userId);
+			const deleted = await ctx.db
+				.delete(player)
+				.where(
+					and(
+						eq(player.id, input.id),
+						eq(player.userId, userId),
+						eq(player.isSelf, false),
+						not(
+							exists(
+								ctx.db
+									.select({ playerId: handSeat.playerId })
+									.from(handSeat)
+									.where(
+										and(
+											eq(handSeat.playerId, input.id),
+											eq(handSeat.userId, userId)
+										)
+									)
+							)
+						),
+						not(
+							exists(
+								ctx.db
+									.select({ id: playEvent.id })
+									.from(playEvent)
+									.where(
+										and(
+											eq(playEvent.userId, userId),
+											sql`json_extract(${playEvent.payload}, '$.playerId') = ${input.id}`
+										)
+									)
+							)
+						)
+					)
+				)
+				.returning({ id: player.id });
+			if (deleted.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "This player cannot be deleted",
+				});
+			}
+			return { success: true };
+		}),
+
+	getById: protectedProcedure
+		.input(z.object({ id: idSchema }))
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const found = await validateEntityOwnership(
+				ctx.db,
+				"player",
+				input.id,
+				userId
+			);
+
+			return withTags(ctx.db, userId, found);
+		}),
+
+	getSelf: protectedProcedure.query(async ({ ctx }) => {
+		const userId = ctx.session.user.id;
+		return withTags(ctx.db, userId, await ensureSelfPlayer(ctx.db, userId));
+	}),
+
+	handStats: protectedProcedure
+		.input(playerHandStatsInputSchema)
+		.query(({ ctx, input }) =>
+			playerHandStats(ctx.db, ctx.session.user.id, input)
+		),
+
+	hands: protectedProcedure
+		.input(playerHandsInputSchema)
+		.query(({ ctx, input }) =>
+			listPlayerHands(ctx.db, ctx.session.user.id, input)
+		),
 	list: protectedProcedure
 		.input(playerListInputSchema)
 		.query(async ({ ctx, input }) => {
@@ -179,77 +293,12 @@ export const playerRouter = router({
 			}));
 		}),
 
-	getSelf: protectedProcedure.query(async ({ ctx }) => {
-		const userId = ctx.session.user.id;
-		return withTags(ctx.db, userId, await ensureSelfPlayer(ctx.db, userId));
-	}),
-
-	getById: protectedProcedure
-		.input(z.object({ id: idSchema }))
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const found = await validateEntityOwnership(
-				ctx.db,
-				"player",
-				input.id,
-				userId
-			);
-
-			return withTags(ctx.db, userId, found);
-		}),
-
-	hands: protectedProcedure
-		.input(playerHandsInputSchema)
-		.query(({ ctx, input }) =>
-			listPlayerHands(ctx.db, ctx.session.user.id, input)
-		),
-
-	handStats: protectedProcedure
-		.input(playerHandStatsInputSchema)
-		.query(({ ctx, input }) =>
-			playerHandStats(ctx.db, ctx.session.user.id, input)
-		),
-
-	create: protectedProcedure
-		.input(
-			z.object({
-				name: playerNameSchema,
-				memo: memoSchema.optional(),
-				tagIds: tagIdsSchema.optional(),
-			})
-		)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateTagsOwnership(ctx.db, playerTag, input.tagIds, userId);
-
-			const id = crypto.randomUUID();
-			await runBatch(ctx.db, [
-				ctx.db.insert(player).values({
-					id,
-					userId,
-					name: input.name,
-					memo: input.memo ?? null,
-					updatedAt: new Date(),
-				}),
-				...linkStatements(ctx.db, userId, id, input.tagIds ?? []),
-			]);
-
-			const [created] = await ctx.db
-				.select()
-				.from(player)
-				.where(and(eq(player.id, id), eq(player.userId, userId)));
-			if (!created) {
-				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-			}
-			return withTags(ctx.db, userId, created);
-		}),
-
 	update: protectedProcedure
 		.input(
 			z.object({
 				id: idSchema,
-				name: playerNameSchema.optional(),
 				memo: memoSchema.optional().nullable(),
+				name: playerNameSchema.optional(),
 				tagIds: tagIdsSchema.optional(),
 			})
 		)
@@ -301,55 +350,5 @@ export const playerRouter = router({
 				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 			}
 			return withTags(ctx.db, userId, updated);
-		}),
-
-	delete: protectedProcedure
-		.input(z.object({ id: idSchema }))
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "player", input.id, userId);
-			const deleted = await ctx.db
-				.delete(player)
-				.where(
-					and(
-						eq(player.id, input.id),
-						eq(player.userId, userId),
-						eq(player.isSelf, false),
-						not(
-							exists(
-								ctx.db
-									.select({ playerId: handSeat.playerId })
-									.from(handSeat)
-									.where(
-										and(
-											eq(handSeat.playerId, input.id),
-											eq(handSeat.userId, userId)
-										)
-									)
-							)
-						),
-						not(
-							exists(
-								ctx.db
-									.select({ id: playEvent.id })
-									.from(playEvent)
-									.where(
-										and(
-											eq(playEvent.userId, userId),
-											sql`json_extract(${playEvent.payload}, '$.playerId') = ${input.id}`
-										)
-									)
-							)
-						)
-					)
-				)
-				.returning({ id: player.id });
-			if (deleted.length === 0) {
-				throw new TRPCError({
-					code: "CONFLICT",
-					message: "This player cannot be deleted",
-				});
-			}
-			return { success: true };
 		}),
 });

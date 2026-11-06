@@ -35,7 +35,7 @@ describe("review workflow token permissions", () => {
 	});
 
 	it("keeps contents write out of the job executing PR code and the reviewer", () => {
-		const review = workflow.jobs.review;
+		const { review } = workflow.jobs;
 		if (!review) {
 			throw new Error("Expected the review job");
 		}
@@ -45,7 +45,7 @@ describe("review workflow token permissions", () => {
 	});
 
 	it("finishes thread resolution before checking unresolved threads for auto-merge", () => {
-		const outcome = workflow.jobs.outcome;
+		const { outcome } = workflow.jobs;
 		if (!outcome) {
 			throw new Error("Expected the outcome job");
 		}
@@ -68,7 +68,7 @@ describe("review workflow token permissions", () => {
 	});
 
 	it("preserves review outcome reporting if resolution fails or is skipped", () => {
-		const outcome = workflow.jobs.outcome;
+		const { outcome } = workflow.jobs;
 		if (!outcome) {
 			throw new Error("Expected the outcome job");
 		}

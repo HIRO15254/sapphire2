@@ -11,21 +11,21 @@ import { user } from "./auth";
 export const passkey = sqliteTable(
 	"passkey",
 	{
-		id: text("id").primaryKey(),
-		name: text("name"),
-		publicKey: text("public_key").notNull(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		credentialID: text("credential_id").notNull(),
-		counter: integer("counter").notNull(),
-		deviceType: text("device_type").notNull(),
-		backedUp: integer("backed_up", { mode: "boolean" }).notNull(),
-		transports: text("transports"),
 		aaguid: text("aaguid"),
+		backedUp: integer("backed_up", { mode: "boolean" }).notNull(),
+		counter: integer("counter").notNull(),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		credentialID: text("credential_id").notNull(),
+		deviceType: text("device_type").notNull(),
+		id: text("id").primaryKey(),
+		name: text("name"),
+		publicKey: text("public_key").notNull(),
+		transports: text("transports"),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table) => [
 		index("passkey_userId_idx").on(table.userId),

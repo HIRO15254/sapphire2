@@ -190,10 +190,10 @@ export function eventInstant(seconds: number | undefined, now: Date): Date {
 
 export function zonedLocalDate(at: Date, timeZone: string | null): string {
 	const parts = new Intl.DateTimeFormat("en-US", {
+		day: "2-digit",
+		month: "2-digit",
 		timeZone: timeZone ?? DEFAULT_TIME_ZONE,
 		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
 	}).formatToParts(at);
 	const part = (type: Intl.DateTimeFormatPartTypes) =>
 		parts.find((candidate) => candidate.type === type)?.value ?? "";
@@ -315,7 +315,7 @@ export async function entryKeptReferences(
 			priceCounts.set(row.priceId, (priceCounts.get(row.priceId) ?? 0) + 1);
 		}
 	}
-	return { assetIds: new Set(assetCounts.keys()), assetCounts, priceCounts };
+	return { assetCounts, assetIds: new Set(assetCounts.keys()), priceCounts };
 }
 
 export async function assertEventPayments(
@@ -389,40 +389,40 @@ export async function startLiveEntry(
 		),
 		...rule.statements,
 		...buildLiveEntryStartStatements(db, {
-			id,
-			userId,
+			assetId: input.assetId ?? null,
 			detail:
 				input.kind === "cash"
 					? {
+							cashRuleId: rule.ruleVersionId,
 							kind: "cash",
 							ringGameId: input.ringGameId ?? null,
-							cashRuleId: rule.ruleVersionId,
 						}
 					: {
 							kind: "tournament",
 							tournamentId: input.tournamentId ?? null,
 							tournamentRuleId: rule.ruleVersionId,
 						},
-			assetId: input.assetId ?? null,
-			roomId: input.roomId ?? null,
-			memo: input.memo ?? null,
-			label: input.label ?? null,
-			localDate,
-			now,
-			startEvent: {
-				occurredAt: startedAt,
-				payload: { payments: input.payments, ...clock },
-			},
 			followUps:
 				input.kind === "tournament" && input.initialStack !== undefined
 					? [
 							{
-								type: "update_stack",
 								occurredAt: startedAt,
 								payload: { stackAmount: input.initialStack },
+								type: "update_stack",
 							},
 						]
 					: [],
+			id,
+			label: input.label ?? null,
+			localDate,
+			memo: input.memo ?? null,
+			now,
+			roomId: input.roomId ?? null,
+			startEvent: {
+				occurredAt: startedAt,
+				payload: { payments: input.payments, ...clock },
+			},
+			userId,
 		}),
 	]).catch((error: unknown) => {
 		throw mapLiveWriteConflict(error);
@@ -443,8 +443,8 @@ function completePayload(kind: EntryKind, input: LiveCompleteInput) {
 	}
 	if (input.beforeDeadline) {
 		return {
-			endState: input.endState,
 			beforeDeadline: true,
+			endState: input.endState,
 			payments: input.payments,
 		};
 	}
@@ -457,11 +457,11 @@ function completePayload(kind: EntryKind, input: LiveCompleteInput) {
 		badRequest("Placement must be less than or equal to total entries");
 	}
 	return {
-		endState: input.endState,
 		beforeDeadline: false,
+		endState: input.endState,
+		payments: input.payments,
 		placement: input.placement,
 		totalEntries: input.totalEntries,
-		payments: input.payments,
 	};
 }
 
@@ -502,8 +502,8 @@ export async function completeLiveEntry(
 	);
 	await commitEntryEventChange(db, {
 		change: {
+			events: [{ occurredAt, payload, playSessionId, type: "session_end" }],
 			op: "append",
-			events: [{ type: "session_end", occurredAt, playSessionId, payload }],
 		},
 		entryId: input.id,
 		now,
@@ -528,15 +528,15 @@ export async function endLivePlay(
 	assertTerminalTime(state, playSessionId, occurredAt);
 	await commitEntryEventChange(db, {
 		change: {
-			op: "append",
 			events: [
 				{
-					type: "day_end",
 					occurredAt,
-					playSessionId,
 					payload: { endState: input.endState, stackAmount: input.stackAmount },
+					playSessionId,
+					type: "day_end",
 				},
 			],
+			op: "append",
 		},
 		entryId: input.id,
 		now,
@@ -608,37 +608,37 @@ export async function startNextLivePlay(
 		input.localDate ?? (await userLocalDate(db, userId, startedAt));
 	const next = {
 		id: crypto.randomUUID(),
-		seq: previous.seq + 1,
 		localDate,
+		seq: previous.seq + 1,
 		status: "active" as const,
 	};
 	await commitEntryEventChange(db, {
 		before: [
 			db.insert(playSession).values({
 				...next,
-				userId,
+				createdAt: now,
 				entryId: input.id,
 				kind: state.kind,
 				label: input.label ?? null,
-				createdAt: now,
 				updatedAt: now,
+				userId,
 			}),
 		],
 		change: {
-			op: "append",
 			events: [
 				{
-					type: "session_start",
 					occurredAt: startedAt,
-					playSessionId: next.id,
 					payload: {
 						payments,
 						...(input.startLevel === undefined
 							? {}
 							: { startLevel: input.startLevel }),
 					},
+					playSessionId: next.id,
+					type: "session_start",
 				},
 			],
+			op: "append",
 		},
 		entryId: input.id,
 		now,
@@ -670,7 +670,7 @@ export async function undoLiveEndPlay(
 	}
 	await assertNoUnfinishedPlay(db, userId);
 	await commitEntryEventChange(db, {
-		change: { op: "delete", id: terminal.id },
+		change: { id: terminal.id, op: "delete" },
 		entryId: id,
 		now,
 		state,
@@ -713,6 +713,7 @@ export async function undoLiveStartNextPlay(
 		eq(playSession.userId, userId)
 	);
 	await commitEntryEventChange(db, {
+		after: [db.delete(playSession).where(owned)],
 		before: [
 			db
 				.update(playSession)
@@ -721,8 +722,7 @@ export async function undoLiveStartNextPlay(
 				})
 				.where(owned),
 		],
-		change: { op: "delete", id: start.id },
-		after: [db.delete(playSession).where(owned)],
+		change: { id: start.id, op: "delete" },
 		entryId: id,
 		now,
 		state: {
@@ -799,13 +799,13 @@ export async function attachProgress(
 		(chunk) =>
 			db
 				.select({
-					id: playEvent.id,
 					entryId: playEvent.entryId,
-					playSessionId: playEvent.playSessionId,
-					type: playEvent.type,
+					id: playEvent.id,
 					occurredAt: playEvent.occurredAt,
-					sortOrder: playEvent.sortOrder,
 					payload: playEvent.payload,
+					playSessionId: playEvent.playSessionId,
+					sortOrder: playEvent.sortOrder,
+					type: playEvent.type,
 				})
 				.from(playEvent)
 				.where(
@@ -874,8 +874,8 @@ export async function getLiveEntryDetail(
 		: [];
 	return {
 		...output,
-		events: state.events.map((event) => toPlayEventOutput(state.kind, event)),
-		currentPlaySessionId: current?.id ?? null,
 		currentButtonSeat: latestHand?.buttonSeat ?? null,
+		currentPlaySessionId: current?.id ?? null,
+		events: state.events.map((event) => toPlayEventOutput(state.kind, event)),
 	};
 }

@@ -12,7 +12,7 @@ import {
 
 export function RouterErrorFallback() {
 	return (
-		<Empty className="min-h-full bg-background p-6">
+		<Empty className="bg-background min-h-full p-6">
 			<EmptyHeader role="alert">
 				<EmptyMedia>
 					<IconCloudOff aria-hidden />
@@ -31,7 +31,7 @@ export function RouterErrorFallback() {
 
 export function RouterNotFoundFallback() {
 	return (
-		<Empty className="min-h-full bg-background p-6">
+		<Empty className="bg-background min-h-full p-6">
 			<EmptyHeader>
 				<EmptyMedia>
 					<IconFileOff aria-hidden />

@@ -1,8 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import type z from "zod";
 
-const BASE64_PADDING = /=+$/;
-const BASE64URL = /^[A-Za-z0-9_-]+$/;
+const BASE64_PADDING = /[=]+$/u;
+const BASE64URL = /^[A-Za-z0-9_-]+$/u;
 
 export function encodeCursor(value: unknown): string {
 	let binary = "";

@@ -16,12 +16,12 @@ import type { ReactElement } from "react";
 export function trpcHttpHandler(baseUrl: string, router: AnyTRPCRouter) {
 	return http.all(`${baseUrl}/trpc/*`, ({ request }) =>
 		fetchRequestHandler({
+			createContext: () => ({}),
 			endpoint: "/trpc",
 			req: request as unknown as Parameters<
 				typeof fetchRequestHandler
 			>[0]["req"],
 			router,
-			createContext: () => ({}),
 		})
 	);
 }
@@ -32,14 +32,14 @@ export function renderIntegrationPage(
 ) {
 	const rootRoute = createRootRoute({ component: Outlet });
 	const pageRoute = createRoute({
+		component: () => page,
 		getParentRoute: () => rootRoute,
 		path: options.path,
-		component: () => page,
 	});
 	const router = createRouter({
-		routeTree: rootRoute.addChildren([pageRoute]),
-		history: createMemoryHistory({ initialEntries: [options.path] }),
 		defaultPreload: false,
+		history: createMemoryHistory({ initialEntries: [options.path] }),
+		routeTree: rootRoute.addChildren([pageRoute]),
 	});
 
 	return render(

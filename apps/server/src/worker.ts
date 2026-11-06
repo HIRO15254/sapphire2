@@ -61,8 +61,6 @@ function isMcpClientPath(path: string): boolean {
 app.use("/*", (c, next) => {
 	const corsMiddleware = isMcpClientPath(c.req.path)
 		? cors({
-				origin: "*",
-				allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
 				allowHeaders: [
 					"Content-Type",
 					"Authorization",
@@ -71,19 +69,21 @@ app.use("/*", (c, next) => {
 					"MCP-Protocol-Version",
 					"Last-Event-ID",
 				],
+				allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+				credentials: false,
 				exposeHeaders: [
 					"Mcp-Session-Id",
 					"MCP-Protocol-Version",
 					"WWW-Authenticate",
 				],
 				maxAge: 86_400,
-				credentials: false,
+				origin: "*",
 			})
 		: cors({
-				origin: new URL(c.env.CORS_ORIGIN).origin,
-				allowMethods: ["GET", "POST", "OPTIONS"],
 				allowHeaders: ["Content-Type", "Authorization"],
+				allowMethods: ["GET", "POST", "OPTIONS"],
 				credentials: true,
+				origin: new URL(c.env.CORS_ORIGIN).origin,
 			});
 	return corsMiddleware(c, next);
 });
@@ -99,8 +99,8 @@ app.post("/api/auth/set-password", async (c) => {
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
 	const result = await auth.api.setPassword({
-		headers: c.req.raw.headers,
 		body: await c.req.json(),
+		headers: c.req.raw.headers,
 	});
 	return c.json(result);
 });
@@ -150,9 +150,9 @@ app.use("/api/auth/*", async (c, next) => {
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
 	return auth.handler(
 		new Request(c.req.url, {
-			method: c.req.method,
-			headers: c.req.raw.headers,
 			body,
+			headers: c.req.raw.headers,
+			method: c.req.method,
 		})
 	);
 });
@@ -198,8 +198,8 @@ app.get("/oauth/consent", async (c) => {
 	return c.html(
 		renderConsentHtml({
 			clientName,
-			oauthQuery: query.oauthQuery,
 			nonce,
+			oauthQuery: query.oauthQuery,
 			redirectHosts,
 		})
 	);
@@ -221,13 +221,13 @@ app.use("/trpc/*", async (c, next) => {
 		c.env.GOOGLE_MAPS_API_KEY
 	);
 	const middleware = trpcServer({
-		router: appRouter,
 		createContext: (_opts, context) => contextFactory({ context }),
 		onError: ({ error, path, type }) => {
 			if (error.code === "INTERNAL_SERVER_ERROR") {
 				console.error(`[trpc] ${type} ${path ?? "<unknown>"} failed`, error);
 			}
 		},
+		router: appRouter,
 	});
 	return await middleware(c, next);
 });
@@ -236,29 +236,29 @@ function mcpUnauthorized(env: Env): Response {
 	const wwwAuthenticate = `Bearer resource_metadata="${new URL(env.BETTER_AUTH_URL).origin}/.well-known/oauth-protected-resource"`;
 	return Response.json(
 		{
-			jsonrpc: "2.0",
 			error: {
 				code: -32_000,
 				message: "Unauthorized: Authentication required",
 			},
 			id: null,
+			jsonrpc: "2.0",
 		},
-		{ status: 401, headers: { "WWW-Authenticate": wwwAuthenticate } }
+		{ headers: { "WWW-Authenticate": wwwAuthenticate }, status: 401 }
 	);
 }
 
 function mcpInternalError(): Response {
 	return Response.json(
 		{
-			jsonrpc: "2.0",
 			error: { code: -32_603, message: "Internal error" },
 			id: null,
+			jsonrpc: "2.0",
 		},
 		{ status: 500 }
 	);
 }
 
-const BEARER_PREFIX = /^Bearer\s+/i;
+const BEARER_PREFIX = /^Bearer\s+/iu;
 
 app.all("/mcp", async (c) => {
 	try {
@@ -272,8 +272,8 @@ app.all("/mcp", async (c) => {
 		const db = createDb(c.env.DB);
 		const [token] = await db
 			.select({
-				userId: oauthAccessToken.userId,
 				expiresAt: oauthAccessToken.expiresAt,
+				userId: oauthAccessToken.userId,
 			})
 			.from(oauthAccessToken)
 			.innerJoin(
@@ -299,10 +299,10 @@ app.all("/mcp", async (c) => {
 			return mcpUnauthorized(c.env);
 		}
 		const caller = appRouter.createCaller({
-			session,
 			db,
-			openaiApiKey: c.env.OPENAI_API_KEY,
 			googleMapsApiKey: c.env.GOOGLE_MAPS_API_KEY,
+			openaiApiKey: c.env.OPENAI_API_KEY,
+			session,
 		});
 		const handler = createSapphireMcpHandler({
 			buildCaller: () => caller as never,

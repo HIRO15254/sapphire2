@@ -24,11 +24,11 @@ describe("ring game rule versions on D1", () => {
 			await api.alice.room.create({ name: "Club" })
 		);
 		const created = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Cash",
+			roomId: room.id,
 			rule: {
 				stakes: [
-					{ gameGroupId: "alice:builtin-group:bigbet", blind1: 1, blind2: 2 },
+					{ blind1: 1, blind2: 2, gameGroupId: "alice:builtin-group:bigbet" },
 				],
 			},
 		});
@@ -54,17 +54,17 @@ describe("ring game rule versions on D1", () => {
 		);
 		const rule = {
 			stakes: [
-				{ gameGroupId: "alice:builtin-group:bigbet", blind1: 1, blind2: 2 },
+				{ blind1: 1, blind2: 2, gameGroupId: "alice:builtin-group:bigbet" },
 			],
 		};
 		const first = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "First",
+			roomId: room.id,
 			rule,
 		});
 		const second = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Second",
+			roomId: room.id,
 			rule,
 		});
 		const { rules } = await hydrateCashRules(api.db, "alice", [
@@ -89,14 +89,14 @@ describe("ring game rule versions on D1", () => {
 		await api.alice.room.archive({ id: room.id });
 		await expect(
 			api.alice.ringGame.create({
-				roomId: room.id,
 				name: "Cash",
+				roomId: room.id,
 				rule: {
 					stakes: [
 						{
-							gameGroupId: "alice:builtin-group:bigbet",
 							blind1: 1,
 							blind2: 2,
+							gameGroupId: "alice:builtin-group:bigbet",
 						},
 					],
 				},
@@ -114,14 +114,14 @@ describe("ring game rule versions on D1", () => {
 			await api.alice.room.create({ name: "Club" })
 		);
 		const created = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Cash",
+			roomId: room.id,
 			rule: {
 				stakes: [
 					{
-						gameGroupId: "alice:builtin-group:bigbet",
 						blind1: 1,
 						blind2: 2,
+						gameGroupId: "alice:builtin-group:bigbet",
 					},
 				],
 			},
@@ -145,14 +145,14 @@ describe("ring game rule versions on D1", () => {
 			await api.alice.room.create({ name: "Club" })
 		);
 		const game = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Cash",
+			roomId: room.id,
 			rule: {
 				game: { variantId: variant.id },
-				stakes: [{ gameGroupId: variant.groupId, blind1: 1, blind2: 2 }],
+				stakes: [{ blind1: 1, blind2: 2, gameGroupId: variant.groupId }],
 			},
 		});
-		const lineupId = game.ruleVersion.lineupId;
+		const { lineupId } = game.ruleVersion;
 		const planner = new LineupPlanner(api.db, "alice");
 		await planner.prepare([{ lineupId }, { variantId: variant.id }]);
 		expect(planner.resolve({ variantId: variant.id }).id).toBe(lineupId);
@@ -171,8 +171,8 @@ describe("ring game rule versions on D1", () => {
 		}
 		const mix = requireCreatedRow(
 			await api.alice.gameMix.create({
-				label: "Test mix",
 				games: [variant.id, second.id],
+				label: "Test mix",
 			})
 		);
 		await api.d1
@@ -210,52 +210,54 @@ describe("ring game rule versions on D1", () => {
 		const groups: string[] = [];
 		const first = requireCreatedRow(
 			await api.alice.gameGroup.create({
-				label: "Group 0",
 				blind1Label: "Blind",
+				label: "Group 0",
 			})
 		);
 		groups.push(first.id);
-		for (let index = 0; index <= MAX_LINEUP_GROUPS; index++) {
+		for (let index = 0; index <= MAX_LINEUP_GROUPS; index += 1) {
 			if (index > 0) {
 				const group = requireCreatedRow(
+					// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and fixture ordering.
 					await api.alice.gameGroup.create({
-						label: `Group ${index}`,
 						blind1Label: "Blind",
+						label: `Group ${index}`,
 					})
 				);
 				groups.push(group.id);
 			}
 			const variant = requireCreatedRow(
 				await api.alice.gameVariant.create({
-					label: `Variant ${index}`,
 					groupId: first.id,
+					label: `Variant ${index}`,
 				})
 			);
 			games.push(variant.id);
 			if (index < MAX_LINEUP_GROUPS) {
-				stakes.push({ gameGroupId: groups[index] as string, blind1: index });
+				stakes.push({ blind1: index, gameGroupId: groups[index] as string });
 			}
 		}
 		const mix = requireCreatedRow(
 			await api.alice.gameMix.create({
-				label: "Wide",
 				games: games.slice(0, MAX_LINEUP_GROUPS),
+				label: "Wide",
 			})
 		);
 		const wider = requireCreatedRow(
-			await api.alice.gameMix.create({ label: "Wider", games })
+			await api.alice.gameMix.create({ games, label: "Wider" })
 		);
-		for (let index = 1; index < MAX_LINEUP_GROUPS; index++) {
+		for (let index = 1; index < MAX_LINEUP_GROUPS; index += 1) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and fixture ordering.
 			await api.alice.gameVariant.update({
-				id: games[index] as string,
 				groupId: groups[index] as string,
+				id: games[index] as string,
 			});
 		}
 		await api.alice.gameMix.archive({ id: wider.id });
 		await expect(
 			api.alice.gameVariant.update({
-				id: games[MAX_LINEUP_GROUPS] as string,
 				groupId: groups[MAX_LINEUP_GROUPS] as string,
+				id: games[MAX_LINEUP_GROUPS] as string,
 			})
 		).rejects.toMatchObject({
 			code: "CONFLICT",
@@ -273,8 +275,8 @@ describe("ring game rule versions on D1", () => {
 			.where(eq(gameVariant.id, games[MAX_LINEUP_GROUPS] as string));
 		const { caller, meter } = api.meteredCaller("alice");
 		const game = await caller.ringGame.create({
-			roomId: room.id,
 			name: "Wide",
+			roomId: room.id,
 			rule: { game: { gameMixId: mix.id }, stakes },
 		});
 		expect(meter.statements).toBeLessThanOrEqual(
@@ -283,7 +285,7 @@ describe("ring game rule versions on D1", () => {
 		meter.statements = 0;
 		await caller.ringGame.update({
 			id: game.id,
-			rule: { stakes, minBuyIn: 50 },
+			rule: { minBuyIn: 50, stakes },
 		});
 		expect(meter.statements).toBeLessThanOrEqual(
 			D1_QUERIES_PER_INVOCATION - AUTH_QUERY_RESERVE
@@ -298,8 +300,8 @@ describe("ring game rule versions on D1", () => {
 		const before = await api.db.select().from(cashRule);
 		await expect(
 			api.alice.ringGame.create({
-				roomId: room.id,
 				name: "Wider",
+				roomId: room.id,
 				rule: { game: { gameMixId: wider.id } },
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -319,18 +321,18 @@ describe("ring game rule versions on D1", () => {
 			throw new Error("Missing seeded variant");
 		}
 		const original = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Cash",
+			roomId: room.id,
 			rule: {
 				game: { variantId: variant.id },
-				stakes: [{ gameGroupId: variant.groupId, blind1: 1, blind2: 2 }],
-				minBuyIn: 100,
 				maxBuyIn: 200,
+				minBuyIn: 100,
+				stakes: [{ blind1: 1, blind2: 2, gameGroupId: variant.groupId }],
 			},
 		});
 		const repeated = await api.alice.ringGame.update({
 			id: original.id,
-			rule: { minBuyIn: 100, maxBuyIn: 200 },
+			rule: { maxBuyIn: 200, minBuyIn: 100 },
 		});
 		expect(repeated.currentRuleId).toBe(original.currentRuleId);
 		const changed = await api.alice.ringGame.update({
@@ -341,7 +343,7 @@ describe("ring game rule versions on D1", () => {
 		const before = await api.db.select().from(cashRule);
 		expect(
 			before.find((row) => row.id === original.currentRuleId)
-		).toMatchObject({ minBuyIn: 100, maxBuyIn: 200 });
+		).toMatchObject({ maxBuyIn: 200, minBuyIn: 100 });
 		const restored = await api.alice.ringGame.restoreRule({
 			id: original.id,
 			ruleVersionId: original.currentRuleId,
@@ -353,10 +355,10 @@ describe("ring game rule versions on D1", () => {
 		const listed = await api.alice.ringGame.listByRoom({ roomId: room.id });
 		expect(listed).toContainEqual(
 			expect.objectContaining({
-				id: original.id,
 				currentRuleId: original.currentRuleId,
-				ruleVersion: original.ruleVersion,
+				id: original.id,
 				lineups: original.lineups,
+				ruleVersion: original.ruleVersion,
 			})
 		);
 	});
@@ -377,30 +379,30 @@ describe("ring game rule versions on D1", () => {
 		}
 		const variant = requireCreatedRow(
 			await api.alice.gameVariant.create({
-				label: "mix",
 				groupId: first.groupId,
+				label: "mix",
 			})
 		);
 		const mix = requireCreatedRow(
 			await api.alice.gameMix.create({
-				label: "mix",
 				games: [first.id, second.id],
+				label: "mix",
 			})
 		);
 		const single = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Single",
+			roomId: room.id,
 			rule: {
 				game: { variantId: variant.id },
-				stakes: [{ gameGroupId: first.groupId, blind1: 1, blind2: 2 }],
+				stakes: [{ blind1: 1, blind2: 2, gameGroupId: first.groupId }],
 			},
 		});
 		const mixed = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Mixed",
+			roomId: room.id,
 			rule: {
 				game: { gameMixId: mix.id },
-				stakes: [{ gameGroupId: first.groupId, blind1: 1, blind2: 2 }],
+				stakes: [{ blind1: 1, blind2: 2, gameGroupId: first.groupId }],
 			},
 		});
 		expect(single.lineups[single.ruleVersion.lineupId]?.gameMixId).toBeNull();
@@ -413,11 +415,11 @@ describe("ring game rule versions on D1", () => {
 		expect(saved.currentRuleId).toBe(single.currentRuleId);
 		await expect(
 			api.alice.ringGame.create({
-				roomId: room.id,
 				name: "New",
+				roomId: room.id,
 				rule: {
 					game: { variantId: variant.id },
-					stakes: [{ gameGroupId: first.groupId, blind1: 1, blind2: 2 }],
+					stakes: [{ blind1: 1, blind2: 2, gameGroupId: first.groupId }],
 				},
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -442,26 +444,26 @@ describe("ring game rule versions on D1", () => {
 			await api.bob.room.create({ name: "Bob" })
 		);
 		const alice = await api.alice.ringGame.create({
-			roomId: aliceRoom.id,
 			name: "A",
+			roomId: aliceRoom.id,
 			rule: {
-				stakes: [{ gameGroupId: aliceNlh.groupId, blind1: 1, blind2: 2 }],
+				stakes: [{ blind1: 1, blind2: 2, gameGroupId: aliceNlh.groupId }],
 			},
 		});
 		const other = await api.alice.ringGame.create({
-			roomId: aliceRoom.id,
 			name: "Other",
+			roomId: aliceRoom.id,
 			rule: {
-				stakes: [{ gameGroupId: aliceNlh.groupId, blind1: 1, blind2: 2 }],
+				stakes: [{ blind1: 1, blind2: 2, gameGroupId: aliceNlh.groupId }],
 			},
 		});
 		const bob = await api.bob.ringGame.create({
-			roomId: bobRoom.id,
 			name: "B",
-			rule: { stakes: [{ gameGroupId: bobNlh.groupId, blind1: 1, blind2: 2 }] },
+			roomId: bobRoom.id,
+			rule: { stakes: [{ blind1: 1, blind2: 2, gameGroupId: bobNlh.groupId }] },
 		});
 		const asset = requireCreatedRow(
-			await api.bob.asset.create({ name: "Bob chips", kind: "currency" })
+			await api.bob.asset.create({ kind: "currency", name: "Bob chips" })
 		);
 		const before = await api.db.select().from(cashRule);
 		await expect(
@@ -471,12 +473,12 @@ describe("ring game rule versions on D1", () => {
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(
-			api.alice.ringGame.update({ id: alice.id, defaultAssetId: asset.id })
+			api.alice.ringGame.update({ defaultAssetId: asset.id, id: alice.id })
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		await expect(
 			api.alice.ringGame.update({
 				id: alice.id,
-				rule: { stakes: [{ gameGroupId: bobNlh.groupId, blind1: 1 }] },
+				rule: { stakes: [{ blind1: 1, gameGroupId: bobNlh.groupId }] },
 			})
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		const groups = await api.alice.gameGroup.list();
@@ -489,7 +491,7 @@ describe("ring game rule versions on D1", () => {
 		await expect(
 			api.alice.ringGame.update({
 				id: alice.id,
-				rule: { stakes: [{ gameGroupId: wrong.id, blind1: 10 }] },
+				rule: { stakes: [{ blind1: 10, gameGroupId: wrong.id }] },
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(
@@ -533,22 +535,22 @@ describe("ring game rule versions on D1", () => {
 		);
 		await expect(
 			api.alice.ringGame.create({
-				roomId: room.id,
 				name: "Invalid",
+				roomId: room.id,
 				rule: {
-					stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
-					minBuyIn: 200,
 					maxBuyIn: 100,
+					minBuyIn: 200,
+					stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 				},
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		const game = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Valid",
+			roomId: room.id,
 			rule: {
-				stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
-				minBuyIn: 100,
 				maxBuyIn: 200,
+				minBuyIn: 100,
+				stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 			},
 		});
 		await expect(

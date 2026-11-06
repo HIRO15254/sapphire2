@@ -26,17 +26,17 @@ export function paymentsSchema<
 	return z.array(
 		z.object({
 			assetId: z.string().min(1),
-			quantity: ledgerQuantitySchema,
-			role: z.enum(roles),
 			effect: z.enum(LEDGER_EFFECTS).default("real"),
 			priceId: z.string().min(1).optional(),
+			quantity: ledgerQuantitySchema,
+			role: z.enum(roles),
 		})
 	);
 }
 
 const clockFields = {
-	timerStartedAt: z.number().int().nullable().optional(),
 	startLevel: z.number().int().min(0).optional(),
+	timerStartedAt: z.number().int().nullable().optional(),
 };
 
 export const cashSessionStartPayload = z.object({
@@ -62,9 +62,9 @@ export const tournamentSessionEndPayload = z
 		z.object({
 			beforeDeadline: z.literal(false),
 			endState: tournamentEndState,
+			payments: prizePayments,
 			placement: z.number().int().min(1),
 			totalEntries: z.number().int().min(1),
-			payments: prizePayments,
 		}),
 		z.object({
 			beforeDeadline: z.literal(true),
@@ -98,12 +98,12 @@ export const chipsAddRemovePayload = z.object({
 
 export const allInPayload = z
 	.object({
+		equity: z.number().min(0).max(100),
+		handId: z.string().min(1).optional(),
 		potSize: z.number().int().min(0),
 		trials: z.number().int().min(1),
-		equity: z.number().min(0).max(100),
 		// NOTE(rule): api-data-integrity.md — wins deviates from .int(): chopped pots count as fractional wins; non-negative, and the object-level refine (wins <= trials) blocks the EV-corruption bug (SA2-156).
 		wins: z.number().min(0),
-		handId: z.string().min(1).optional(),
 	})
 	.refine((data) => data.wins <= data.trials, {
 		message: "wins must not exceed trials",
@@ -115,23 +115,23 @@ export const reentryPayload = z.object({
 });
 
 export const purchaseChipsPayload = z.object({
-	priceId: z.string().min(1),
-	label: z.string().min(1),
 	chips: z.number().int().min(0),
+	label: z.string().min(1),
 	payments: paymentsSchema(["chip_purchase", "fee"]),
+	priceId: z.string().min(1),
 });
 
 const chipPurchaseCountSchema = z.object({
-	name: z.string().min(1),
-	count: z.number().int().min(0),
 	chipsPerUnit: z.number().int().min(0),
+	count: z.number().int().min(0),
+	name: z.string().min(1),
 });
 
 export const updateStackPayload = z.object({
-	stackAmount: z.number().int().min(0),
-	remainingPlayers: z.number().int().min(1).nullable().optional(),
-	totalEntries: z.number().int().min(1).nullable().optional(),
 	chipPurchaseCounts: z.array(chipPurchaseCountSchema).optional(),
+	remainingPlayers: z.number().int().min(1).nullable().optional(),
+	stackAmount: z.number().int().min(0),
+	totalEntries: z.number().int().min(1).nullable().optional(),
 });
 
 export const playerJoinPayload = z.object({
@@ -154,35 +154,35 @@ export const memoPayload = z.object({
 });
 
 export const tableChangePayload = z.object({
-	tableLabel: z.string().min(1).max(100).optional(),
 	seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).optional(),
+	tableLabel: z.string().min(1).max(100).optional(),
 });
 
 const SHARED_PAYLOADS = {
-	session_pause: sessionPausePayload,
-	session_resume: sessionResumePayload,
 	day_end: dayEndPayload,
-	update_stack: updateStackPayload,
+	memo: memoPayload,
 	player_join: playerJoinPayload,
 	player_leave: playerLeavePayload,
-	memo: memoPayload,
+	session_pause: sessionPausePayload,
+	session_resume: sessionResumePayload,
 	table_change: tableChangePayload,
+	update_stack: updateStackPayload,
 } as const satisfies Record<string, z.ZodType>;
 
 const PAYLOADS: Record<EntryKind, Record<string, z.ZodType>> = {
 	cash: {
 		...SHARED_PAYLOADS,
-		session_start: cashSessionStartPayload,
-		session_end: cashSessionEndPayload,
-		chips_add_remove: chipsAddRemovePayload,
 		all_in: allInPayload,
+		chips_add_remove: chipsAddRemovePayload,
+		session_end: cashSessionEndPayload,
+		session_start: cashSessionStartPayload,
 	},
 	tournament: {
 		...SHARED_PAYLOADS,
-		session_start: tournamentSessionStartPayload,
-		session_end: tournamentSessionEndPayload,
-		reentry: reentryPayload,
 		purchase_chips: purchaseChipsPayload,
+		reentry: reentryPayload,
+		session_end: tournamentSessionEndPayload,
+		session_start: tournamentSessionStartPayload,
 	},
 };
 

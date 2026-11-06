@@ -14,25 +14,25 @@ import { oneOf } from "./sql-checks";
 export const asset = sqliteTable(
 	"asset",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
-		unit: text("unit"),
-		description: text("description"),
-		isFavorite: integer("is_favorite", { mode: "boolean" })
-			.notNull()
-			.default(false),
-		kind: text("kind", { enum: ASSET_KINDS }).notNull().default("currency"),
-		decimals: integer("decimals").notNull().default(0),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		decimals: integer("decimals").notNull().default(0),
+		description: text("description"),
+		id: text("id").primaryKey(),
+		isFavorite: integer("is_favorite", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		kind: text("kind", { enum: ASSET_KINDS }).notNull().default("currency"),
+		name: text("name").notNull(),
+		unit: text("unit"),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("asset_id_user_id_unique").on(t.id, t.userId),

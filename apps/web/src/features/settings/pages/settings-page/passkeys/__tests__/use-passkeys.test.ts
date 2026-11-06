@@ -1,15 +1,16 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { stubWebAuthnSupport } from "@/__tests__/test-utils";
+import { usePasskeys } from "@/features/settings/pages/settings-page/passkeys/use-passkeys";
 
 const mocks = vi.hoisted(() => ({
-	listUserPasskeys: vi.fn(),
 	deletePasskey: vi.fn(),
-	updatePasskey: vi.fn(),
-	toastSuccess: vi.fn(),
-	toastInfo: vi.fn(),
-	toastError: vi.fn(),
+	listUserPasskeys: vi.fn(),
 	setAutomaticPasskeyOptOut: vi.fn(),
+	toastError: vi.fn(),
+	toastInfo: vi.fn(),
+	toastSuccess: vi.fn(),
+	updatePasskey: vi.fn(),
 }));
 
 vi.mock("@/shared/lib/passkey-opt-out", () => ({
@@ -18,23 +19,21 @@ vi.mock("@/shared/lib/passkey-opt-out", () => ({
 
 vi.mock("sonner", () => ({
 	toast: {
-		success: mocks.toastSuccess,
-		info: mocks.toastInfo,
 		error: mocks.toastError,
+		info: mocks.toastInfo,
+		success: mocks.toastSuccess,
 	},
 }));
 
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
 		passkey: {
-			listUserPasskeys: mocks.listUserPasskeys,
 			deletePasskey: mocks.deletePasskey,
+			listUserPasskeys: mocks.listUserPasskeys,
 			updatePasskey: mocks.updatePasskey,
 		},
 	},
 }));
-
-import { usePasskeys } from "@/features/settings/pages/settings-page/passkeys/use-passkeys";
 
 const PASSKEY_A = {
 	backedUp: true,

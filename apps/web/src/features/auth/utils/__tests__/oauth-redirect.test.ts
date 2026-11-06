@@ -5,12 +5,12 @@ const SERVER = "http://localhost:8787";
 
 const OAUTH_SEARCH = {
 	client_id: "client-1",
-	response_type: "code",
-	redirect_uri: "https://claude.ai/api/mcp/auth_callback",
-	scope: "openid profile",
-	state: "abc123",
 	code_challenge: "challenge",
 	code_challenge_method: "S256",
+	redirect_uri: "https://claude.ai/api/mcp/auth_callback",
+	response_type: "code",
+	scope: "openid profile",
+	state: "abc123",
 };
 
 describe("resolveMcpAuthorizeRedirect", () => {

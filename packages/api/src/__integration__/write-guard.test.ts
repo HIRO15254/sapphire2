@@ -14,9 +14,9 @@ const ROOM_ID = "room-1";
 async function seedRoom(api: ApiFixture) {
 	await api.db.insert(room).values({
 		id: ROOM_ID,
-		userId: "alice",
 		name: "Before",
 		updatedAt: new Date("2026-09-05T00:00:00.000Z"),
+		userId: "alice",
 	});
 }
 
@@ -39,6 +39,7 @@ describe("write guard", () => {
 		await seedRoom(api);
 		const failing: SQL[] = [sql`0`, sql`NULL`];
 		for (const condition of failing) {
+			// biome-ignore lint/performance/noAwaitInLoops: Each rollback must be checked before the next batch.
 			await expect(
 				runGuardedBatch(api.db, [
 					rename(api, "After"),

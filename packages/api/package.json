@@ -13,18 +13,20 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "openai": "catalog:",
     "@sapphire2/auth": "workspace:*",
     "@sapphire2/db": "workspace:*",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
     "drizzle-orm": "catalog:",
+    "openai": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260405.1",
+    "@cloudflare/workers-types": "^5.20261106.1",
     "@sapphire2/config": "workspace:*",
     "hono": "catalog:",
-    "typescript": "catalog:"
+    "miniflare": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

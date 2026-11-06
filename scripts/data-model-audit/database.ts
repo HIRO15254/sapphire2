@@ -13,12 +13,13 @@ export interface AuditTarget {
 
 export interface AuditDatabase {
 	readonly label: string;
-	query(statements: readonly string[]): Row[][];
+	query: (statements: readonly string[]) => Row[][];
 }
 
 export class AuditDatabaseError extends Error {}
 
-const READ_ONLY_STATEMENT = /^\s*(SELECT|WITH|PRAGMA\s+foreign_key_check)\b/i;
+const READ_ONLY_STATEMENT =
+	/^\s*(?:SELECT|WITH|PRAGMA\s+foreign_key_check)\b/iu;
 const MAX_BUFFER = 1024 * 1024 * 1024;
 const STATEMENT_BATCH = 12;
 const WRANGLER = path.resolve(
@@ -28,8 +29,8 @@ const WRANGLER = path.resolve(
 
 const wranglerResults = z.array(
 	z.object({
-		success: z.literal(true),
 		results: z.array(z.record(z.string(), z.unknown())),
+		success: z.literal(true),
 	})
 );
 
@@ -45,9 +46,10 @@ function parseResults(stdout: string, expected: number): Row[][] {
 	let json: unknown;
 	try {
 		json = JSON.parse(stdout);
-	} catch {
+	} catch (error) {
 		throw new AuditDatabaseError(
-			`wrangler returned output that is not JSON: ${stdout.slice(0, 500)}`
+			`wrangler returned output that is not JSON: ${stdout.slice(0, 500)}`,
+			{ cause: error }
 		);
 	}
 	const parsed = wranglerResults.safeParse(json);

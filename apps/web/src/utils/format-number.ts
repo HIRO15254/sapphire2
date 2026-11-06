@@ -1,4 +1,4 @@
-const TRAILING_ZERO = /\.0$/;
+const TRAILING_ZERO = /\.0$/u;
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
@@ -24,9 +24,9 @@ interface UnitTier {
 }
 
 const TIERS: UnitTier[] = [
-	{ threshold: 10_000_000_000, divisor: 1_000_000_000, suffix: "B" },
-	{ threshold: 10_000_000, divisor: 1_000_000, suffix: "M" },
-	{ threshold: 10_000, divisor: 1000, suffix: "k" },
+	{ divisor: 1_000_000_000, suffix: "B", threshold: 10_000_000_000 },
+	{ divisor: 1_000_000, suffix: "M", threshold: 10_000_000 },
+	{ divisor: 1000, suffix: "k", threshold: 10_000 },
 ];
 
 function formatWithTier(value: number, tier: UnitTier | undefined): string {
@@ -39,7 +39,9 @@ function formatWithTier(value: number, tier: UnitTier | undefined): string {
 export function createGroupFormatter(
 	values: (number | null | undefined)[]
 ): (value: number) => string {
-	const nums = values.filter((v): v is number => v != null && v !== 0);
+	const nums = values.filter(
+		(v): v is number => v !== null && v !== undefined && v !== 0
+	);
 	const maxAbs = nums.length > 0 ? Math.max(...nums.map(Math.abs)) : 0;
 	const tier = TIERS.find((t) => maxAbs >= t.threshold);
 	return (value: number) => formatWithTier(value, tier);

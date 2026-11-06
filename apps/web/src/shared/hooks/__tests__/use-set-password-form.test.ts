@@ -1,21 +1,20 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useSetPasswordForm } from "@/shared/hooks/use-set-password-form";
 
 const mocks = vi.hoisted(() => ({
 	fetch: vi.fn(),
-	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
+	toastSuccess: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
-	toast: { success: mocks.toastSuccess, error: mocks.toastError },
+	toast: { error: mocks.toastError, success: mocks.toastSuccess },
 }));
 
 vi.mock("@/lib/auth-client", () => ({
 	authClient: { $fetch: mocks.fetch },
 }));
-
-import { useSetPasswordForm } from "@/shared/hooks/use-set-password-form";
 
 describe("useSetPasswordForm", () => {
 	beforeEach(() => {
@@ -29,8 +28,8 @@ describe("useSetPasswordForm", () => {
 			useSetPasswordForm({ onOpenChange: vi.fn(), onSuccess: vi.fn() })
 		);
 		expect(result.current.form.state.values).toEqual({
-			newPassword: "",
 			confirmPassword: "",
+			newPassword: "",
 		});
 	});
 
@@ -83,8 +82,8 @@ describe("useSetPasswordForm", () => {
 			await result.current.form.handleSubmit();
 		});
 		expect(mocks.fetch).toHaveBeenCalledWith("/set-password", {
-			method: "POST",
 			body: { newPassword: "password123" },
+			method: "POST",
 		});
 	});
 

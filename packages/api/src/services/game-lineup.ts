@@ -112,7 +112,7 @@ export async function loadLineups(
 		unique,
 		(chunk) =>
 			db
-				.select({ id: gameLineup.id, gameMixId: gameLineup.gameMixId })
+				.select({ gameMixId: gameLineup.gameMixId, id: gameLineup.id })
 				.from(gameLineup)
 				.where(
 					and(eq(gameLineup.userId, userId), inArray(gameLineup.id, chunk))
@@ -126,11 +126,11 @@ export async function loadLineups(
 			(chunk) =>
 				db
 					.select({
+						gameGroupId: gameLineupGroup.gameGroupId,
 						id: gameLineupGroup.id,
 						lineupId: gameLineupGroup.lineupId,
-						position: gameLineupGroup.position,
-						gameGroupId: gameLineupGroup.gameGroupId,
 						name: gameLineupGroup.name,
+						position: gameLineupGroup.position,
 					})
 					.from(gameLineupGroup)
 					.where(
@@ -147,8 +147,8 @@ export async function loadLineups(
 				db
 					.select({
 						lineupGroupId: gameLineupVariant.lineupGroupId,
-						variantId: gameLineupVariant.variantId,
 						position: gameLineupVariant.position,
+						variantId: gameLineupVariant.variantId,
 					})
 					.from(gameLineupVariant)
 					.where(
@@ -166,18 +166,18 @@ export async function loadLineups(
 		lineups.map((lineup) => [
 			lineup.id,
 			{
-				id: lineup.id,
 				gameMixId: lineup.gameMixId,
 				groups: (groupsByLineup.get(lineup.id) ?? [])
 					.toSorted(byPosition)
 					.map((group) => ({
-						id: group.id,
 						gameGroupId: group.gameGroupId,
+						id: group.id,
 						name: group.name,
 						variantIds: (variantsByGroup.get(group.id) ?? [])
 							.toSorted(byPosition)
 							.map((variant) => variant.variantId),
 					})),
+				id: lineup.id,
 			},
 		])
 	);
@@ -288,28 +288,28 @@ export class LineupPlanner {
 
 	statements(): BatchStatement[] {
 		const lineupRows = this.created.map((lineup) => ({
+			gameMixId: lineup.gameMixId,
 			id: lineup.id,
 			userId: this.userId,
-			gameMixId: lineup.gameMixId,
 		}));
 		const groupRows = this.created.flatMap((lineup) =>
 			lineup.groups.map((group, position) => ({
-				id: group.id,
-				userId: this.userId,
-				lineupId: lineup.id,
-				position,
 				gameGroupId: group.gameGroupId,
+				id: group.id,
+				lineupId: lineup.id,
 				name: group.name,
+				position,
+				userId: this.userId,
 			}))
 		);
 		const variantRows = this.created.flatMap((lineup) =>
 			lineup.groups.flatMap((group) =>
 				group.variantIds.map((variantId, position) => ({
-					userId: this.userId,
-					lineupId: lineup.id,
 					lineupGroupId: group.id,
-					variantId,
+					lineupId: lineup.id,
 					position,
+					userId: this.userId,
+					variantId,
 				}))
 			)
 		);
@@ -362,14 +362,14 @@ export class LineupPlanner {
 			);
 		}
 		const lineup: Lineup = {
-			id: crypto.randomUUID(),
 			gameMixId: shape.gameMixId,
 			groups: shape.groups.map((group) => ({
-				id: crypto.randomUUID(),
 				gameGroupId: group.gameGroupId,
+				id: crypto.randomUUID(),
 				name: null,
 				variantIds: group.variantIds,
 			})),
+			id: crypto.randomUUID(),
 		};
 		this.created.push(lineup);
 		this.candidates.set(signature, lineup);
@@ -397,10 +397,10 @@ export class LineupPlanner {
 			(chunk) =>
 				this.db
 					.select({
-						id: gameVariant.id,
-						groupId: gameVariant.groupId,
 						archivedAt: gameVariant.archivedAt,
 						groupArchivedAt: gameGroup.archivedAt,
+						groupId: gameVariant.groupId,
+						id: gameVariant.id,
 					})
 					.from(gameVariant)
 					.innerJoin(
@@ -444,7 +444,7 @@ export class LineupPlanner {
 			mixIds,
 			(chunk) =>
 				this.db
-					.select({ id: gameMix.id, archivedAt: gameMix.archivedAt })
+					.select({ archivedAt: gameMix.archivedAt, id: gameMix.id })
 					.from(gameMix)
 					.where(
 						and(eq(gameMix.userId, this.userId), inArray(gameMix.id, chunk))
@@ -464,12 +464,12 @@ export class LineupPlanner {
 			(chunk) =>
 				this.db
 					.select({
+						groupArchivedAt: gameGroup.archivedAt,
+						groupId: gameVariant.groupId,
 						mixId: gameMixVariant.mixId,
 						position: gameMixVariant.position,
-						variantId: gameMixVariant.variantId,
-						groupId: gameVariant.groupId,
 						variantArchivedAt: gameVariant.archivedAt,
-						groupArchivedAt: gameGroup.archivedAt,
+						variantId: gameMixVariant.variantId,
 					})
 					.from(gameMixVariant)
 					.innerJoin(
@@ -640,9 +640,8 @@ export async function hydrateLineups(
 		}
 		const structureSeen = new Map<string, number>();
 		map[lineup.id] = {
-			id: lineup.id,
-			gameMixId: lineup.gameMixId,
 			displayName: lineupDisplayName(lineup, mixLabels, variants),
+			gameMixId: lineup.gameMixId,
 			groups: lineup.groups.map((group) => {
 				const occurrence = (structureSeen.get(group.gameGroupId) ?? 0) + 1;
 				structureSeen.set(group.gameGroupId, occurrence);
@@ -652,8 +651,8 @@ export async function hydrateLineups(
 						? `${structureLabel} ${occurrence}`
 						: structureLabel;
 				return {
-					id: group.id,
 					gameGroupId: group.gameGroupId,
+					id: group.id,
 					name: group.name ?? fallback,
 					variants: group.variantIds.map((id) => ({
 						id,
@@ -662,6 +661,7 @@ export async function hydrateLineups(
 					})),
 				};
 			}),
+			id: lineup.id,
 		};
 	}
 	return map;

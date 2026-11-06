@@ -12,10 +12,10 @@ export function SectionLoadError({
 }) {
 	return (
 		<div
-			className="flex items-center gap-2.5 rounded-xl border border-border bg-muted px-3 py-2.5"
+			className="border-border bg-muted flex items-center gap-2.5 rounded-xl border px-3 py-2.5"
 			role="alert"
 		>
-			<IconAlertCircle aria-hidden className="size-5 text-destructive-text" />
+			<IconAlertCircle aria-hidden className="text-destructive-text size-5" />
 			<span className="flex-1 leading-[1.4]">{message}</span>
 			<Button
 				aria-busy={isRetrying}

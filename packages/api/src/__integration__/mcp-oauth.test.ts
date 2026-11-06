@@ -27,9 +27,9 @@ interface AuthorizeOptions {
 
 function form(fields: Record<string, string>) {
 	return {
-		method: "POST",
-		headers: { "content-type": "application/x-www-form-urlencoded" },
 		body: new URLSearchParams(fields).toString(),
+		headers: { "content-type": "application/x-www-form-urlencoded" },
+		method: "POST",
 	};
 }
 
@@ -38,10 +38,10 @@ async function registerClient(request: WorkerClient): Promise<string> {
 		"/api/auth/oauth2/register",
 		jsonPost({
 			client_name: "Test MCP client",
-			redirect_uris: [REDIRECT_URI],
-			token_endpoint_auth_method: "none",
 			grant_types: ["authorization_code", "refresh_token"],
+			redirect_uris: [REDIRECT_URI],
 			response_types: ["code"],
+			token_endpoint_auth_method: "none",
 		})
 	);
 	expect(response.status).toBe(201);
@@ -57,18 +57,18 @@ async function consentPageQuery(
 	{ codeChallengeMethod = "S256", state = "state-1" }: AuthorizeOptions = {}
 ): Promise<Response> {
 	const params = new URLSearchParams({
-		response_type: "code",
 		client_id: clientId,
-		redirect_uri: REDIRECT_URI,
-		scope: "openid profile offline_access",
-		state,
 		code_challenge: codeChallenge,
 		code_challenge_method: codeChallengeMethod,
+		redirect_uri: REDIRECT_URI,
 		resource: MCP_RESOURCE,
+		response_type: "code",
+		scope: "openid profile offline_access",
+		state,
 	});
 	return await request(`/api/auth/oauth2/authorize?${params}`, {
-		method: "GET",
 		jar,
+		method: "GET",
 	});
 }
 
@@ -112,11 +112,11 @@ async function connect(request: WorkerClient, email: string) {
 		request(
 			"/api/auth/oauth2/token",
 			form({
-				grant_type: "authorization_code",
-				code: code ?? "",
-				redirect_uri: REDIRECT_URI,
 				client_id: clientId,
+				code: code ?? "",
 				code_verifier: verifier,
+				grant_type: "authorization_code",
+				redirect_uri: REDIRECT_URI,
 				resource: MCP_RESOURCE,
 			})
 		);
@@ -127,9 +127,9 @@ function refresh(request: WorkerClient, clientId: string, token: string) {
 	return request(
 		"/api/auth/oauth2/token",
 		form({
+			client_id: clientId,
 			grant_type: "refresh_token",
 			refresh_token: token,
-			client_id: clientId,
 			resource: MCP_RESOURCE,
 		})
 	);
@@ -137,29 +137,29 @@ function refresh(request: WorkerClient, clientId: string, token: string) {
 
 function callMcp(request: WorkerClient, accessToken: string) {
 	return request("/mcp", {
-		method: "POST",
-		headers: {
-			authorization: `Bearer ${accessToken}`,
-			"content-type": "application/json",
-			accept: "application/json, text/event-stream",
-		},
 		body: JSON.stringify({
-			jsonrpc: "2.0",
 			id: 1,
+			jsonrpc: "2.0",
 			method: "initialize",
 			params: {
-				protocolVersion: "2025-06-18",
 				capabilities: {},
 				clientInfo: { name: "test", version: "1.0.0" },
+				protocolVersion: "2025-06-18",
 			},
 		}),
+		headers: {
+			accept: "application/json, text/event-stream",
+			authorization: `Bearer ${accessToken}`,
+			"content-type": "application/json",
+		},
+		method: "POST",
 	});
 }
 
 async function listConnections(request: WorkerClient, jar: CookieJar) {
 	const response = await request("/trpc/mcpConnection.list", {
-		method: "GET",
 		jar,
+		method: "GET",
 	});
 	expect(response.status).toBe(200);
 	const body = (await response.json()) as {
@@ -271,6 +271,7 @@ describe("MCP OAuth authorization server", () => {
 		const statuses = responses.map((response) => response.status).sort();
 		expect(statuses).toEqual([200, 400]);
 		const rejected = responses.find((response) => response.status === 400);
+		// biome-ignore lint/correctness/noUnsafeOptionalChaining: The preceding status assertion guarantees a rejected response.
 		expect(((await rejected?.json()) as TokenResponse).error).toBe(
 			"invalid_grant"
 		);
@@ -334,20 +335,21 @@ describe("MCP OAuth authorization server", () => {
 		"javascript:alert(document.domain)",
 		"http://example.com/callback",
 		"not-a-url",
-	])("registration rejects the redirect URI %s", async (redirectUri, {
-		api,
-	}) => {
-		const request = createWorkerClient(api.d1);
-		const response = await request(
-			"/api/auth/oauth2/register",
-			jsonPost({
-				redirect_uris: [redirectUri],
-				token_endpoint_auth_method: "none",
-			})
-		);
-		expect(response.status).toBe(400);
-		expect(
-			(await api.d1.prepare("SELECT id FROM oauth_client").all()).results
-		).toEqual([]);
-	});
+	])(
+		"registration rejects the redirect URI %s",
+		async (redirectUri, { api }) => {
+			const request = createWorkerClient(api.d1);
+			const response = await request(
+				"/api/auth/oauth2/register",
+				jsonPost({
+					redirect_uris: [redirectUri],
+					token_endpoint_auth_method: "none",
+				})
+			);
+			expect(response.status).toBe(400);
+			expect(
+				(await api.d1.prepare("SELECT id FROM oauth_client").all()).results
+			).toEqual([]);
+		}
+	);
 });

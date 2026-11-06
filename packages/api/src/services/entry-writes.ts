@@ -56,9 +56,9 @@ const OWNER_SCOPED_CHUNK_EXTRA = 1;
 const DAY_DELETE_CHUNK_EXTRA = 2;
 
 const PRICE_KIND_ROLES: Record<string, readonly LedgerRole[]> = {
+	addon: ["chip_purchase", "fee"],
 	entry: ["buy_in", "fee"],
 	reentry: ["reentry", "fee"],
-	addon: ["chip_purchase", "fee"],
 };
 
 export interface ManualPaymentInput {
@@ -307,7 +307,7 @@ export async function assertPaymentAssets(
 		ids,
 		(chunk) =>
 			db
-				.select({ id: asset.id, archivedAt: asset.archivedAt })
+				.select({ archivedAt: asset.archivedAt, id: asset.id })
 				.from(asset)
 				.where(and(eq(asset.userId, userId), inArray(asset.id, chunk))),
 		OWNER_SCOPED_CHUNK_EXTRA
@@ -360,10 +360,10 @@ export async function assertPaymentPrices(
 		(chunk) =>
 			db
 				.select({
-					id: tournamentRulePrice.id,
-					ruleId: tournamentRulePrice.ruleId,
 					assetId: tournamentRulePrice.assetId,
+					id: tournamentRulePrice.id,
 					kind: tournamentRulePrice.kind,
+					ruleId: tournamentRulePrice.ruleId,
 				})
 				.from(tournamentRulePrice)
 				.where(
@@ -449,14 +449,14 @@ function toDate(seconds: number | undefined): Date | null {
 
 function playColumns(play: ManualPlayInput, now: Date) {
 	return {
+		breakMinutes: play.breakMinutes ?? 0,
+		endedAt: toDate(play.endedAt),
+		endStack: play.endStack ?? null,
+		endState: play.endState,
 		label: play.label ?? null,
 		localDate: play.localDate,
 		startedAt: toDate(play.startedAt),
-		endedAt: toDate(play.endedAt),
-		breakMinutes: play.breakMinutes ?? 0,
 		status: "ended" as const,
-		endState: play.endState,
-		endStack: play.endStack ?? null,
 		updatedAt: now,
 	};
 }
@@ -477,18 +477,18 @@ function lineRows(
 			const n = nextByRole[payment.role] ?? 0;
 			nextByRole[payment.role] = n + 1;
 			return {
-				id: `m:${entryId}:${payment.role}:${n}`,
-				userId,
 				assetId: payment.assetId,
-				quantity: signedLedgerQuantity(payment.role, payment.quantity),
-				role: payment.role,
+				createdAt: now,
 				effect: payment.effect,
 				entryId,
+				id: `m:${entryId}:${payment.role}:${n}`,
+				occurredAt,
 				playSessionId: id,
 				priceId: payment.priceId ?? null,
-				occurredAt,
-				createdAt: now,
+				quantity: signedLedgerQuantity(payment.role, payment.quantity),
+				role: payment.role,
 				updatedAt: now,
+				userId,
 			};
 		});
 	});
@@ -518,7 +518,7 @@ function tagStatements(
 				]
 			: []),
 		...insertChunks(
-			tagIds.map((tagId) => ({ userId, entryId, tagId })),
+			tagIds.map((tagId) => ({ entryId, tagId, userId })),
 			(chunk) => db.insert(entryTagLink).values(chunk)
 		),
 	];
@@ -548,8 +548,8 @@ export async function planCreateRule(
 	}
 	return await planEntryRule(db, userId, {
 		kind: "tournament",
-		tournamentId: input.tournamentId ?? null,
 		rule: input.rule,
+		tournamentId: input.tournamentId ?? null,
 	});
 }
 
@@ -602,8 +602,8 @@ export async function createManualEntry(
 		? attachTopLevelPayments(input.playSessions, input.payments)
 		: [
 				{
-					localDate: input.playedOn,
 					endState: synthesizedEndState(input.kind, placement),
+					localDate: input.playedOn,
 					payments: input.payments ?? [],
 				},
 			];
@@ -641,43 +641,43 @@ export async function createManualEntry(
 		),
 		...rule.statements,
 		db.insert(entry).values({
+			assetId: input.assetId ?? null,
+			createdAt: now,
 			id,
-			userId,
 			kind: input.kind,
+			memo: input.memo ?? null,
+			playedOn: input.playedOn,
+			roomId: input.roomId ?? null,
 			source: "manual",
 			status: "settled",
-			roomId: input.roomId ?? null,
-			assetId: input.assetId ?? null,
 			title: input.title ?? null,
-			playedOn: input.playedOn,
-			memo: input.memo ?? null,
-			createdAt: now,
 			updatedAt: now,
+			userId,
 		}),
 		input.kind === "cash"
 			? db.insert(entryCash).values({
-					entryId: id,
-					userId,
-					ringGameId: input.ringGameId ?? null,
 					cashRuleId: rule.ruleVersionId,
+					entryId: id,
 					evDiff: input.evDiff ?? null,
+					ringGameId: input.ringGameId ?? null,
+					userId,
 				})
 			: db.insert(entryTournament).values({
+					beforeDeadline: input.beforeDeadline ?? false,
 					entryId: id,
-					userId,
-					tournamentId: input.tournamentId ?? null,
-					tournamentRuleId: rule.ruleVersionId,
 					placement,
 					totalEntries: input.totalEntries ?? null,
-					beforeDeadline: input.beforeDeadline ?? false,
+					tournamentId: input.tournamentId ?? null,
+					tournamentRuleId: rule.ruleVersionId,
+					userId,
 				}),
 		...insertChunks(
 			plan.map(({ id: playId, play, seq }) => ({
-				id: playId,
-				userId,
 				entryId: id,
+				id: playId,
 				kind: input.kind,
 				seq,
+				userId,
 				...playColumns(play, now),
 				createdAt: now,
 			})),
@@ -726,18 +726,18 @@ async function loadStoredEntry(
 ): Promise<StoredEntry> {
 	const [row] = await db
 		.select({
-			kind: entry.kind,
-			source: entry.source,
-			playedOn: entry.playedOn,
-			roomId: entry.roomId,
 			assetId: entry.assetId,
+			beforeDeadline: entryTournament.beforeDeadline,
 			cashRuleId: entryCash.cashRuleId,
 			evDiff: entryCash.evDiff,
-			tournamentRuleId: entryTournament.tournamentRuleId,
+			kind: entry.kind,
 			placement: entryTournament.placement,
-			totalEntries: entryTournament.totalEntries,
+			playedOn: entry.playedOn,
+			roomId: entry.roomId,
 			snapshot: entryValidationSnapshot(),
-			beforeDeadline: entryTournament.beforeDeadline,
+			source: entry.source,
+			totalEntries: entryTournament.totalEntries,
+			tournamentRuleId: entryTournament.tournamentRuleId,
 		})
 		.from(entry)
 		.leftJoin(
@@ -765,8 +765,8 @@ async function loadStoredEntry(
 	}
 	return {
 		...row,
-		ruleVersionId,
 		beforeDeadline: row.beforeDeadline ?? false,
+		ruleVersionId,
 	};
 }
 
@@ -802,15 +802,15 @@ function storedPlayToInput(
 		badRequest("Only ended play sessions can be edited manually");
 	}
 	return {
-		id: play.id,
-		localDate: play.localDate,
-		label: play.label ?? undefined,
-		startedAt: play.startedAt ? play.startedAt.getTime() / 1000 : undefined,
-		endedAt: play.endedAt ? play.endedAt.getTime() / 1000 : undefined,
 		breakMinutes: play.breakMinutes,
-		endState: play.endState,
+		endedAt: play.endedAt ? play.endedAt.getTime() / 1000 : undefined,
 		endStack: play.endStack ?? undefined,
+		endState: play.endState,
+		id: play.id,
+		label: play.label ?? undefined,
+		localDate: play.localDate,
 		payments,
+		startedAt: play.startedAt ? play.startedAt.getTime() / 1000 : undefined,
 	};
 }
 
@@ -987,11 +987,11 @@ async function manualMoneyStatements(
 			plan
 				.filter((row) => !row.existing)
 				.map(({ id, play, seq }) => ({
-					id,
-					userId,
 					entryId: input.id,
+					id,
 					kind: stored.kind,
 					seq,
+					userId,
 					...playColumns(play, now),
 					createdAt: now,
 				})),
@@ -1043,7 +1043,7 @@ function detailStatement(
 	return [
 		db
 			.update(entryTournament)
-			.set({ placement, totalEntries, beforeDeadline })
+			.set({ beforeDeadline, placement, totalEntries })
 			.where(
 				and(
 					eq(entryTournament.entryId, input.id),
@@ -1089,11 +1089,11 @@ export async function updateEntry(
 		db
 			.update(entry)
 			.set({
+				assetId: input.assetId,
+				memo: input.memo,
 				playedOn: input.playedOn,
 				roomId: input.roomId,
-				assetId: input.assetId,
 				title: input.title,
-				memo: input.memo,
 				updatedAt: now,
 			})
 			.where(and(eq(entry.id, input.id), eq(entry.userId, userId))),

@@ -27,19 +27,19 @@ import { oneOf } from "./sql-checks";
 export const assetRate = sqliteTable(
 	"asset_rate",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
 		baseAssetId: text("base_asset_id").notNull(),
-		quoteAssetId: text("quote_asset_id").notNull(),
-		rateNum: integer("rate_num").notNull(),
-		rateDen: integer("rate_den").notNull(),
-		effectiveFrom: integer("effective_from", { mode: "timestamp" }).notNull(),
-		memo: text("memo"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		effectiveFrom: integer("effective_from", { mode: "timestamp" }).notNull(),
+		id: text("id").primaryKey(),
+		memo: text("memo"),
+		quoteAssetId: text("quote_asset_id").notNull(),
+		rateDen: integer("rate_den").notNull(),
+		rateNum: integer("rate_num").notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("asset_rate_id_user_id_unique").on(t.id, t.userId),
@@ -79,18 +79,18 @@ export const assetRate = sqliteTable(
 export const ledgerCategory = sqliteTable(
 	"ledger_category",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		id: text("id").primaryKey(),
+		name: text("name").notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("ledger_category_id_user_id_unique").on(t.id, t.userId),
@@ -104,28 +104,28 @@ export const ledgerCategory = sqliteTable(
 export const ledgerLine = sqliteTable(
 	"ledger_line",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
 		assetId: text("asset_id").notNull(),
-		quantity: integer("quantity").notNull(),
-		role: text("role", { enum: LEDGER_ROLES }).notNull(),
-		effect: text("effect", { enum: LEDGER_EFFECTS }).notNull(),
-		entryId: text("entry_id"),
-		playSessionId: text("play_session_id"),
-		sourceEventId: text("source_event_id"),
-		priceId: text("price_id"),
 		categoryId: text("category_id"),
-		transferId: text("transfer_id"),
-		occurredAt: integer("occurred_at", { mode: "timestamp" }).notNull(),
-		memo: text("memo"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		effect: text("effect", { enum: LEDGER_EFFECTS }).notNull(),
+		entryId: text("entry_id"),
+		id: text("id").primaryKey(),
+		memo: text("memo"),
+		occurredAt: integer("occurred_at", { mode: "timestamp" }).notNull(),
+		playSessionId: text("play_session_id"),
+		priceId: text("price_id"),
+		quantity: integer("quantity").notNull(),
+		role: text("role", { enum: LEDGER_ROLES }).notNull(),
+		sourceEventId: text("source_event_id"),
+		transferId: text("transfer_id"),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("ledger_line_id_user_id_unique").on(t.id, t.userId),
@@ -220,14 +220,14 @@ export const ledgerLine = sqliteTable(
 export const userSetting = sqliteTable(
 	"user_setting",
 	{
-		userId: text("user_id")
-			.primaryKey()
-			.references(() => user.id, { onDelete: "cascade" }),
 		baseAssetId: text("base_asset_id"),
 		timeZone: text("time_zone"),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.primaryKey()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		foreignKey({

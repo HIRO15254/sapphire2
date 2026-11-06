@@ -15,12 +15,12 @@ function issue(level: string | null, state = "AI Review"): LinearIssue {
 	return {
 		id: "id-1",
 		identifier: "SA2-1",
-		state,
-		team: "SA2",
 		labels: [
 			{ name: "Chore", parent: "type" },
 			...(level ? [{ name: level, parent: "level" }] : []),
 		],
+		state,
+		team: "SA2",
 	};
 }
 
@@ -37,7 +37,7 @@ function input(overrides: Partial<OutcomeInput> = {}): OutcomeInput {
 		maxAutoRounds: 2,
 		prHeadSha: HEAD,
 		round: 1,
-		trailer: { verdict: "approve", important: 0, unverified: 0 },
+		trailer: { important: 0, unverified: 0, verdict: "approve" },
 		unresolvedThreads: 0,
 		...overrides,
 	};
@@ -83,9 +83,9 @@ describe("parseTrailer", () => {
 		expect(
 			parseTrailer('{"verdict":"approve","important":0,"unverified":0}')
 		).toEqual({
-			verdict: "approve",
 			important: 0,
 			unverified: 0,
+			verdict: "approve",
 		});
 		expect(parseTrailer('{"verdict":"approve"}')).toBeNull();
 		expect(parseTrailer("nope")).toBeNull();
@@ -95,9 +95,9 @@ describe("parseTrailer", () => {
 describe("decideOutcome", () => {
 	it("merges an approved auto-merge PR and marks the others Ready to Merge", () => {
 		expect(decideOutcome(input())).toEqual({
-			status: "Ready to Merge",
-			merge: true,
 			blockers: [],
+			merge: true,
+			status: "Ready to Merge",
 		});
 		const autoFix = decideOutcome(input({ issue: issue("auto-fix") }));
 		expect(autoFix.status).toBe("Ready to Merge");
@@ -118,7 +118,7 @@ describe("decideOutcome", () => {
 			{ forkPr: true },
 			{ draft: true },
 			{ baseRef: "main" },
-			{ trailer: { verdict: "approve", important: 0, unverified: 1 } },
+			{ trailer: { important: 0, unverified: 1, verdict: "approve" } },
 		];
 		for (const overrides of blocked) {
 			expect(decideOutcome(input(overrides)).merge).toBe(false);
@@ -135,20 +135,20 @@ describe("decideOutcome", () => {
 
 	it("routes a non-approving review to In Progress, then Needs Input after the last round", () => {
 		const changes = {
-			verdict: "changes-requested",
 			important: 2,
 			unverified: 0,
+			verdict: "changes-requested",
 		};
-		expect(decideOutcome(input({ trailer: changes, round: 1 })).status).toBe(
+		expect(decideOutcome(input({ round: 1, trailer: changes })).status).toBe(
 			"In Progress"
 		);
-		expect(decideOutcome(input({ trailer: changes, round: 2 })).status).toBe(
+		expect(decideOutcome(input({ round: 2, trailer: changes })).status).toBe(
 			"Needs Input"
 		);
 		const approveWithImportant = {
-			verdict: "approve",
 			important: 1,
 			unverified: 0,
+			verdict: "approve",
 		};
 		expect(decideOutcome(input({ trailer: approveWithImportant })).merge).toBe(
 			false

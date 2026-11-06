@@ -6,9 +6,9 @@ import {
 
 describe("foldTablePlayers", () => {
 	const ev = (type: string, payload: Record<string, unknown>) => ({
-		type,
-		payload: JSON.stringify(payload),
 		occurredAt: new Date(0),
+		payload: JSON.stringify(payload),
+		type,
 	});
 
 	const foldPlayerSeat = (events: TimedSeatEvent[], playerId: string) =>

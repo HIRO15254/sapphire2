@@ -99,7 +99,8 @@ const seededPath = join(snapshotDirectory, "seeded.sqlite");
 let databaseIndex = 0;
 
 function seededDatabase(): Database {
-	const path = join(snapshotDirectory, `${databaseIndex++}.sqlite`);
+	const path = join(snapshotDirectory, `${databaseIndex}.sqlite`);
+	databaseIndex += 1;
 	copyFileSync(seededPath, path);
 	const db = openDatabase(path);
 	db.exec(
@@ -144,7 +145,7 @@ describe("migration 0061 — entry P1 cutover", () => {
 	});
 
 	afterAll(() => {
-		rmSync(snapshotDirectory, { recursive: true, force: true });
+		rmSync(snapshotDirectory, { force: true, recursive: true });
 	});
 
 	beforeEach(() => {

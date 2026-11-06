@@ -81,22 +81,23 @@ describe("application schema agrees with the installed production migrations", (
 			}
 			const config = getTableConfig(value);
 			declaredTables.push(config.name);
-			const columns = await api.d1
+			// biome-ignore lint/performance/noAwaitInLoops: Inspect the database schema sequentially.
+			const tableColumns = await api.d1
 				.prepare("SELECT name, type, [notnull], pk FROM pragma_table_info(?)")
 				.bind(config.name)
 				.all<SqlColumn>();
 			expect(
-				columns.results.map(({ name }) => name).sort(),
+				tableColumns.results.map(({ name }) => name).sort(),
 				`${config.name} column set`
 			).toEqual(config.columns.map(({ name }) => name).sort());
 			for (const column of config.columns) {
 				expect(
-					columns.results.find(({ name }) => name === column.name),
+					tableColumns.results.find(({ name }) => name === column.name),
 					`${config.name}.${column.name}`
 				).toMatchObject({
 					name: column.name,
-					type: column.getSQLType().toUpperCase(),
 					notnull: Number(column.notNull),
+					type: column.getSQLType().toUpperCase(),
 				});
 			}
 			const primary = config.primaryKeys.flatMap(({ columns: keyColumns }) =>
@@ -104,11 +105,11 @@ describe("application schema agrees with the installed production migrations", (
 			);
 			primary.push(
 				...config.columns
-					.filter(({ primary }) => primary)
+					.filter(({ primary: isPrimary }) => isPrimary)
 					.map(({ name }) => name)
 			);
 			expect(
-				columns.results
+				tableColumns.results
 					.filter(({ pk }) => pk > 0)
 					.sort((a, b) => a.pk - b.pk)
 					.map(({ name }) => name),
@@ -151,6 +152,7 @@ describe("application schema agrees with the installed production migrations", (
 				.all<SqlIndex>();
 			const installedIndexColumns = new Map<string, string[]>();
 			for (const index of indexes.results) {
+				// biome-ignore lint/performance/noAwaitInLoops: Inspect the database indexes sequentially.
 				const columns = await api.d1
 					.prepare(
 						"SELECT name, coll FROM pragma_index_xinfo(?) WHERE key = 1 ORDER BY seqno"

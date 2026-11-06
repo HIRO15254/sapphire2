@@ -43,13 +43,13 @@ function releaseNotes(releases: GitHubRelease[]): UpdateNote[] {
 	return releases
 		.filter((r) => !(r.draft || r.prerelease))
 		.map((r) => ({
-			version: r.tag_name,
+			changes: parseReleaseBody(r.body),
 			releasedAt:
 				r.published_at?.split("T")[0] ??
 				new Date().toISOString().split("T")[0] ??
 				"",
 			title: r.name || r.tag_name,
-			changes: parseReleaseBody(r.body),
+			version: r.tag_name,
 		}));
 }
 
@@ -65,14 +65,6 @@ export function githubReleasesPlugin(
 		: null;
 
 	return {
-		name: "vite-plugin-github-releases",
-
-		resolveId(id) {
-			if (id === VIRTUAL_MODULE_ID) {
-				return RESOLVED_ID;
-			}
-		},
-
 		async load(id) {
 			if (id !== RESOLVED_ID) {
 				return;
@@ -93,6 +85,13 @@ export function githubReleasesPlugin(
 
 			return `export const UPDATE_NOTES = ${JSON.stringify(cachedNotes, null, 2)};
 export const LATEST_VERSION = ${JSON.stringify(cachedNotes[0]?.version ?? null)};`;
+		},
+		name: "vite-plugin-github-releases",
+
+		resolveId(id) {
+			if (id === VIRTUAL_MODULE_ID) {
+				return RESOLVED_ID;
+			}
 		},
 	};
 }

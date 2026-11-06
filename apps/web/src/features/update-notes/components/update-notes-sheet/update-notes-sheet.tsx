@@ -27,8 +27,7 @@ import {
 import { useUpdateNotesReleases } from "./use-update-notes-releases";
 
 export function UpdateNotesSheet() {
-	const { isOpen, onOpenChange, onToggleRelease, releases } =
-		useUpdateNotesReleases();
+	const { isOpen, onOpenChange, releases } = useUpdateNotesReleases();
 
 	return (
 		<Drawer onOpenChange={onOpenChange} open={isOpen}>
@@ -63,7 +62,7 @@ export function UpdateNotesSheet() {
 											<button
 												aria-controls={panelId}
 												aria-expanded={release.isExpanded}
-												onClick={() => onToggleRelease(release.version)}
+												onClick={release.onToggle}
 												type="button"
 											>
 												<ItemContent>
@@ -93,7 +92,7 @@ export function UpdateNotesSheet() {
 												{release.changes.map((group) => (
 													<Fragment key={group.section || "general"}>
 														{group.section ? (
-															<p className="mt-2.5 mb-1 font-semibold text-[length:var(--m-text-footnote)] text-muted-foreground uppercase tracking-[var(--tracking-caps)]">
+															<p className="text-muted-foreground mt-2.5 mb-1 font-semibold tracking-[var(--tracking-caps)] text-[length:var(--m-text-footnote)] uppercase">
 																{group.section}
 															</p>
 														) : null}

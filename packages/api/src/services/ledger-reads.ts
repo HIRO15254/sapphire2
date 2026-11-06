@@ -30,7 +30,7 @@ export async function selectAssetHistory(
 	assetId: string,
 	options: { cursor?: { id: string; occurredAt: Date }; limit: number }
 ): Promise<AssetHistoryRow[]> {
-	const cursor = options.cursor;
+	const { cursor } = options;
 	const before = (occurredAt: unknown, id: unknown) =>
 		cursor
 			? sql`(${occurredAt}, ${id}) < (${sql.param(cursor.occurredAt, ledgerLine.occurredAt)}, ${cursor.id})`
@@ -38,15 +38,15 @@ export async function selectAssetHistory(
 	const firstOccurredAt = sql`MIN(${ledgerLine.occurredAt})`;
 	const walletLines = db
 		.select({
-			id: ledgerLine.id,
-			entryId: sql<string | null>`NULL`.as("entry_id"),
-			role: sql<LedgerRole | null>`${ledgerLine.role}`.as("role"),
 			categoryId: ledgerLine.categoryId,
-			transferId: ledgerLine.transferId,
-			quantity: ledgerLine.quantity,
-			occurredAt: ledgerLine.occurredAt,
+			entryId: sql<string | null>`NULL`.as("entry_id"),
+			id: ledgerLine.id,
 			memo: ledgerLine.memo,
+			occurredAt: ledgerLine.occurredAt,
+			quantity: ledgerLine.quantity,
+			role: sql<LedgerRole | null>`${ledgerLine.role}`.as("role"),
 			title: sql<string | null>`NULL`.as("title"),
+			transferId: ledgerLine.transferId,
 		})
 		.from(ledgerLine)
 		.where(
@@ -59,19 +59,19 @@ export async function selectAssetHistory(
 		);
 	const entryTotals = db
 		.select({
-			id: sql<string>`${ledgerLine.entryId}`.as("id"),
-			entryId: sql<string | null>`${ledgerLine.entryId}`.as("entry_id"),
-			role: sql<LedgerRole | null>`NULL`.as("role"),
 			categoryId: sql<string | null>`NULL`.as("category_id"),
-			transferId: sql<string | null>`NULL`.as("transfer_id"),
-			quantity: sql<number>`SUM(${ledgerLine.quantity})`
-				.mapWith(safeInteger)
-				.as("quantity"),
+			entryId: sql<string | null>`${ledgerLine.entryId}`.as("entry_id"),
+			id: sql<string>`${ledgerLine.entryId}`.as("id"),
+			memo: sql<string | null>`NULL`.as("memo"),
 			occurredAt: sql<Date>`${firstOccurredAt}`
 				.mapWith(ledgerLine.occurredAt)
 				.as("occurred_at"),
-			memo: sql<string | null>`NULL`.as("memo"),
+			quantity: sql<number>`SUM(${ledgerLine.quantity})`
+				.mapWith(safeInteger)
+				.as("quantity"),
+			role: sql<LedgerRole | null>`NULL`.as("role"),
 			title: sql<string | null>`MAX(${entry.title})`.as("title"),
+			transferId: sql<string | null>`NULL`.as("transfer_id"),
 		})
 		.from(ledgerLine)
 		.innerJoin(

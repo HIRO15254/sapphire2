@@ -19,7 +19,7 @@ Exit 0: no gate violation. Exit 1: a violation or a check error. Exit 2: usage o
 
 const SAMPLE_ROWS = 20;
 
-function describe(result: CheckResult): string {
+function describeResult(result: CheckResult): string {
 	const count =
 		result.status === "pass" || result.status === "violation"
 			? ` — ${result.rows.length} row(s)`
@@ -31,7 +31,7 @@ function describe(result: CheckResult): string {
 function printText(report: AuditReport): void {
 	console.log(`Data model audit of ${report.database}`);
 	for (const result of report.results) {
-		console.log(describe(result));
+		console.log(describeResult(result));
 		for (const row of result.rows.slice(0, SAMPLE_ROWS)) {
 			console.log(`    ${JSON.stringify(row)}`);
 		}
@@ -64,12 +64,12 @@ function writeStepSummary(report: AuditReport): void {
 }
 
 const OPTIONS = {
-	local: { type: "boolean" },
-	remote: { type: "boolean" },
-	database: { type: "string" },
 	config: { type: "string" },
-	"persist-to": { type: "string" },
+	database: { type: "string" },
 	json: { type: "boolean" },
+	local: { type: "boolean" },
+	"persist-to": { type: "string" },
+	remote: { type: "boolean" },
 } as const;
 
 function parseOptions(argv: string[]) {
@@ -88,12 +88,12 @@ function main(argv: string[]): number {
 		return 2;
 	}
 	const db = wranglerDatabase({
-		database: values.database,
-		mode: values.remote ? "remote" : "local",
 		config: path.resolve(
 			values.config ??
 				path.join(import.meta.dirname, "../apps/server/wrangler.toml")
 		),
+		database: values.database,
+		mode: values.remote ? "remote" : "local",
 		persistTo: values["persist-to"],
 	});
 	let report: AuditReport;

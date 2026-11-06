@@ -10,7 +10,7 @@ import { requireCreatedRow, test } from "./test-fixture";
 test("duplicate names conflict only within the same user's screen", async ({
 	api,
 }) => {
-	const input = { screenKey: "sessions", name: "Dup", payload: {} } as const;
+	const input = { name: "Dup", payload: {}, screenKey: "sessions" } as const;
 	const first = requireCreatedRow(await api.alice.filterPreset.create(input));
 	await expect(api.alice.filterPreset.create(input)).rejects.toMatchObject({
 		code: "CONFLICT",
@@ -19,8 +19,8 @@ test("duplicate names conflict only within the same user's screen", async ({
 	const otherScreen = requireCreatedRow(
 		await api.alice.filterPreset.create({
 			...input,
-			screenKey: "statistics",
 			payload: { normalized: true },
+			screenKey: "statistics",
 		})
 	);
 	const otherUser = requireCreatedRow(await api.bob.filterPreset.create(input));
@@ -28,14 +28,14 @@ test("duplicate names conflict only within the same user's screen", async ({
 		first,
 	]);
 	expect(otherScreen).toMatchObject({
-		userId: "alice",
-		screenKey: "statistics",
 		name: "Dup",
+		screenKey: "statistics",
+		userId: "alice",
 	});
 	expect(otherUser).toMatchObject({
-		userId: "bob",
-		screenKey: "sessions",
 		name: "Dup",
+		screenKey: "sessions",
+		userId: "bob",
 	});
 	const rows = await api.db.select().from(filterPreset);
 	expect(rows).toHaveLength(3);
@@ -47,16 +47,16 @@ test("case-insensitive preset names conflict without blocking a case-only self-r
 }) => {
 	const first = requireCreatedRow(
 		await api.alice.filterPreset.create({
-			screenKey: "sessions",
 			name: "  Morning  ",
 			payload: {},
+			screenKey: "sessions",
 		})
 	);
 	await expect(
 		api.alice.filterPreset.create({
-			screenKey: "sessions",
 			name: "morning",
 			payload: {},
+			screenKey: "sessions",
 		})
 	).rejects.toMatchObject({ code: "CONFLICT" });
 	expect(
@@ -70,23 +70,23 @@ test("setting a default preserves other screens and a default when the target di
 }) => {
 	const first = requireCreatedRow(
 		await api.alice.filterPreset.create({
-			screenKey: "sessions",
 			name: "First",
 			payload: {},
+			screenKey: "sessions",
 		})
 	);
 	const second = requireCreatedRow(
 		await api.alice.filterPreset.create({
-			screenKey: "sessions",
 			name: "Second",
 			payload: {},
+			screenKey: "sessions",
 		})
 	);
 	const other = requireCreatedRow(
 		await api.alice.filterPreset.create({
-			screenKey: "statistics",
 			name: "Statistics",
 			payload: { normalized: true },
+			screenKey: "statistics",
 		})
 	);
 	await api.alice.filterPreset.setDefault({ id: first.id });
@@ -115,9 +115,9 @@ test("clearing a default conflicts if the target is deleted after authorization"
 }) => {
 	const preset = requireCreatedRow(
 		await api.alice.filterPreset.create({
-			screenKey: "sessions",
 			name: "Default",
 			payload: {},
+			screenKey: "sessions",
 		})
 	);
 	await api.alice.filterPreset.setDefault({ id: preset.id });
@@ -137,16 +137,16 @@ test("conflicting renames preserve stored presets while keeping the current name
 }) => {
 	const first = requireCreatedRow(
 		await api.alice.filterPreset.create({
-			screenKey: "sessions",
 			name: "First",
 			payload: { period: "last_7_days" },
+			screenKey: "sessions",
 		})
 	);
 	const second = requireCreatedRow(
 		await api.alice.filterPreset.create({
-			screenKey: "sessions",
 			name: "Second",
 			payload: {},
+			screenKey: "sessions",
 		})
 	);
 	const before = await api.db.select().from(filterPreset);
@@ -181,37 +181,37 @@ test("converted filters and both tag families survive create, list and update", 
 }) => {
 	await api.db
 		.insert(room)
-		.values({ id: "alice-room", userId: "alice", name: "Room" });
+		.values({ id: "alice-room", name: "Room", userId: "alice" });
 	await api.db.insert(asset).values({
 		id: "alice-base",
-		userId: "alice",
-		name: "Base",
 		kind: "currency",
+		name: "Base",
+		userId: "alice",
 	});
 	await api.db
 		.insert(entryTag)
-		.values({ id: "alice-entry-tag", userId: "alice", name: "Entry" });
+		.values({ id: "alice-entry-tag", name: "Entry", userId: "alice" });
 	await api.db.insert(tournamentTag).values({
 		id: "alice-tournament-tag",
-		userId: "alice",
 		name: "Tournament",
+		userId: "alice",
 	});
 	const payload = {
-		valuation: "real",
 		baseAssetId: "alice-base",
-		roomId: "alice-room",
 		entryTagIds: ["alice-entry-tag"],
+		roomId: "alice-room",
 		tournamentTagIds: ["alice-tournament-tag"],
+		valuation: "real",
 	} as const;
 	const created = requireCreatedRow(
 		await api.alice.filterPreset.create({
-			screenKey: "statistics",
 			name: "Converted",
 			payload: {
 				...payload,
 				entryTagIds: [...payload.entryTagIds],
 				tournamentTagIds: [...payload.tournamentTagIds],
 			},
+			screenKey: "statistics",
 		})
 	);
 	expect(created.payload).toEqual(payload);
@@ -220,9 +220,9 @@ test("converted filters and both tag families survive create, list and update", 
 	).toEqual(payload);
 	const updatedPayload = {
 		...payload,
-		valuation: "virtual" as const,
 		entryTagIds: [...payload.entryTagIds],
 		tournamentTagIds: [...payload.tournamentTagIds],
+		valuation: "virtual" as const,
 	};
 	const updated = requireCreatedRow(
 		await api.alice.filterPreset.update({
@@ -241,36 +241,37 @@ test("foreign filter references are forbidden on create and update without chang
 }) => {
 	await api.db
 		.insert(room)
-		.values({ id: "bob-room", userId: "bob", name: "Room" });
+		.values({ id: "bob-room", name: "Room", userId: "bob" });
 	await api.db
 		.insert(asset)
-		.values({ id: "bob-asset", userId: "bob", name: "Asset" });
+		.values({ id: "bob-asset", name: "Asset", userId: "bob" });
 	await api.db
 		.insert(entryTag)
-		.values({ id: "bob-entry-tag", userId: "bob", name: "Entry" });
+		.values({ id: "bob-entry-tag", name: "Entry", userId: "bob" });
 	await api.db
 		.insert(tournamentTag)
-		.values({ id: "bob-tournament-tag", userId: "bob", name: "Tournament" });
+		.values({ id: "bob-tournament-tag", name: "Tournament", userId: "bob" });
 	const created = requireCreatedRow(
 		await api.alice.filterPreset.create({
-			screenKey: "sessions",
 			name: "Owned",
 			payload: {},
+			screenKey: "sessions",
 		})
 	);
 	const before = await api.db.select().from(filterPreset);
 	for (const payload of [
 		{ roomId: "bob-room" },
 		{ assetId: "bob-asset" },
-		{ valuation: "real" as const, baseAssetId: "bob-asset" },
+		{ baseAssetId: "bob-asset", valuation: "real" as const },
 		{ entryTagIds: ["bob-entry-tag"] },
 		{ tournamentTagIds: ["bob-tournament-tag"] },
 	]) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 		await expect(
 			api.alice.filterPreset.create({
-				screenKey: "sessions",
 				name: "Foreign",
 				payload,
+				screenKey: "sessions",
 			})
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		await expect(
@@ -285,20 +286,20 @@ test("base asset must be an owned currency and invalid stored payloads fail clos
 }) => {
 	await api.db
 		.insert(asset)
-		.values({ id: "item", userId: "alice", name: "Item", kind: "item" });
+		.values({ id: "item", kind: "item", name: "Item", userId: "alice" });
 	await expect(
 		api.alice.filterPreset.create({
-			screenKey: "statistics",
 			name: "Invalid",
-			payload: { valuation: "real", baseAssetId: "item" },
+			payload: { baseAssetId: "item", valuation: "real" },
+			screenKey: "statistics",
 		})
 	).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	await api.db.insert(filterPreset).values({
 		id: "invalid-preset",
-		userId: "alice",
-		screenKey: "statistics",
 		name: "Legacy",
 		payload: sql`'{"norm":"off"}'`,
+		screenKey: "statistics",
+		userId: "alice",
 	});
 	await expect(
 		api.alice.filterPreset.list({ screenKey: "statistics" })

@@ -32,14 +32,14 @@ const FORBIDDEN_MESSAGE = "You do not own this filter preset";
 
 const createInputSchema = z.discriminatedUnion("screenKey", [
 	z.object({
-		screenKey: z.literal("sessions"),
 		name: presetNameSchema,
 		payload: payloadSchemaForScreenKey("sessions"),
+		screenKey: z.literal("sessions"),
 	}),
 	z.object({
-		screenKey: z.literal("statistics"),
 		name: presetNameSchema,
 		payload: payloadSchemaForScreenKey("statistics"),
+		screenKey: z.literal("statistics"),
 	}),
 ]);
 
@@ -113,6 +113,107 @@ async function assertNameAvailable(
 }
 
 export const filterPresetRouter = router({
+	clearDefault: protectedProcedure
+		.input(z.object({ id: idSchema }))
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const [found] = await ctx.db
+				.select()
+				.from(filterPreset)
+				.where(eq(filterPreset.id, input.id));
+			if (!found || found.userId !== userId) {
+				throw new TRPCError({ code: "FORBIDDEN", message: FORBIDDEN_MESSAGE });
+			}
+
+			if (!found.isDefault) {
+				await runGuardedBatch(ctx.db, [
+					guardStatement(
+						ctx.db,
+						"filter-preset-default",
+						sql`exists (
+						select 1 from ${filterPreset}
+						where ${filterPreset.id} = ${input.id}
+						and ${filterPreset.userId} = ${userId}
+						and ${filterPreset.isDefault} = 0
+					)`
+					),
+				]);
+				return found;
+			}
+
+			await runGuardedBatch(ctx.db, [
+				ctx.db
+					.update(filterPreset)
+					.set({ isDefault: false, updatedAt: new Date() })
+					.where(
+						and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
+					),
+				changedRowsGuardStatement(ctx.db, "filter-preset-default"),
+			]);
+
+			const [updated] = await ctx.db
+				.select()
+				.from(filterPreset)
+				.where(eq(filterPreset.id, input.id));
+			return updated;
+		}),
+
+	create: protectedProcedure
+		.input(createInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validatePayloadOwnership(ctx.db, userId, input.payload);
+
+			await assertNameAvailable(ctx.db, userId, input.screenKey, input.name);
+
+			const id = crypto.randomUUID();
+			try {
+				await ctx.db.insert(filterPreset).values({
+					id,
+					isDefault: false,
+					name: input.name,
+					payload: input.payload as FilterPresetPayload,
+					screenKey: input.screenKey,
+					updatedAt: new Date(),
+					userId,
+				});
+			} catch (error) {
+				if (isFilterPresetNameConflictError(error)) {
+					// biome-ignore lint/style/useErrorCause: TRPCError receives the original error in its cause option.
+					throw new TRPCError({
+						cause: error,
+						code: "CONFLICT",
+						message: NAME_CONFLICT_MESSAGE,
+					});
+				}
+				throw error;
+			}
+
+			const [created] = await ctx.db
+				.select()
+				.from(filterPreset)
+				.where(eq(filterPreset.id, id));
+			return created;
+		}),
+
+	delete: protectedProcedure
+		.input(z.object({ id: idSchema }))
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const [found] = await ctx.db
+				.select()
+				.from(filterPreset)
+				.where(eq(filterPreset.id, input.id));
+			if (!found || found.userId !== userId) {
+				throw new TRPCError({ code: "FORBIDDEN", message: FORBIDDEN_MESSAGE });
+			}
+			await ctx.db
+				.delete(filterPreset)
+				.where(
+					and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
+				);
+			return { success: true };
+		}),
 	list: protectedProcedure
 		.input(z.object({ screenKey: filterPresetScreenKeySchema }))
 		.query(async ({ ctx, input }) => {
@@ -139,131 +240,6 @@ export const filterPresetRouter = router({
 				}
 				return { ...row, payload: parsed.data };
 			});
-		}),
-
-	create: protectedProcedure
-		.input(createInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validatePayloadOwnership(ctx.db, userId, input.payload);
-
-			await assertNameAvailable(ctx.db, userId, input.screenKey, input.name);
-
-			const id = crypto.randomUUID();
-			try {
-				await ctx.db.insert(filterPreset).values({
-					id,
-					userId,
-					screenKey: input.screenKey,
-					name: input.name,
-					payload: input.payload as FilterPresetPayload,
-					isDefault: false,
-					updatedAt: new Date(),
-				});
-			} catch (error) {
-				if (isFilterPresetNameConflictError(error)) {
-					throw new TRPCError({
-						code: "CONFLICT",
-						message: NAME_CONFLICT_MESSAGE,
-					});
-				}
-				throw error;
-			}
-
-			const [created] = await ctx.db
-				.select()
-				.from(filterPreset)
-				.where(eq(filterPreset.id, id));
-			return created;
-		}),
-
-	update: protectedProcedure
-		.input(
-			z.object({
-				id: idSchema,
-				name: presetNameSchema.optional(),
-				payload: updatePayloadSchema.optional(),
-			})
-		)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const [found] = await ctx.db
-				.select()
-				.from(filterPreset)
-				.where(eq(filterPreset.id, input.id));
-			if (!found || found.userId !== userId) {
-				throw new TRPCError({ code: "FORBIDDEN", message: FORBIDDEN_MESSAGE });
-			}
-
-			let payload: FilterPresetPayload | undefined;
-			if (input.payload !== undefined) {
-				const schema = payloadSchemaForStoredScreenKey(found.screenKey);
-				const parsed = schema.safeParse(input.payload);
-				if (!parsed.success) {
-					throw new TRPCError({
-						code: "BAD_REQUEST",
-						message: "Payload does not match this preset's screen",
-					});
-				}
-				payload = parsed.data as FilterPresetPayload;
-				await validatePayloadOwnership(ctx.db, userId, payload);
-			}
-
-			if (input.name !== undefined && input.name !== found.name) {
-				await assertNameAvailable(
-					ctx.db,
-					userId,
-					found.screenKey,
-					input.name,
-					input.id
-				);
-			}
-
-			try {
-				await ctx.db
-					.update(filterPreset)
-					.set({
-						...(input.name === undefined ? {} : { name: input.name }),
-						...(payload === undefined ? {} : { payload }),
-						updatedAt: new Date(),
-					})
-					.where(
-						and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
-					);
-			} catch (error) {
-				if (isFilterPresetNameConflictError(error)) {
-					throw new TRPCError({
-						code: "CONFLICT",
-						message: NAME_CONFLICT_MESSAGE,
-					});
-				}
-				throw error;
-			}
-
-			const [updated] = await ctx.db
-				.select()
-				.from(filterPreset)
-				.where(eq(filterPreset.id, input.id));
-			return updated;
-		}),
-
-	delete: protectedProcedure
-		.input(z.object({ id: idSchema }))
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const [found] = await ctx.db
-				.select()
-				.from(filterPreset)
-				.where(eq(filterPreset.id, input.id));
-			if (!found || found.userId !== userId) {
-				throw new TRPCError({ code: "FORBIDDEN", message: FORBIDDEN_MESSAGE });
-			}
-			await ctx.db
-				.delete(filterPreset)
-				.where(
-					and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
-				);
-			return { success: true };
 		}),
 
 	setDefault: protectedProcedure
@@ -321,8 +297,14 @@ export const filterPresetRouter = router({
 			return updated;
 		}),
 
-	clearDefault: protectedProcedure
-		.input(z.object({ id: idSchema }))
+	update: protectedProcedure
+		.input(
+			z.object({
+				id: idSchema,
+				name: presetNameSchema.optional(),
+				payload: updatePayloadSchema.optional(),
+			})
+		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
@@ -333,31 +315,52 @@ export const filterPresetRouter = router({
 				throw new TRPCError({ code: "FORBIDDEN", message: FORBIDDEN_MESSAGE });
 			}
 
-			if (!found.isDefault) {
-				await runGuardedBatch(ctx.db, [
-					guardStatement(
-						ctx.db,
-						"filter-preset-default",
-						sql`exists (
-						select 1 from ${filterPreset}
-						where ${filterPreset.id} = ${input.id}
-						and ${filterPreset.userId} = ${userId}
-						and ${filterPreset.isDefault} = 0
-					)`
-					),
-				]);
-				return found;
+			let payload: FilterPresetPayload | undefined;
+			if (input.payload !== undefined) {
+				const schema = payloadSchemaForStoredScreenKey(found.screenKey);
+				const parsed = schema.safeParse(input.payload);
+				if (!parsed.success) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "Payload does not match this preset's screen",
+					});
+				}
+				payload = parsed.data as FilterPresetPayload;
+				await validatePayloadOwnership(ctx.db, userId, payload);
 			}
 
-			await runGuardedBatch(ctx.db, [
-				ctx.db
+			if (input.name !== undefined && input.name !== found.name) {
+				await assertNameAvailable(
+					ctx.db,
+					userId,
+					found.screenKey,
+					input.name,
+					input.id
+				);
+			}
+
+			try {
+				await ctx.db
 					.update(filterPreset)
-					.set({ isDefault: false, updatedAt: new Date() })
+					.set({
+						...(input.name === undefined ? {} : { name: input.name }),
+						...(payload === undefined ? {} : { payload }),
+						updatedAt: new Date(),
+					})
 					.where(
 						and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
-					),
-				changedRowsGuardStatement(ctx.db, "filter-preset-default"),
-			]);
+					);
+			} catch (error) {
+				if (isFilterPresetNameConflictError(error)) {
+					// biome-ignore lint/style/useErrorCause: TRPCError receives the original error in its cause option.
+					throw new TRPCError({
+						cause: error,
+						code: "CONFLICT",
+						message: NAME_CONFLICT_MESSAGE,
+					});
+				}
+				throw error;
+			}
 
 			const [updated] = await ctx.db
 				.select()

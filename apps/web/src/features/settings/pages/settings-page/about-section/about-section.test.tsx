@@ -4,15 +4,15 @@ import { describe, expect, it, vi } from "vitest";
 import { AboutSection } from "./about-section";
 
 const mocks = vi.hoisted(() => ({
-	version: "v3.2.2" as string | null,
 	onViewUpdateNotes: vi.fn(),
+	version: "v3.2.2" as string | null,
 }));
 
 vi.mock("./use-about-section", () => ({
 	useAboutSection: () => ({
-		version: mocks.version,
 		hasUnviewedNotes: false,
 		onViewUpdateNotes: mocks.onViewUpdateNotes,
+		version: mocks.version,
 	}),
 }));
 

@@ -1,14 +1,15 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useLinkedAccounts } from "@/features/settings/pages/settings-page/linked-accounts/use-linked-accounts";
 
 const mocks = vi.hoisted(() => ({
-	listAccounts: vi.fn(),
 	linkSocial: vi.fn(),
-	unlinkAccount: vi.fn(),
-	toastSuccess: vi.fn(),
-	toastError: vi.fn(),
+	listAccounts: vi.fn(),
 	navigate: vi.fn(),
 	search: {} as { error?: string; linkError?: "google" | "discord" },
+	toastError: vi.fn(),
+	toastSuccess: vi.fn(),
+	unlinkAccount: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -17,19 +18,17 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("sonner", () => ({
-	toast: { success: mocks.toastSuccess, error: mocks.toastError },
+	toast: { error: mocks.toastError, success: mocks.toastSuccess },
 }));
 
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
-		listAccounts: mocks.listAccounts,
 		linkSocial: mocks.linkSocial,
+		listAccounts: mocks.listAccounts,
 		unlinkAccount: mocks.unlinkAccount,
 		useSession: () => ({ data: { user: { email: "user@example.com" } } }),
 	},
 }));
-
-import { useLinkedAccounts } from "@/features/settings/pages/settings-page/linked-accounts/use-linked-accounts";
 
 describe("useLinkedAccounts", () => {
 	beforeEach(() => {
@@ -90,9 +89,9 @@ describe("useLinkedAccounts", () => {
 			await result.current.handleLink("google");
 		});
 		expect(mocks.linkSocial).toHaveBeenCalledWith({
-			provider: "google",
 			callbackURL: "https://app.test/settings",
 			errorCallbackURL: "https://app.test/settings?linkError=google",
+			provider: "google",
 		});
 
 		Object.defineProperty(window, "location", {
@@ -177,9 +176,9 @@ describe("useLinkedAccounts", () => {
 			id: "link-error-discord",
 		});
 		expect(mocks.navigate).toHaveBeenCalledWith({
-			to: "/settings",
-			search: {},
 			replace: true,
+			search: {},
+			to: "/settings",
 		});
 	});
 

@@ -9,25 +9,25 @@ import { createChainableMockDb } from "./test-utils";
 vi.mock("@sapphire2/db/constants/game-variants", () => ({
 	DEFAULT_GAME_GROUPS: [
 		{
-			key: "limit",
-			label: "Limit",
 			blind1Label: "Small Bet",
 			blind2Label: "Big Bet",
 			blind3Label: null,
-		},
-	],
-	DEFAULT_GAME_VARIANTS: [
-		{
-			key: "lhe",
-			label: "Limit Hold'em",
-			shortLabel: "LHE",
-			groupKey: "limit",
+			key: "limit",
+			label: "Limit",
 		},
 	],
 	DEFAULT_GAME_MIXES: [
 		{ key: "solo", label: "Solo", variantKeys: ["lhe"] },
 		{ key: "ghost", label: "Ghost", variantKeys: ["not-seeded"] },
 		{ key: "partial", label: "Partial", variantKeys: ["not-seeded", "lhe"] },
+	],
+	DEFAULT_GAME_VARIANTS: [
+		{
+			groupKey: "limit",
+			key: "lhe",
+			label: "Limit Hold'em",
+			shortLabel: "LHE",
+		},
 	],
 }));
 
@@ -43,7 +43,7 @@ function emptyAccountDb() {
 	});
 }
 
-function membershipRows(inserted: Record<string, unknown[]>) {
+function membershipRows(inserted: Partial<Record<string, unknown[]>>) {
 	return (inserted[MIX_VARIANT_TABLE] ?? []).flatMap((entry) =>
 		Array.isArray(entry) ? entry : [entry]
 	) as Record<string, unknown>[];
@@ -55,6 +55,7 @@ describe("seedDefaultGameData with an unresolvable mix variantKey", () => {
 
 		await seedDefaultGameData(db, USER_ID);
 
+		// biome-ignore lint/suspicious/noUnnecessaryConditions: The mock omits the table key when no rows are inserted.
 		for (const write of inserted[MIX_VARIANT_TABLE] ?? []) {
 			expect(Array.isArray(write) ? write : [write]).not.toHaveLength(0);
 		}

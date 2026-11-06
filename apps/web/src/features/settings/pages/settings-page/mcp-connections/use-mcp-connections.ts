@@ -28,22 +28,30 @@ export function useMcpConnections() {
 		try {
 			await revokeMutation.mutateAsync({ clientId: revokeTarget.clientId });
 			setRevokeTarget(null);
-		} catch {
-			return;
-		}
+			// biome-ignore lint/suspicious/noEmptyBlockStatements: The mutation handles its own error feedback.
+		} catch {}
 	};
 
 	return {
 		connections: listQuery.data ?? [],
-		isLoading: listQuery.isPending,
 		isError: listQuery.isError,
+		isLoading: listQuery.isPending,
 		isRefetching: listQuery.isFetching,
 		isRevokePending: revokeMutation.isPending,
+		onCloseDialog: () => setRevokeTarget(null),
+		onDialogOpenChange: (open: boolean) => {
+			if (!open) {
+				setRevokeTarget(null);
+			}
+		},
 		onRetry: () => {
 			listQuery.refetch();
 		},
 		onRevoke,
 		onRevokeTargetChange: setRevokeTarget,
+		onSelectConnection:
+			(connection: NonNullable<typeof listQuery.data>[number]) => () =>
+				setRevokeTarget(connection),
 		revokeTarget,
 	};
 }

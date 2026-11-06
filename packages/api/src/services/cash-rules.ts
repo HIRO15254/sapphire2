@@ -43,9 +43,10 @@ const amount = z
 export const cashRuleInputSchema = z
 	.object({
 		game: gameInputSchema.optional(),
-		stakes: z.array(stakeInputSchema).max(MAX_LINEUP_GROUPS).optional(),
-		minBuyIn: amount,
+		houseRules: z.string().max(50_000).nullable().optional(),
 		maxBuyIn: amount,
+		minBuyIn: amount,
+		stakes: z.array(stakeInputSchema).max(MAX_LINEUP_GROUPS).optional(),
 		tableSize: z
 			.number()
 			.int()
@@ -53,12 +54,13 @@ export const cashRuleInputSchema = z
 			.max(MAX_RULE_TABLE_SIZE)
 			.nullable()
 			.optional(),
-		houseRules: z.string().max(50_000).nullable().optional(),
 	})
 	.refine(
 		(value) =>
-			value.minBuyIn == null ||
-			value.maxBuyIn == null ||
+			value.minBuyIn === null ||
+			value.minBuyIn === undefined ||
+			value.maxBuyIn === null ||
+			value.maxBuyIn === undefined ||
 			value.minBuyIn <= value.maxBuyIn,
 		{
 			message: "Minimum buy-in must not exceed maximum buy-in",
@@ -132,32 +134,32 @@ export async function hydrateCashRules(
 					});
 				}
 				return {
-					lineupGroupId: g.id,
-					gameGroupId: g.gameGroupId,
+					ante: row.ante,
+					anteType: row.anteType,
 					blind1: row.blind1,
 					blind2: row.blind2,
 					blind3: row.blind3,
-					ante: row.ante,
-					anteType: row.anteType,
+					gameGroupId: g.gameGroupId,
+					lineupGroupId: g.id,
 				};
 			});
 			return [
 				v.id,
 				{
-					id: v.id,
-					ringGameId: v.ringGameId,
-					parentRuleId: v.parentRuleId,
-					lineupId: v.lineupId,
-					stakes: ordered,
-					minBuyIn: v.minBuyIn,
-					maxBuyIn: v.maxBuyIn,
-					tableSize: v.tableSize,
 					houseRules: v.houseRules,
+					id: v.id,
+					lineupId: v.lineupId,
+					maxBuyIn: v.maxBuyIn,
+					minBuyIn: v.minBuyIn,
+					parentRuleId: v.parentRuleId,
+					ringGameId: v.ringGameId,
+					stakes: ordered,
+					tableSize: v.tableSize,
 				},
 			] as const;
 		})
 	);
-	return { rules, lineups };
+	return { lineups, rules };
 }
 
 function validateBuyInRange(min: number | null, max: number | null): void {
@@ -177,22 +179,22 @@ function mergeCashScalars(
 	> | null
 ) {
 	return {
-		minBuyIn:
-			input.minBuyIn === undefined
-				? (current?.minBuyIn ?? null)
-				: input.minBuyIn,
-		maxBuyIn:
-			input.maxBuyIn === undefined
-				? (current?.maxBuyIn ?? null)
-				: input.maxBuyIn,
-		tableSize:
-			input.tableSize === undefined
-				? (current?.tableSize ?? null)
-				: input.tableSize,
 		houseRules:
 			input.houseRules === undefined
 				? (current?.houseRules ?? null)
 				: input.houseRules,
+		maxBuyIn:
+			input.maxBuyIn === undefined
+				? (current?.maxBuyIn ?? null)
+				: input.maxBuyIn,
+		minBuyIn:
+			input.minBuyIn === undefined
+				? (current?.minBuyIn ?? null)
+				: input.minBuyIn,
+		tableSize:
+			input.tableSize === undefined
+				? (current?.tableSize ?? null)
+				: input.tableSize,
 	};
 }
 
@@ -267,7 +269,7 @@ export async function prepareCashRule(
 		...cashRuleInsertStatements(
 			db,
 			userId,
-			{ id, ringGameId, parentRuleId: current?.id ?? null },
+			{ id, parentRuleId: current?.id ?? null, ringGameId },
 			content
 		),
 	];
@@ -301,23 +303,23 @@ function cashRuleInsertStatements(
 	content: CashRuleContent
 ): BatchStatement[] {
 	const rows = content.stakes.map((stake) => ({
-		userId,
-		ruleId: version.id,
-		lineupId: content.lineupId,
 		lineupGroupId: stake.lineupGroupId,
+		lineupId: content.lineupId,
+		ruleId: version.id,
+		userId,
 		...stakeValues(stake),
 	}));
 	return [
 		db.insert(cashRule).values({
-			id: version.id,
-			userId,
-			ringGameId: version.ringGameId,
-			parentRuleId: version.parentRuleId,
-			lineupId: content.lineupId,
-			minBuyIn: content.minBuyIn,
-			maxBuyIn: content.maxBuyIn,
-			tableSize: content.tableSize,
 			houseRules: content.houseRules,
+			id: version.id,
+			lineupId: content.lineupId,
+			maxBuyIn: content.maxBuyIn,
+			minBuyIn: content.minBuyIn,
+			parentRuleId: version.parentRuleId,
+			ringGameId: version.ringGameId,
+			tableSize: content.tableSize,
+			userId,
 		}),
 		...insertChunks(rows, (chunk) => db.insert(cashRuleStake).values(chunk)),
 	];
@@ -349,8 +351,8 @@ export async function planCashRuleCopy(
 				userId,
 				{
 					id,
-					ringGameId: target.ringGameId,
 					parentRuleId: target.parent?.id ?? null,
+					ringGameId: target.ringGameId,
 				},
 				source
 			),

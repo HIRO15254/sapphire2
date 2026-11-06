@@ -7,7 +7,7 @@ export function LoginPage() {
 	const { showSignIn, onSwitchToSignIn, onSwitchToSignUp } = useLoginPage();
 
 	return (
-		<div className="min-h-svh bg-background text-foreground">
+		<div className="bg-background text-foreground min-h-svh">
 			<PreviewAutoLogin />
 			{showSignIn ? (
 				<SignInForm onSwitchToSignUp={onSwitchToSignUp} />

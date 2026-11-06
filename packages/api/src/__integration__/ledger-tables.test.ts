@@ -8,28 +8,28 @@ const MAX_QUANTITY = 1_000_000_000_000;
 
 function lineRow(id: string, userId: string, overrides: Row = {}): Row {
 	return {
-		id,
-		user_id: userId,
 		asset_id: `${userId}-currency`,
-		quantity: -10_000,
-		role: "buy_in",
 		effect: "real",
 		entry_id: `${userId}-entry`,
+		id,
 		occurred_at: 1_790_000_000,
+		quantity: -10_000,
+		role: "buy_in",
 		updated_at: 0,
+		user_id: userId,
 		...overrides,
 	};
 }
 
 function rateRow(id: string, userId: string, overrides: Row = {}): Row {
 	return {
-		id,
-		user_id: userId,
 		base_asset_id: `${userId}-ticket`,
-		quote_asset_id: `${userId}-currency`,
-		rate_num: 20_000,
-		rate_den: 1,
 		effective_from: 0,
+		id,
+		quote_asset_id: `${userId}-currency`,
+		rate_den: 1,
+		rate_num: 20_000,
+		user_id: userId,
 		...overrides,
 	};
 }
@@ -37,71 +37,71 @@ function rateRow(id: string, userId: string, overrides: Row = {}): Row {
 async function seedOwner(d1: TestD1Database, owner: string) {
 	await insert(d1, "asset", {
 		id: `${owner}-currency`,
-		user_id: owner,
 		name: "Points",
 		updated_at: 0,
+		user_id: owner,
 	});
 	await insert(d1, "asset", {
 		id: `${owner}-ticket`,
-		user_id: owner,
-		name: "Main ticket",
 		kind: "item",
+		name: "Main ticket",
 		updated_at: 0,
+		user_id: owner,
 	});
 	await insert(d1, "ledger_category", {
 		id: `${owner}-deposit`,
-		user_id: owner,
 		name: "Deposit",
 		updated_at: 0,
+		user_id: owner,
 	});
 	await insert(d1, "entry", {
 		id: `${owner}-entry`,
-		user_id: owner,
 		kind: "tournament",
+		played_on: "2026-09-05",
 		source: "live",
 		status: "open",
-		played_on: "2026-09-05",
 		updated_at: 0,
+		user_id: owner,
 	});
 	await insert(d1, "play_session", {
-		id: `${owner}-day-1`,
-		user_id: owner,
-		entry_id: `${owner}-entry`,
-		kind: "tournament",
-		seq: 1,
-		local_date: "2026-09-05",
-		status: "ended",
 		end_state: "busted",
+		entry_id: `${owner}-entry`,
+		id: `${owner}-day-1`,
+		kind: "tournament",
+		local_date: "2026-09-05",
+		seq: 1,
+		status: "ended",
 		updated_at: 0,
+		user_id: owner,
 	});
 	await insert(d1, "play_event", {
-		id: `${owner}-start`,
-		user_id: owner,
 		entry_id: `${owner}-entry`,
 		entry_source: "live",
-		play_session_id: `${owner}-day-1`,
-		type: "session_start",
-		schema_version: 2,
+		id: `${owner}-start`,
 		occurred_at: 1_790_000_000,
-		sort_order: 0,
 		payload: "{}",
+		play_session_id: `${owner}-day-1`,
+		schema_version: 2,
+		sort_order: 0,
+		type: "session_start",
 		updated_at: 0,
+		user_id: owner,
 	});
 	await insert(d1, "game_lineup", { id: `${owner}-lineup`, user_id: owner });
 	await insert(d1, "tournament_rule", {
 		id: `${owner}-rule`,
-		user_id: owner,
 		lineup_id: `${owner}-lineup`,
+		user_id: owner,
 	});
 	await insert(d1, "tournament_rule_price", {
+		amount: 10_000,
+		asset_id: `${owner}-currency`,
 		id: `${owner}-entry-price`,
-		user_id: owner,
-		rule_id: `${owner}-rule`,
 		kind: "entry",
 		label: "Entry",
-		asset_id: `${owner}-currency`,
-		amount: 10_000,
 		ordinal: 1,
+		rule_id: `${owner}-rule`,
+		user_id: owner,
 	});
 }
 
@@ -155,18 +155,19 @@ describe("asset and ledger tables on D1", () => {
 			[
 				"ledger_line",
 				lineRow("bob-deposit-alice-category", "bob", {
-					role: "adjustment",
-					quantity: 5000,
-					entry_id: null,
 					category_id: "alice-deposit",
+					entry_id: null,
+					quantity: 5000,
+					role: "adjustment",
 				}),
 			],
 			[
 				"user_setting",
-				{ user_id: "bob", base_asset_id: "alice-currency", updated_at: 0 },
+				{ base_asset_id: "alice-currency", updated_at: 0, user_id: "bob" },
 			],
 		];
 		for (const [table, row] of crossOwner) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				insert(api.d1, table, row),
 				`${table} ${row.id ?? row.user_id}`
@@ -179,25 +180,25 @@ describe("asset and ledger tables on D1", () => {
 			"ledger_line",
 			lineRow("bob-buy-in", "bob", {
 				play_session_id: "bob-day-1",
-				source_event_id: "bob-start",
 				price_id: "bob-entry-price",
+				source_event_id: "bob-start",
 			})
 		);
 		await insert(
 			api.d1,
 			"ledger_line",
 			lineRow("bob-deposit", "bob", {
-				role: "adjustment",
-				quantity: 5000,
-				entry_id: null,
 				category_id: "bob-deposit",
+				entry_id: null,
+				quantity: 5000,
+				role: "adjustment",
 			})
 		);
 		await insert(api.d1, "user_setting", {
-			user_id: "bob",
 			base_asset_id: "bob-currency",
 			time_zone: "Asia/Tokyo",
 			updated_at: 0,
+			user_id: "bob",
 		});
 		expect(await ids(api.d1, "asset_rate")).toEqual(["bob-rate"]);
 		expect(await ids(api.d1, "ledger_line")).toEqual([
@@ -213,12 +214,12 @@ describe("asset and ledger tables on D1", () => {
 		await seedOwner(api.d1, "alice");
 		await insert(api.d1, "entry", {
 			id: "other-entry",
-			user_id: "alice",
 			kind: "tournament",
+			played_on: "2026-09-06",
 			source: "manual",
 			status: "settled",
-			played_on: "2026-09-06",
 			updated_at: 0,
+			user_id: "alice",
 		});
 
 		await expect(
@@ -243,38 +244,39 @@ describe("asset and ledger tables on D1", () => {
 		api,
 	}) => {
 		await seedOwner(api.d1, "alice");
-		const wallet = { entry_id: null, category_id: "alice-deposit" };
+		const wallet = { category_id: "alice-deposit", entry_id: null };
 
 		const accepted: Row[] = [
-			{ role: "buy_in", quantity: -10_000 },
-			{ role: "buy_in", quantity: -10_000, price_id: "alice-entry-price" },
-			{ role: "fee", quantity: -1000 },
-			{ role: "chip_purchase", quantity: -MAX_QUANTITY },
-			{ role: "prize", quantity: 1 },
+			{ quantity: -10_000, role: "buy_in" },
+			{ price_id: "alice-entry-price", quantity: -10_000, role: "buy_in" },
+			{ quantity: -1000, role: "fee" },
+			{ quantity: -MAX_QUANTITY, role: "chip_purchase" },
+			{ quantity: 1, role: "prize" },
 			{
-				role: "prize",
-				quantity: 1,
 				asset_id: "alice-ticket",
 				effect: "virtual",
+				quantity: 1,
+				role: "prize",
 			},
-			{ role: "bounty", quantity: 2000 },
-			{ role: "adjustment", quantity: 5000, ...wallet },
-			{ role: "adjustment", quantity: -5000, ...wallet },
+			{ quantity: 2000, role: "bounty" },
+			{ quantity: 5000, role: "adjustment", ...wallet },
+			{ quantity: -5000, role: "adjustment", ...wallet },
 			{
-				role: "exchange",
-				quantity: -20_000,
 				entry_id: null,
+				quantity: -20_000,
+				role: "exchange",
 				transfer_id: "swap",
 			},
 			{
-				role: "exchange",
-				quantity: 1,
 				asset_id: "alice-ticket",
 				entry_id: null,
+				quantity: 1,
+				role: "exchange",
 				transfer_id: "swap",
 			},
 		];
 		for (const [index, overrides] of accepted.entries()) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 inserts sequential.
 			await insert(
 				api.d1,
 				"ledger_line",
@@ -283,83 +285,84 @@ describe("asset and ledger tables on D1", () => {
 		}
 
 		const rejected: [Row, string][] = [
-			[{ role: "buy_in", quantity: 0 }, "ledger_line_quantity_check"],
+			[{ quantity: 0, role: "buy_in" }, "ledger_line_quantity_check"],
 			[
-				{ role: "chip_purchase", quantity: -MAX_QUANTITY - 1 },
+				{ quantity: -MAX_QUANTITY - 1, role: "chip_purchase" },
 				"ledger_line_quantity_check",
 			],
-			[{ role: "buy_in", quantity: 10_000 }, "ledger_line_role_sign_check"],
-			[{ role: "addon", quantity: 5000 }, "ledger_line_role_sign_check"],
-			[{ role: "cash_out", quantity: -5000 }, "ledger_line_role_sign_check"],
-			[{ role: "prize", quantity: -1 }, "ledger_line_role_sign_check"],
-			[{ role: "adjustment", quantity: 5000 }, "ledger_line_role_entry_check"],
+			[{ quantity: 10_000, role: "buy_in" }, "ledger_line_role_sign_check"],
+			[{ quantity: 5000, role: "addon" }, "ledger_line_role_sign_check"],
+			[{ quantity: -5000, role: "cash_out" }, "ledger_line_role_sign_check"],
+			[{ quantity: -1, role: "prize" }, "ledger_line_role_sign_check"],
+			[{ quantity: 5000, role: "adjustment" }, "ledger_line_role_entry_check"],
 			[
-				{ role: "adjustment", quantity: 5000, effect: "virtual", ...wallet },
+				{ effect: "virtual", quantity: 5000, role: "adjustment", ...wallet },
 				"ledger_line_role_entry_check",
 			],
 			[
-				{ role: "prize", quantity: 1, entry_id: null },
+				{ entry_id: null, quantity: 1, role: "prize" },
 				"ledger_line_role_entry_check",
 			],
 			[
-				{ role: "prize", quantity: 1, entry_id: null, effect: "virtual" },
+				{ effect: "virtual", entry_id: null, quantity: 1, role: "prize" },
 				"ledger_line_role_entry_check",
 			],
 			[
-				{ role: "exchange", quantity: -20_000, entry_id: null },
+				{ entry_id: null, quantity: -20_000, role: "exchange" },
 				"ledger_line_exchange_transfer_check",
 			],
 			[
 				{
-					role: "adjustment",
-					quantity: 5000,
 					play_session_id: "alice-day-1",
+					quantity: 5000,
+					role: "adjustment",
 					...wallet,
 				},
 				"ledger_line_play_session_entry_check",
 			],
 			[
-				{ role: "buy_in", quantity: -1, source_event_id: "alice-start" },
+				{ quantity: -1, role: "buy_in", source_event_id: "alice-start" },
 				"ledger_line_source_event_scope_check",
 			],
 			[
-				{ role: "buy_in", quantity: -1, category_id: "alice-deposit" },
+				{ category_id: "alice-deposit", quantity: -1, role: "buy_in" },
 				"ledger_line_category_role_check",
 			],
 			[
-				{ role: "adjustment", quantity: 5000, transfer_id: "swap", ...wallet },
+				{ quantity: 5000, role: "adjustment", transfer_id: "swap", ...wallet },
 				"ledger_line_exchange_transfer_check",
 			],
 			[
-				{ role: "prize", quantity: 1, price_id: "alice-entry-price" },
+				{ price_id: "alice-entry-price", quantity: 1, role: "prize" },
 				"ledger_line_price_role_check",
 			],
 			[
-				{ role: "addon", quantity: -1, price_id: "alice-entry-price" },
+				{ price_id: "alice-entry-price", quantity: -1, role: "addon" },
 				"ledger_line_price_role_check",
 			],
 			[
 				{
-					role: "adjustment",
-					quantity: 5000,
 					price_id: "alice-entry-price",
+					quantity: 5000,
+					role: "adjustment",
 					...wallet,
 				},
 				"ledger_line_price_role_check",
 			],
 			[
 				{
-					role: "adjustment",
 					quantity: 5000,
+					role: "adjustment",
 					source_event_id: "alice-start",
 					...wallet,
 				},
 				"ledger_line_source_event_scope_check",
 			],
-			[{ role: "rakeback", quantity: 100 }, "ledger_line_role_check"],
+			[{ quantity: 100, role: "rakeback" }, "ledger_line_role_check"],
 			[{ effect: "estimated" }, "ledger_line_effect_check"],
 		];
 		for (const [index, [overrides, constraint]] of rejected.entries()) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				insert(
 					api.d1,
@@ -388,31 +391,32 @@ describe("asset and ledger tables on D1", () => {
 			.all();
 		expect(assets.results).toEqual([
 			{
+				archived_at: null,
+				decimals: 0,
 				id: "alice-currency",
 				kind: "currency",
-				decimals: 0,
-				archived_at: null,
 			},
-			{ id: "alice-ticket", kind: "item", decimals: 0, archived_at: null },
+			{ archived_at: null, decimals: 0, id: "alice-ticket", kind: "item" },
 		]);
 		await insert(api.d1, "asset", {
-			id: "usd",
-			user_id: "alice",
-			name: "USD",
 			decimals: 4,
+			id: "usd",
+			name: "USD",
 			updated_at: 0,
+			user_id: "alice",
 		});
 		for (const [overrides, constraint] of [
 			[{ kind: "point" }, "asset_kind_check"],
 			[{ decimals: 5 }, "asset_decimals_check"],
 			[{ decimals: -1 }, "asset_decimals_check"],
 		] as const) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				insert(api.d1, "asset", {
 					id: "bad-asset",
-					user_id: "alice",
 					name: "Bad",
 					updated_at: 0,
+					user_id: "alice",
 					...overrides,
 				}),
 				JSON.stringify(overrides)
@@ -421,16 +425,16 @@ describe("asset and ledger tables on D1", () => {
 		await expect(
 			insert(api.d1, "asset", {
 				id: "usd-again",
-				user_id: "alice",
 				name: " usd ",
 				updated_at: 0,
+				user_id: "alice",
 			})
 		).rejects.toThrow("UNIQUE constraint failed");
 		await insert(api.d1, "asset", {
 			id: "bob-usd",
-			user_id: "bob",
 			name: "USD",
 			updated_at: 0,
+			user_id: "bob",
 		});
 
 		await insert(api.d1, "asset_rate", rateRow("from-start", "alice"));
@@ -438,8 +442,8 @@ describe("asset and ledger tables on D1", () => {
 			api.d1,
 			"asset_rate",
 			rateRow("raised", "alice", {
-				rate_num: 25_000,
 				effective_from: 1_790_000_000,
+				rate_num: 25_000,
 			})
 		);
 		await insert(
@@ -448,8 +452,8 @@ describe("asset and ledger tables on D1", () => {
 			rateRow("inverse", "alice", {
 				base_asset_id: "alice-currency",
 				quote_asset_id: "alice-ticket",
-				rate_num: 1,
 				rate_den: 20_000,
+				rate_num: 1,
 			})
 		);
 		await expect(
@@ -466,6 +470,7 @@ describe("asset and ledger tables on D1", () => {
 			[{ rate_num: 0 }, "asset_rate_rate_num_check"],
 			[{ rate_den: 1_000_000_000_001 }, "asset_rate_rate_den_check"],
 		] as const) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				insert(
 					api.d1,
@@ -484,24 +489,24 @@ describe("asset and ledger tables on D1", () => {
 		await expect(
 			insert(api.d1, "ledger_category", {
 				id: "shouting",
-				user_id: "alice",
 				name: "DEPOSIT",
 				updated_at: 0,
+				user_id: "alice",
 			})
 		).rejects.toThrow("UNIQUE constraint failed");
 		await expect(
 			insert(api.d1, "ledger_category", {
 				id: "padded",
-				user_id: "alice",
 				name: "  deposit ",
 				updated_at: 0,
+				user_id: "alice",
 			})
 		).rejects.toThrow("UNIQUE constraint failed");
 		await insert(api.d1, "ledger_category", {
 			id: "withdrawal",
-			user_id: "alice",
 			name: "Withdrawal",
 			updated_at: 0,
+			user_id: "alice",
 		});
 		expect(await ids(api.d1, "ledger_category")).toEqual([
 			"alice-deposit",
@@ -529,22 +534,22 @@ describe("asset and ledger tables on D1", () => {
 			api.d1,
 			"ledger_line",
 			lineRow("deposit", "alice", {
-				role: "adjustment",
-				quantity: 5000,
-				entry_id: null,
 				category_id: "alice-deposit",
+				entry_id: null,
+				quantity: 5000,
+				role: "adjustment",
 			})
 		);
 		await insert(api.d1, "asset", {
 			id: "yen",
-			user_id: "alice",
 			name: "Yen",
 			updated_at: 0,
+			user_id: "alice",
 		});
 		await insert(api.d1, "user_setting", {
-			user_id: "alice",
 			base_asset_id: "yen",
 			updated_at: 0,
+			user_id: "alice",
 		});
 
 		for (const [table, id] of [
@@ -552,6 +557,7 @@ describe("asset and ledger tables on D1", () => {
 			["asset", "yen"],
 			["ledger_category", "alice-deposit"],
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				api.d1.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run(),
 				`${table} ${id}`
@@ -572,13 +578,14 @@ describe("asset and ledger tables on D1", () => {
 		api,
 	}) => {
 		for (const owner of ["alice", "bob"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 setup sequential.
 			await seedOwner(api.d1, owner);
 			await insert(api.d1, "asset_rate", rateRow(`${owner}-rate`, owner));
 			await insert(api.d1, "ledger_line", lineRow(`${owner}-line`, owner));
 			await insert(api.d1, "user_setting", {
-				user_id: owner,
 				base_asset_id: `${owner}-currency`,
 				updated_at: 0,
+				user_id: owner,
 			});
 		}
 

@@ -3,9 +3,9 @@ import { buildAuthOptions } from "../auth-options";
 import { createFakeEnv } from "./test-utils";
 
 const { planSeed, selfInsert, batch } = vi.hoisted(() => ({
+	batch: vi.fn(),
 	planSeed: vi.fn(),
 	selfInsert: vi.fn(),
-	batch: vi.fn(),
 }));
 
 vi.mock("@sapphire2/api/services/seed-game-data", () => ({
@@ -29,10 +29,10 @@ describe("buildAuthOptions", () => {
 	it("passes social credentials through verbatim", () => {
 		const options = buildAuthOptions(
 			createFakeEnv({
-				GOOGLE_CLIENT_ID: "g-id",
-				GOOGLE_CLIENT_SECRET: "g-secret",
 				DISCORD_CLIENT_ID: "d-id",
 				DISCORD_CLIENT_SECRET: "d-secret",
+				GOOGLE_CLIENT_ID: "g-id",
+				GOOGLE_CLIENT_SECRET: "g-secret",
 			}),
 			FAKE_DB
 		);
@@ -83,8 +83,8 @@ describe("buildAuthOptions", () => {
 	it("normalizes trailing slashes in OAuth endpoints", () => {
 		const options = buildAuthOptions(
 			createFakeEnv({
-				CORS_ORIGIN: "https://app.example.com/",
 				BETTER_AUTH_URL: "https://api.example.com/",
+				CORS_ORIGIN: "https://app.example.com/",
 			}),
 			FAKE_DB
 		);

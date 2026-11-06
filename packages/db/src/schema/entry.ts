@@ -29,24 +29,24 @@ import { tournament } from "./tournament";
 export const entry = sqliteTable(
 	"entry",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		kind: text("kind", { enum: ENTRY_KINDS }).notNull(),
-		source: text("source", { enum: ENTRY_SOURCES }).notNull(),
-		status: text("status", { enum: ENTRY_STATUSES }).notNull(),
-		roomId: text("room_id"),
 		assetId: text("asset_id"),
-		title: text("title"),
-		playedOn: text("played_on").notNull(),
-		memo: text("memo"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		id: text("id").primaryKey(),
+		kind: text("kind", { enum: ENTRY_KINDS }).notNull(),
+		memo: text("memo"),
+		playedOn: text("played_on").notNull(),
+		roomId: text("room_id"),
+		source: text("source", { enum: ENTRY_SOURCES }).notNull(),
+		status: text("status", { enum: ENTRY_STATUSES }).notNull(),
+		title: text("title"),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("entry_id_user_id_unique").on(t.id, t.userId),
@@ -80,16 +80,16 @@ export const entry = sqliteTable(
 export const entryCash = sqliteTable(
 	"entry_cash",
 	{
+		cashRuleId: text("cash_rule_id").notNull(),
 		entryId: text("entry_id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
+		evDiff: integer("ev_diff"),
 		kind: text("kind", { enum: ["cash"] })
 			.notNull()
 			.$default(() => "cash"),
 		ringGameId: text("ring_game_id"),
-		cashRuleId: text("cash_rule_id").notNull(),
-		evDiff: integer("ev_diff"),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		index("entry_cash_ring_game_idx").on(t.ringGameId),
@@ -121,20 +121,20 @@ export const entryCash = sqliteTable(
 export const entryTournament = sqliteTable(
 	"entry_tournament",
 	{
-		entryId: text("entry_id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		kind: text("kind", { enum: ["tournament"] })
-			.notNull()
-			.$default(() => "tournament"),
-		tournamentId: text("tournament_id"),
-		tournamentRuleId: text("tournament_rule_id").notNull(),
-		placement: integer("placement"),
-		totalEntries: integer("total_entries"),
 		beforeDeadline: integer("before_deadline", { mode: "boolean" })
 			.notNull()
 			.default(false),
+		entryId: text("entry_id").primaryKey(),
+		kind: text("kind", { enum: ["tournament"] })
+			.notNull()
+			.$default(() => "tournament"),
+		placement: integer("placement"),
+		totalEntries: integer("total_entries"),
+		tournamentId: text("tournament_id"),
+		tournamentRuleId: text("tournament_rule_id").notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		index("entry_tournament_tournament_idx").on(t.tournamentId),
@@ -180,30 +180,30 @@ export const entryTournament = sqliteTable(
 export const playSession = sqliteTable(
 	"play_session",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		entryId: text("entry_id").notNull(),
-		kind: text("kind", { enum: ENTRY_KINDS }).notNull(),
-		seq: integer("seq").notNull(),
-		nextHandSeq: integer("next_hand_seq").notNull().default(0),
-		label: text("label"),
-		localDate: text("local_date").notNull(),
-		startedAt: integer("started_at", { mode: "timestamp" }),
-		endedAt: integer("ended_at", { mode: "timestamp" }),
 		breakMinutes: integer("break_minutes").notNull().default(0),
-		status: text("status", { enum: PLAY_SESSION_STATUSES }).notNull(),
-		endState: text("end_state", { enum: PLAY_SESSION_END_STATES }),
-		endStack: integer("end_stack"),
 		clockStartedAt: integer("clock_started_at", { mode: "timestamp" }),
 		clockStartLevel: integer("clock_start_level"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		endedAt: integer("ended_at", { mode: "timestamp" }),
+		endStack: integer("end_stack"),
+		endState: text("end_state", { enum: PLAY_SESSION_END_STATES }),
+		entryId: text("entry_id").notNull(),
+		id: text("id").primaryKey(),
+		kind: text("kind", { enum: ENTRY_KINDS }).notNull(),
+		label: text("label"),
+		localDate: text("local_date").notNull(),
+		nextHandSeq: integer("next_hand_seq").notNull().default(0),
+		seq: integer("seq").notNull(),
+		startedAt: integer("started_at", { mode: "timestamp" }),
+		status: text("status", { enum: PLAY_SESSION_STATUSES }).notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("play_session_id_user_id_unique").on(t.id, t.userId),
@@ -262,27 +262,27 @@ export const playSession = sqliteTable(
 export const playEvent = sqliteTable(
 	"play_event",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.default(sql`(unixepoch())`)
+			.notNull(),
 		entryId: text("entry_id").notNull(),
 		entrySource: text("entry_source", { enum: ["live"] })
 			.notNull()
 			.$default(() => "live"),
-		playSessionId: text("play_session_id").notNull(),
-		type: text("type").notNull(),
-		schemaVersion: integer("schema_version").notNull(),
+		handId: text("hand_id"),
+		id: text("id").primaryKey(),
 		occurredAt: integer("occurred_at", { mode: "timestamp" }).notNull(),
-		sortOrder: integer("sort_order").notNull(),
 		payload: text("payload").notNull(),
-		createdAt: integer("created_at", { mode: "timestamp" })
-			.default(sql`(unixepoch())`)
-			.notNull(),
+		playSessionId: text("play_session_id").notNull(),
+		schemaVersion: integer("schema_version").notNull(),
+		sortOrder: integer("sort_order").notNull(),
+		type: text("type").notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
-		handId: text("hand_id"),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(t) => [
 		uniqueIndex("play_event_id_user_id_unique").on(t.id, t.userId),

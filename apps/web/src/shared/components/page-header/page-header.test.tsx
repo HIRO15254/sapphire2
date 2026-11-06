@@ -14,14 +14,14 @@ import { PageHeader } from "./page-header";
 function makeRouter(initialEntries: string[]) {
 	const root = createRootRoute({ component: () => <Outlet /> });
 	const list = createRoute({
+		component: () => <div>List</div>,
 		getParentRoute: () => root,
 		path: "/",
-		component: () => <div>List</div>,
 	});
 	const detail = createRoute({
+		component: () => <PageHeader back={{ fallbackTo: "/" }} heading="Detail" />,
 		getParentRoute: () => root,
 		path: "/settings",
-		component: () => <PageHeader back={{ fallbackTo: "/" }} heading="Detail" />,
 	});
 	return createRouter({
 		history: createMemoryHistory({ initialEntries }),

@@ -10,8 +10,8 @@ import { expectAccepts, expectRejects } from "./test-utils";
 describe("aiExtract.extractTournamentData input validation", () => {
 	const urlSource = { kind: "url", url: "https://example.com/tournament" };
 	const imageSource = {
-		kind: "image",
 		data: "ZGF0YQ==",
+		kind: "image",
 		mediaType: "image/png",
 	};
 
@@ -60,19 +60,19 @@ describe("aiExtract.extractTournamentData input validation", () => {
 
 	it("rejects image source with unknown media type", () => {
 		expectRejects(appRouter.aiExtract.extractTournamentData, {
-			sources: [{ kind: "image", data: "ZGF0YQ==", mediaType: "image/bmp" }],
+			sources: [{ data: "ZGF0YQ==", kind: "image", mediaType: "image/bmp" }],
 		});
 	});
 
 	it("rejects image source with empty data", () => {
 		expectRejects(appRouter.aiExtract.extractTournamentData, {
-			sources: [{ kind: "image", data: "", mediaType: "image/png" }],
+			sources: [{ data: "", kind: "image", mediaType: "image/png" }],
 		});
 	});
 
 	it("rejects malformed base64 image data before contacting the provider", () => {
 		expectRejects(appRouter.aiExtract.extractTournamentData, {
-			sources: [{ kind: "image", data: "not base64", mediaType: "image/png" }],
+			sources: [{ data: "not base64", kind: "image", mediaType: "image/png" }],
 		});
 	});
 
@@ -84,7 +84,7 @@ describe("aiExtract.extractTournamentData input validation", () => {
 			"image/webp",
 		]) {
 			expectAccepts(appRouter.aiExtract.extractTournamentData, {
-				sources: [{ kind: "image", data: "ZGF0YQ==", mediaType }],
+				sources: [{ data: "ZGF0YQ==", kind: "image", mediaType }],
 			});
 		}
 	});
@@ -98,8 +98,8 @@ describe("aiExtract.extractTournamentData input validation", () => {
 
 describe("aiExtract.extractTablePlayers input validation", () => {
 	const validImage = {
-		kind: "image",
 		data: "ZGF0YQ==",
+		kind: "image",
 		mediaType: "image/jpeg",
 	};
 
@@ -134,8 +134,8 @@ describe("TABLE_PLAYERS_OUTPUT_SCHEMA seat numbers", () => {
 	function scanWithSeat(seatNumber: number) {
 		return {
 			seats: [
-				{ seatNumber: 1, name: "First", isHero: false },
-				{ seatNumber, name: "Player", isHero: false },
+				{ isHero: false, name: "First", seatNumber: 1 },
+				{ isHero: false, name: "Player", seatNumber },
 			],
 		};
 	}
@@ -159,60 +159,56 @@ describe("ExtractedTournamentDataSchema numeric boundaries", () => {
 	const validBlindLevel = { isBreak: false };
 	it("accepts zero and positive integer tournament values", () => {
 		const parsed = ExtractedTournamentDataSchema.safeParse({
-			buyIn: 0,
-			entryFee: 12,
-			startingStack: 1000,
-			tableSize: 2,
-			chipPurchases: [{ name: "Addon", cost: 0, chips: 500 }],
 			blindLevels: [
 				{
 					...validBlindLevel,
+					ante: 0,
 					blind1: 0,
 					blind2: 100,
 					blind3: 200,
-					ante: 0,
 					minutes: 10,
 				},
 			],
+			buyIn: 0,
+			chipPurchases: [{ chips: 500, cost: 0, name: "Addon" }],
+			entryFee: 12,
+			startingStack: 1000,
+			tableSize: 2,
 		});
 		expect(parsed.success).toBe(true);
 	});
-	it.each([
-		"buyIn",
-		"entryFee",
-		"startingStack",
-	])("rejects negative or fractional %s", (field) => {
-		for (const value of [-1, 1.5]) {
-			expect(
-				ExtractedTournamentDataSchema.safeParse({ [field]: value }).success
-			).toBe(false);
+	it.each(["buyIn", "entryFee", "startingStack"])(
+		"rejects negative or fractional %s",
+		(field) => {
+			for (const value of [-1, 1.5]) {
+				expect(
+					ExtractedTournamentDataSchema.safeParse({ [field]: value }).success
+				).toBe(false);
+			}
 		}
-	});
-	it.each([
-		"cost",
-		"chips",
-	])("rejects negative or fractional chip purchase %s", (field) => {
-		for (const value of [-1, 1.5]) {
-			const parsed = ExtractedTournamentDataSchema.safeParse({
-				chipPurchases: [{ name: "Addon", cost: 0, chips: 0, [field]: value }],
-			});
-			expect(parsed.success).toBe(false);
+	);
+	it.each(["cost", "chips"])(
+		"rejects negative or fractional chip purchase %s",
+		(field) => {
+			for (const value of [-1, 1.5]) {
+				const parsed = ExtractedTournamentDataSchema.safeParse({
+					chipPurchases: [{ chips: 0, cost: 0, name: "Addon", [field]: value }],
+				});
+				expect(parsed.success).toBe(false);
+			}
 		}
-	});
-	it.each([
-		"blind1",
-		"blind2",
-		"blind3",
-		"ante",
-		"minutes",
-	])("rejects negative or fractional blind-level %s", (field) => {
-		for (const value of [-1, 1.5]) {
-			const parsed = ExtractedTournamentDataSchema.safeParse({
-				blindLevels: [{ ...validBlindLevel, [field]: value }],
-			});
-			expect(parsed.success).toBe(false);
+	);
+	it.each(["blind1", "blind2", "blind3", "ante", "minutes"])(
+		"rejects negative or fractional blind-level %s",
+		(field) => {
+			for (const value of [-1, 1.5]) {
+				const parsed = ExtractedTournamentDataSchema.safeParse({
+					blindLevels: [{ ...validBlindLevel, [field]: value }],
+				});
+				expect(parsed.success).toBe(false);
+			}
 		}
-	});
+	);
 	it("accepts table sizes 2 through 10 and rejects 1, 11, and fractions", () => {
 		for (const tableSize of [2, 10]) {
 			expect(
@@ -228,13 +224,13 @@ describe("ExtractedTournamentDataSchema numeric boundaries", () => {
 
 	it("keeps the OpenAI output schema aligned with numeric Zod bounds", () => {
 		const base = {
-			name: null,
+			blindLevels: null,
 			buyIn: null,
+			chipPurchases: null,
 			entryFee: null,
+			name: null,
 			startingStack: null,
 			tableSize: null,
-			chipPurchases: null,
-			blindLevels: null,
 		};
 		expect(TOURNAMENT_OUTPUT_SCHEMA.safeParse(base).success).toBe(true);
 
@@ -251,7 +247,7 @@ describe("ExtractedTournamentDataSchema numeric boundaries", () => {
 		expect(
 			TOURNAMENT_OUTPUT_SCHEMA.safeParse({
 				...base,
-				chipPurchases: [{ name: "Addon", cost: -1, chips: 0 }],
+				chipPurchases: [{ chips: 0, cost: -1, name: "Addon" }],
 			}).success
 		).toBe(false);
 		expect(
@@ -259,11 +255,11 @@ describe("ExtractedTournamentDataSchema numeric boundaries", () => {
 				...base,
 				blindLevels: [
 					{
-						isBreak: false,
+						ante: null,
 						blind1: null,
 						blind2: null,
 						blind3: null,
-						ante: null,
+						isBreak: false,
 						minutes: 1.5,
 					},
 				],

@@ -12,8 +12,8 @@ const mocks = vi.hoisted(() => ({
 	navigate: vi.fn(),
 	onSwitchToSignUp: vi.fn(),
 	signInEmail: vi.fn(),
-	signInSocial: vi.fn(),
 	signInPasskey: vi.fn(),
+	signInSocial: vi.fn(),
 }));
 
 vi.mock("@sapphire2/env/web", () => ({
@@ -35,8 +35,8 @@ vi.mock("@/lib/auth-client", () => ({
 	authClient: {
 		signIn: {
 			email: mocks.signInEmail,
-			social: mocks.signInSocial,
 			passkey: mocks.signInPasskey,
+			social: mocks.signInSocial,
 		},
 		useSession: () => ({
 			isPending: false,

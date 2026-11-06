@@ -28,7 +28,7 @@ function pay<Role extends TournamentRole | CashRole>(
 	quantity: number,
 	effect: "real" | "virtual" = "real"
 ): Payment<Role> {
-	return { role, assetId, quantity, effect };
+	return { assetId, effect, quantity, role };
 }
 
 const at = (iso: string) => Date.parse(iso) / 1000;
@@ -44,7 +44,7 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 
 async function cashFixture(api: ApiFixture) {
 	const jpy = requireCreatedRow(
-		await api.alice.asset.create({ name: "JPY", kind: "currency" })
+		await api.alice.asset.create({ kind: "currency", name: "JPY" })
 	);
 	const room = requireCreatedRow(await api.alice.room.create({ name: "Club" }));
 	const rule = await nlhGame(api.db);
@@ -52,68 +52,68 @@ async function cashFixture(api: ApiFixture) {
 		await api.alice.entryTag.create({ name: "Home" })
 	);
 	const twoDays = await api.alice.entry.create({
+		assetId: jpy.id,
 		kind: "cash",
 		playedOn: "2026-09-01",
-		roomId: room.id,
-		assetId: jpy.id,
-		rule,
-		tagIds: [tag.id],
 		playSessions: [
 			{
-				localDate: "2026-09-01",
-				startedAt: at("2026-08-31T23:00:00Z"),
-				endedAt: at("2026-09-01T03:00:00Z"),
 				breakMinutes: 30,
-				endState: "held",
+				endedAt: at("2026-09-01T03:00:00Z"),
 				endStack: 12_000,
+				endState: "held",
+				localDate: "2026-09-01",
 				payments: [pay("buy_in", jpy.id, 10_000)],
+				startedAt: at("2026-08-31T23:00:00Z"),
 			},
 			{
-				localDate: "2026-09-02",
-				startedAt: at("2026-09-02T10:00:00Z"),
-				endedAt: at("2026-09-02T12:00:00Z"),
 				breakMinutes: 15,
+				endedAt: at("2026-09-02T12:00:00Z"),
 				endState: "cashed_out",
+				localDate: "2026-09-02",
 				payments: [pay("cash_out", jpy.id, 13_000)],
+				startedAt: at("2026-09-02T10:00:00Z"),
 			},
 		],
+		roomId: room.id,
+		rule,
+		tagIds: [tag.id],
 	});
 	const untimed = await api.alice.entry.create({
+		assetId: jpy.id,
 		kind: "cash",
+		payments: [pay("buy_in", jpy.id, 5000), pay("cash_out", jpy.id, 4000)],
 		playedOn: "2026-09-05",
 		roomId: room.id,
-		assetId: jpy.id,
 		rule,
-		payments: [pay("buy_in", jpy.id, 5000), pay("cash_out", jpy.id, 4000)],
 	});
 	await api.alice.entry.create({
-		kind: "cash",
-		playedOn: "2026-10-01",
 		assetId: jpy.id,
-		rule,
+		kind: "cash",
 		payments: [pay("buy_in", jpy.id, 1000), pay("cash_out", jpy.id, 90_000)],
+		playedOn: "2026-10-01",
+		rule,
 	});
 	await api.alice.live.create({
-		kind: "cash",
-		roomId: room.id,
 		assetId: jpy.id,
-		rule,
-		startedAt: at("2026-09-03T10:00:00Z"),
+		kind: "cash",
 		localDate: "2026-09-03",
 		payments: [pay("buy_in", jpy.id, 50_000)],
+		roomId: room.id,
+		rule,
+		startedAt: at("2026-09-03T10:00:00Z"),
 	});
 	const bobJpy = requireCreatedRow(
-		await api.bob.asset.create({ name: "JPY", kind: "currency" })
+		await api.bob.asset.create({ kind: "currency", name: "JPY" })
 	);
 	await api.bob.entry.create({
-		kind: "cash",
-		playedOn: "2026-09-01",
 		assetId: bobJpy.id,
-		rule: await nlhGame(api.db, "bob"),
+		kind: "cash",
 		payments: [
 			pay("buy_in", bobJpy.id, 1000),
 			pay("cash_out", bobJpy.id, 9000),
 		],
+		playedOn: "2026-09-01",
+		rule: await nlhGame(api.db, "bob"),
 	});
 	return { jpy, room, tag, twoDays, untimed };
 }
@@ -128,13 +128,13 @@ async function insertHands(
 	}
 	await api.db.insert(hand).values(
 		details.map((detail, index) => ({
-			id: `${playSessionId}-hand-${index + 1}`,
-			userId: "alice",
-			playSessionId,
-			handNo: index + 1,
-			seq: index + 1,
 			detail,
+			handNo: index + 1,
+			id: `${playSessionId}-hand-${index + 1}`,
+			playSessionId,
+			seq: index + 1,
 			updatedAt: new Date(),
+			userId: "alice",
 		}))
 	);
 }
@@ -152,36 +152,36 @@ describe("stats on D1", () => {
 
 		const summary = await api.alice.stats.summary(scope);
 		expect(summary).toMatchObject({
-			mode: "asset",
+			amounts: { buyIn: 15_000, cashOut: 17_000, profitLoss: 2000 },
 			assetId: jpy.id,
+			cashEntryCount: 2,
 			entryCount: 2,
 			excludedEntryCount: 0,
-			multiAssetEntryCount: 0,
-			amounts: { buyIn: 15_000, cashOut: 17_000, profitLoss: 2000 },
-			winCount: 1,
 			lossCount: 1,
-			winRate: 50,
-			cashEntryCount: 2,
-			tournamentEntryCount: 0,
+			mode: "asset",
+			multiAssetEntryCount: 0,
+			normalized: null,
 			playMinutes: 210 + 105,
 			roi: null,
-			normalized: null,
+			tournamentEntryCount: 0,
+			winCount: 1,
+			winRate: 50,
 		});
 		expect(summary.bbPerHour).toBeCloseTo(1500 / (315 / 60));
 
 		expect(
 			await api.alice.stats.summary({ ...scope, entryTagIds: [tag.id] })
-		).toMatchObject({ entryCount: 1, amounts: { profitLoss: 3000 } });
+		).toMatchObject({ amounts: { profitLoss: 3000 }, entryCount: 1 });
 
 		const byDay = await api.alice.stats.breakdown({
 			...scope,
 			groupBy: "dayOfWeek",
 		});
 		expect(
-			byDay.groups.map(({ key, entryCount }) => ({ key, entryCount }))
+			byDay.groups.map(({ key, entryCount }) => ({ entryCount, key }))
 		).toEqual([
-			{ key: "2", entryCount: 1 },
-			{ key: "6", entryCount: 1 },
+			{ entryCount: 1, key: "2" },
+			{ entryCount: 1, key: "6" },
 		]);
 		const byLength = await api.alice.stats.breakdown({
 			...scope,
@@ -201,13 +201,13 @@ describe("stats on D1", () => {
 		expect(
 			series.points.map(({ id, profitLoss, unit, playMinutes }) => ({
 				id,
+				playMinutes,
 				profitLoss,
 				unit,
-				playMinutes,
 			}))
 		).toEqual([
-			{ id: twoDays.id, profitLoss: 1500, unit: "bb", playMinutes: 315 },
-			{ id: untimed.id, profitLoss: -500, unit: "bb", playMinutes: null },
+			{ id: twoDays.id, playMinutes: 315, profitLoss: 1500, unit: "bb" },
+			{ id: untimed.id, playMinutes: null, profitLoss: -500, unit: "bb" },
 			expect.objectContaining({ profitLoss: 44_500, unit: "bb" }),
 		]);
 	});
@@ -216,25 +216,25 @@ describe("stats on D1", () => {
 		api,
 	}) => {
 		const pt = requireCreatedRow(
-			await api.alice.asset.create({ name: "PT", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "PT" })
 		);
 		const ticket = requireCreatedRow(
-			await api.alice.asset.create({ name: "Ticket", kind: "item" })
+			await api.alice.asset.create({ kind: "item", name: "Ticket" })
 		);
 		await api.alice.assetRate.create({
 			baseAssetId: ticket.id,
-			quoteAssetId: pt.id,
-			rateNum: 20_000,
-			rateDen: 1,
 			effectiveFrom: 0,
+			quoteAssetId: pt.id,
+			rateDen: 1,
+			rateNum: 20_000,
 		});
 		const tournament = (payments: Payment<TournamentRole>[]) =>
 			api.alice.entry.create({
 				kind: "tournament",
-				playedOn: "2026-09-01",
-				placement: 1,
-				totalEntries: 10,
 				payments,
+				placement: 1,
+				playedOn: "2026-09-01",
+				totalEntries: 10,
 			});
 		await tournament([pay("buy_in", pt.id, 3000), pay("prize", ticket.id, 1)]);
 		await tournament([
@@ -253,37 +253,37 @@ describe("stats on D1", () => {
 
 		const real = await api.alice.stats.summary({ valuation: "real" });
 		expect(real).toMatchObject({
-			mode: "valuation",
+			amounts: { buyIn: 3000, profitLoss: 50_000 },
 			baseAssetId: pt.id,
 			entryCount: 3,
 			excludedEntryCount: 0,
-			amounts: { profitLoss: 50_000, buyIn: 3000 },
 			itmCount: 3,
+			mode: "valuation",
 		});
 		expect(real.roi).toBeCloseTo((50_000 / 3000) * 100);
 		const virtual = await api.alice.stats.summary({
-			valuation: "virtual",
 			baseAssetId: pt.id,
+			valuation: "virtual",
 		});
 		expect(virtual.amounts).toMatchObject({
-			profitLoss: 45_000,
 			buyIn: 28_000,
+			profitLoss: 45_000,
 		});
 		expect(virtual.roi).toBeCloseTo((45_000 / 28_000) * 100);
 
 		expect(await api.alice.stats.summary({ assetId: pt.id })).toMatchObject({
+			amounts: { buyIn: 3000, profitLoss: -3000 + 45_000 + 8000 },
 			entryCount: 3,
 			multiAssetEntryCount: 2,
 			otherAssetIds: [ticket.id],
-			amounts: { profitLoss: -3000 + 45_000 + 8000, buyIn: 3000 },
 		});
 
 		const normalized = await api.alice.stats.summary({ normalized: true });
 		expect(normalized).toMatchObject({
 			amounts: null,
+			normalized: { cash: null, tournament: { entryCount: 3, unit: "bi" } },
 			roi: null,
 			unavailableNormalizationEntryCount: 0,
-			normalized: { cash: null, tournament: { unit: "bi", entryCount: 3 } },
 		});
 		expect(normalized.normalized?.tournament?.profitLoss).toBeCloseTo(
 			-1 + 45_000 / 20_000 + 8000 / 5000
@@ -294,15 +294,14 @@ describe("stats on D1", () => {
 		api,
 	}) => {
 		const pt = requireCreatedRow(
-			await api.alice.asset.create({ name: "PT", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "PT" })
 		);
 		const usd = requireCreatedRow(
-			await api.alice.asset.create({ name: "USD", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "USD" })
 		);
 		await api.alice.userSetting.update({ baseAssetId: pt.id });
 		const reentered = await api.alice.entry.create({
 			kind: "tournament",
-			playedOn: "2026-09-01",
 			payments: [
 				pay("buy_in", pt.id, 1000),
 				pay("fee", pt.id, 100),
@@ -310,25 +309,26 @@ describe("stats on D1", () => {
 				pay("fee", pt.id, 100),
 				pay("prize", pt.id, 5000),
 			],
+			playedOn: "2026-09-01",
 		});
 		const unrated = await api.alice.entry.create({
 			kind: "tournament",
-			playedOn: "2026-09-02",
 			payments: [pay("buy_in", usd.id, 10), pay("prize", usd.id, 30)],
+			playedOn: "2026-09-02",
 		});
 
 		const series = await api.alice.stats.profitLossSeries({ normalized: true });
 		const point = series.points.find(
 			(candidate) => candidate.id === reentered.id
 		);
-		expect(point).toMatchObject({ unit: "bi", buyInTotal: 1100 });
+		expect(point).toMatchObject({ buyInTotal: 1100, unit: "bi" });
 		expect(point?.profitLoss).toBeCloseTo(2800 / 1100);
 
 		const real = await api.alice.stats.summary({ valuation: "real" });
 		expect(real).toMatchObject({
+			amounts: { buyIn: 2200, profitLoss: 2800 },
 			entryCount: 2,
 			excludedEntryCount: 1,
-			amounts: { profitLoss: 2800, buyIn: 2200 },
 			tournamentEntryCount: 1,
 		});
 		expect(real.missingRates).toEqual([
@@ -347,22 +347,22 @@ describe("stats on D1", () => {
 		api,
 	}) => {
 		const asset = requireCreatedRow(
-			await api.alice.asset.create({ name: "Chips", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "Chips" })
 		);
 		const room = requireCreatedRow(
 			await api.alice.room.create({ name: "Hall" })
 		);
 		const tournament = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Main",
+			roomId: room.id,
 			rule: {
 				prices: [
 					{
-						kind: "entry",
-						assetId: asset.id,
 						amount: 1000,
-						fee: 100,
+						assetId: asset.id,
 						chips: 10_000,
+						fee: 100,
+						kind: "entry",
 					},
 				],
 			},
@@ -371,13 +371,13 @@ describe("stats on D1", () => {
 		const priceId = master.ruleVersion.prices[0]?.id ?? "";
 		const entry = await api.alice.entry.create({
 			kind: "tournament",
-			playedOn: "2026-09-01",
-			tournamentId: tournament.id,
 			payments: [
 				{ ...pay("buy_in", asset.id, 1000), priceId },
 				pay("fee", asset.id, 100),
 				pay("prize", asset.id, 2200),
 			],
+			playedOn: "2026-09-01",
+			tournamentId: tournament.id,
 		});
 		const series = await api.alice.stats.profitLossSeries({ normalized: true });
 		expect(series.points.find((point) => point.id === entry.id)).toMatchObject({
@@ -390,15 +390,15 @@ describe("stats on D1", () => {
 		api,
 	}) => {
 		const currency = requireCreatedRow(
-			await api.alice.asset.create({ name: "Points", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "Points" })
 		);
 		const ticket = requireCreatedRow(
-			await api.alice.asset.create({ name: "Ticket", kind: "item" })
+			await api.alice.asset.create({ kind: "item", name: "Ticket" })
 		);
 		const entry = await api.alice.entry.create({
 			kind: "tournament",
-			playedOn: "2026-09-01",
 			payments: [pay("buy_in", ticket.id, 1)],
+			playedOn: "2026-09-01",
 		});
 		await api.alice.userSetting.update({ baseAssetId: currency.id });
 		const missing = await api.alice.stats.profitLossSeries({
@@ -412,10 +412,10 @@ describe("stats on D1", () => {
 		);
 		await api.alice.assetRate.create({
 			baseAssetId: ticket.id,
-			quoteAssetId: currency.id,
-			rateNum: 20_000,
-			rateDen: 1,
 			effectiveFrom: 0,
+			quoteAssetId: currency.id,
+			rateDen: 1,
+			rateNum: 20_000,
 		});
 		const valued = await api.alice.stats.profitLossSeries({ normalized: true });
 		expect(valued.points.find((point) => point.id === entry.id)).toMatchObject({
@@ -428,25 +428,25 @@ describe("stats on D1", () => {
 		api,
 	}) => {
 		const asset = requireCreatedRow(
-			await api.alice.asset.create({ name: "Points", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "Points" })
 		);
 		const entry = await api.alice.entry.create({
+			assetId: asset.id,
 			kind: "cash",
 			playedOn: "2026-09-01",
-			assetId: asset.id,
-			rule: await nlhGame(api.db),
 			playSessions: [
 				{
-					localDate: "2026-09-01",
-					startedAt: at("2026-09-01T10:00:00Z"),
 					endedAt: at("2026-09-01T10:01:30Z"),
 					endState: "cashed_out",
+					localDate: "2026-09-01",
 					payments: [
 						pay("buy_in", asset.id, 100),
 						pay("cash_out", asset.id, 120),
 					],
+					startedAt: at("2026-09-01T10:00:00Z"),
 				},
 			],
+			rule: await nlhGame(api.db),
 		});
 		await insertHands(api, entry.playSessions[0]?.id, ["count"]);
 		const summary = await api.alice.stats.summary({ assetId: asset.id });
@@ -459,18 +459,18 @@ describe("stats on D1", () => {
 		api,
 	}) => {
 		const asset = requireCreatedRow(
-			await api.alice.asset.create({ name: "Points", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "Points" })
 		);
 		const rule = await nlhGame(api.db);
 		await api.alice.entry.create({
-			kind: "cash",
-			playedOn: "2026-09-01",
 			assetId: asset.id,
-			rule,
+			kind: "cash",
 			payments: [
 				pay("buy_in", asset.id, 1000),
 				pay("cash_out", asset.id, 1500),
 			],
+			playedOn: "2026-09-01",
+			rule,
 		});
 		expect(await api.alice.stats.summary({ assetId: asset.id })).toMatchObject({
 			evDiff: null,
@@ -478,15 +478,15 @@ describe("stats on D1", () => {
 			evRecordedEntryCount: 0,
 		});
 		await api.alice.entry.create({
-			kind: "cash",
-			playedOn: "2026-09-02",
 			assetId: asset.id,
-			rule,
 			evDiff: -1200,
+			kind: "cash",
 			payments: [
 				pay("buy_in", asset.id, 1000),
 				pay("cash_out", asset.id, 4000),
 			],
+			playedOn: "2026-09-02",
+			rule,
 		});
 		expect(await api.alice.stats.summary({ assetId: asset.id })).toMatchObject({
 			evDiff: -1200,
@@ -513,7 +513,7 @@ describe("stats on D1", () => {
 		);
 		expect(
 			await rejection(
-				api.alice.stats.summary({ normalized: true, entryTagIds: [bobTag.id] })
+				api.alice.stats.summary({ entryTagIds: [bobTag.id], normalized: true })
 			)
 		).toMatchObject({ code: "FORBIDDEN" });
 		expect(
@@ -525,7 +525,7 @@ describe("stats on D1", () => {
 		api,
 	}) => {
 		const jpy = requireCreatedRow(
-			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "JPY" })
 		);
 		const nlh = await nlhGame(api.db);
 		const cash = (
@@ -533,34 +533,34 @@ describe("stats on D1", () => {
 			playSessions: NonNullable<CashInput["playSessions"]>
 		) =>
 			api.alice.entry.create({
+				assetId: jpy.id,
 				kind: "cash",
 				playedOn: playSessions[0]?.localDate ?? "",
-				assetId: jpy.id,
-				rule,
 				playSessions,
+				rule,
 			});
 		const multiDay = await cash(nlh, [
 			{
-				localDate: "2026-09-01",
-				startedAt: at("2026-09-01T10:00:00Z"),
-				endedAt: at("2026-09-01T14:00:00Z"),
 				breakMinutes: 30,
-				endState: "held",
+				endedAt: at("2026-09-01T14:00:00Z"),
 				endStack: 1200,
+				endState: "held",
+				localDate: "2026-09-01",
 				payments: [pay("buy_in", jpy.id, 1000)],
+				startedAt: at("2026-09-01T10:00:00Z"),
 			},
 			{
-				localDate: "2026-09-02",
-				endState: "held",
 				endStack: 1300,
+				endState: "held",
+				localDate: "2026-09-02",
 				payments: [],
 			},
 			{
-				localDate: "2026-09-03",
-				startedAt: at("2026-09-03T10:00:00Z"),
 				endedAt: at("2026-09-03T11:00:00Z"),
 				endState: "cashed_out",
+				localDate: "2026-09-03",
 				payments: [pay("cash_out", jpy.id, 1400)],
+				startedAt: at("2026-09-03T10:00:00Z"),
 			},
 		]);
 		const bigBlindFive = await cash(
@@ -570,11 +570,11 @@ describe("stats on D1", () => {
 			},
 			[
 				{
-					localDate: "2026-09-04",
-					startedAt: at("2026-09-04T10:00:00Z"),
 					endedAt: at("2026-09-04T12:00:00Z"),
 					endState: "cashed_out",
+					localDate: "2026-09-04",
 					payments: [pay("buy_in", jpy.id, 500), pay("cash_out", jpy.id, 400)],
+					startedAt: at("2026-09-04T10:00:00Z"),
 				},
 			]
 		);
@@ -582,40 +582,40 @@ describe("stats on D1", () => {
 			{
 				game: { gameMixId: "alice:builtin-mix:horse" },
 				stakes: [
-					{ gameGroupId: "alice:builtin-group:limit", blind1: 2, blind2: 4 },
-					{ gameGroupId: "alice:builtin-group:stud", blind1: 2, blind2: 4 },
+					{ blind1: 2, blind2: 4, gameGroupId: "alice:builtin-group:limit" },
+					{ blind1: 2, blind2: 4, gameGroupId: "alice:builtin-group:stud" },
 				],
 			},
 			[
 				{
-					localDate: "2026-09-05",
-					startedAt: at("2026-09-05T10:00:00Z"),
 					endedAt: at("2026-09-05T11:00:00Z"),
 					endState: "cashed_out",
+					localDate: "2026-09-05",
 					payments: [pay("buy_in", jpy.id, 100), pay("cash_out", jpy.id, 900)],
+					startedAt: at("2026-09-05T10:00:00Z"),
 				},
 			]
 		);
 		await cash(nlh, [
 			{
-				localDate: "2026-09-06",
-				startedAt: at("2026-09-06T10:00:00Z"),
 				endedAt: at("2026-09-06T11:00:00Z"),
 				endState: "cashed_out",
+				localDate: "2026-09-06",
 				payments: [pay("buy_in", jpy.id, 100), pay("cash_out", jpy.id, 1100)],
+				startedAt: at("2026-09-06T10:00:00Z"),
 			},
 		]);
 		const tournament = await api.alice.entry.create({
+			assetId: jpy.id,
 			kind: "tournament",
 			playedOn: "2026-09-07",
-			assetId: jpy.id,
 			playSessions: [
 				{
-					localDate: "2026-09-07",
-					startedAt: at("2026-09-07T10:00:00Z"),
 					endedAt: at("2026-09-07T11:00:00Z"),
 					endState: "busted",
+					localDate: "2026-09-07",
 					payments: [pay("buy_in", jpy.id, 300)],
+					startedAt: at("2026-09-07T10:00:00Z"),
 				},
 			],
 		});
@@ -667,17 +667,17 @@ describe("stats on D1", () => {
 		});
 		expect(
 			byKind.groups.map(({ key, bb100, handsPerHour }) => ({
-				key,
 				bb100,
 				handsPerHour,
+				key,
 			}))
 		).toEqual([
 			{
-				key: "cash",
 				bb100: expect.closeTo(1800),
 				handsPerHour: expect.closeTo(18 / (390 / 60)),
+				key: "cash",
 			},
-			{ key: "tournament", bb100: null, handsPerHour: 4 },
+			{ bb100: null, handsPerHour: 4, key: "tournament" },
 		]);
 	});
 
@@ -685,7 +685,7 @@ describe("stats on D1", () => {
 		api,
 	}) => {
 		const asset = requireCreatedRow(
-			await api.alice.asset.create({ name: "Points", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "Points" })
 		);
 		const rule = await nlhGame(api.db);
 		const firstRoom = requireCreatedRow(
@@ -698,66 +698,66 @@ describe("stats on D1", () => {
 			await api.alice.tournamentTag.create({ name: "Featured" })
 		);
 		const tournament = await api.alice.tournament.create({
-			roomId: firstRoom.id,
 			name: "Featured tournament",
-			tagIds: [tag.id],
+			roomId: firstRoom.id,
 			rule: {},
+			tagIds: [tag.id],
 		});
 		await api.alice.entry.create({
+			assetId: asset.id,
 			kind: "cash",
+			payments: [pay("buy_in", asset.id, 100), pay("cash_out", asset.id, 200)],
 			playedOn: "2025-12-31",
 			roomId: firstRoom.id,
-			assetId: asset.id,
 			rule,
-			payments: [pay("buy_in", asset.id, 100), pay("cash_out", asset.id, 200)],
 		});
 		await api.alice.entry.create({
 			kind: "tournament",
+			payments: [pay("buy_in", asset.id, 100), pay("prize", asset.id, 300)],
 			playedOn: "2026-01-01",
 			roomId: firstRoom.id,
 			tournamentId: tournament.id,
-			payments: [pay("buy_in", asset.id, 100), pay("prize", asset.id, 300)],
 		});
 		await api.alice.entry.create({
 			kind: "tournament",
+			payments: [pay("buy_in", asset.id, 300)],
 			playedOn: "2026-01-02",
 			roomId: secondRoom.id,
-			payments: [pay("buy_in", asset.id, 300)],
 		});
 
 		const scope = { assetId: asset.id };
 		expect(await api.alice.stats.summary(scope)).toMatchObject({
-			entryCount: 3,
 			amounts: { profitLoss: 0 },
+			entryCount: 3,
 		});
 		expect(
 			await api.alice.stats.summary({ ...scope, roomId: firstRoom.id })
-		).toMatchObject({ entryCount: 2, amounts: { profitLoss: 300 } });
+		).toMatchObject({ amounts: { profitLoss: 300 }, entryCount: 2 });
 		expect(
 			await api.alice.stats.summary({ ...scope, kind: "tournament" })
-		).toMatchObject({ entryCount: 2, amounts: { profitLoss: -100 } });
+		).toMatchObject({ amounts: { profitLoss: -100 }, entryCount: 2 });
 		expect(
 			await api.alice.stats.summary({ ...scope, tournamentTagIds: [tag.id] })
-		).toMatchObject({ entryCount: 1, amounts: { profitLoss: 200 } });
+		).toMatchObject({ amounts: { profitLoss: 200 }, entryCount: 1 });
 		expect(
 			await api.alice.stats.summary({
 				...scope,
-				roomId: secondRoom.id,
 				kind: "tournament",
+				roomId: secondRoom.id,
 				tournamentTagIds: [tag.id],
 			})
-		).toMatchObject({ entryCount: 0, amounts: { profitLoss: 0 } });
+		).toMatchObject({ amounts: { profitLoss: 0 }, entryCount: 0 });
 
 		const byRoom = await api.alice.stats.breakdown({
 			...scope,
 			groupBy: "room",
 		});
 		expect(
-			byRoom.groups.map(({ key, entryCount }) => ({ key, entryCount }))
+			byRoom.groups.map(({ key, entryCount }) => ({ entryCount, key }))
 		).toEqual(
 			expect.arrayContaining([
-				{ key: firstRoom.id, entryCount: 2 },
-				{ key: secondRoom.id, entryCount: 1 },
+				{ entryCount: 2, key: firstRoom.id },
+				{ entryCount: 1, key: secondRoom.id },
 			])
 		);
 		expect(byRoom.groups).toHaveLength(2);
@@ -766,11 +766,11 @@ describe("stats on D1", () => {
 			groupBy: "stakes",
 		});
 		expect(
-			byStakes.groups.map(({ key, entryCount }) => ({ key, entryCount }))
+			byStakes.groups.map(({ key, entryCount }) => ({ entryCount, key }))
 		).toEqual(
 			expect.arrayContaining([
-				{ key: `${rule.stakes[0]?.gameGroupId}:1/2///`, entryCount: 1 },
-				{ key: "tournament", entryCount: 2 },
+				{ entryCount: 1, key: `${rule.stakes[0]?.gameGroupId}:1/2///` },
+				{ entryCount: 2, key: "tournament" },
 			])
 		);
 		expect(byStakes.groups).toHaveLength(2);
@@ -779,17 +779,17 @@ describe("stats on D1", () => {
 			groupBy: "variant",
 		});
 		expect(
-			byVariant.groups.map(({ key, entryCount }) => ({ key, entryCount }))
-		).toEqual([{ key: `variant:${rule.game.variantId}`, entryCount: 3 }]);
+			byVariant.groups.map(({ key, entryCount }) => ({ entryCount, key }))
+		).toEqual([{ entryCount: 3, key: `variant:${rule.game.variantId}` }]);
 		const byYear = await api.alice.stats.breakdown({
 			...scope,
 			groupBy: "year",
 		});
 		expect(
-			byYear.groups.map(({ key, entryCount }) => ({ key, entryCount }))
+			byYear.groups.map(({ key, entryCount }) => ({ entryCount, key }))
 		).toEqual([
-			{ key: "2025", entryCount: 1 },
-			{ key: "2026", entryCount: 2 },
+			{ entryCount: 1, key: "2025" },
+			{ entryCount: 2, key: "2026" },
 		]);
 
 		const foreignRoom = requireCreatedRow(
@@ -799,7 +799,7 @@ describe("stats on D1", () => {
 			await api.bob.tournamentTag.create({ name: "Foreign" })
 		);
 		const foreignAsset = requireCreatedRow(
-			await api.bob.asset.create({ name: "Foreign", kind: "currency" })
+			await api.bob.asset.create({ kind: "currency", name: "Foreign" })
 		);
 		expect(
 			await rejection(
@@ -814,8 +814,8 @@ describe("stats on D1", () => {
 		expect(
 			await rejection(
 				api.alice.stats.summary({
-					valuation: "real",
 					baseAssetId: foreignAsset.id,
+					valuation: "real",
 				})
 			)
 		).toMatchObject({ code: "FORBIDDEN" });
