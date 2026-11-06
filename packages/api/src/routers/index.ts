@@ -14,6 +14,7 @@ import { ledgerRouter } from "./ledger";
 import { ledgerCategoryRouter } from "./ledger-category";
 import { liveRouter } from "./live";
 import { locationRouter } from "./location";
+import { mcpConnectionRouter } from "./mcp-connection";
 import { playEventRouter } from "./play-event";
 import { playerRouter } from "./player";
 import { playerTagRouter } from "./player-tag";
@@ -56,5 +57,6 @@ export const appRouter = router({
 	playerTag: playerTagRouter,
 	updateNoteView: updateNoteViewRouter,
 	filterPreset: filterPresetRouter,
+	mcpConnection: mcpConnectionRouter,
 });
 export type AppRouter = typeof appRouter;

@@ -818,6 +818,11 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
+			"Web-only control over MCP OAuth grants: one connected client must not enumerate or disconnect the user's other clients",
+		paths: ["mcpConnection.list", "mcpConnection.revoke"],
+	},
+	{
+		reason:
 			"Web UI filter presets — screen state persistence, not data an agent needs",
 		paths: [
 			"filterPreset.list",

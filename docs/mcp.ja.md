@@ -38,6 +38,8 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 
 MCP の接続は web アプリへのログイン状態に依存しません。
 
+クライアントの接続を解除するには、web アプリの **Settings → MCP clients** で **Disconnect** を選びます。そのクライアントのアクセストークンとリフレッシュトークンはすぐに使えなくなり、再び使うには認可をやり直します。
+
 ディスカバリ文書（RFC 8414 / RFC 9728）。認可サーバーの issuer は `https://<your-api-host>/api/auth` です:
 
 - `GET /.well-known/oauth-authorization-server/api/auth`（`/.well-known/oauth-authorization-server` と `/api/auth/.well-known/oauth-authorization-server` にも併設）

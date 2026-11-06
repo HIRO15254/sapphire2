@@ -38,6 +38,8 @@ Claude Code runs the same OAuth flow on first use (`/mcp` → authenticate).
 
 The MCP connection does not depend on staying signed in to the web app.
 
+To disconnect a client, open **Settings → MCP clients** in the web app and choose **Disconnect**. Its access and refresh tokens stop working immediately; using it again needs a new authorization.
+
 Discovery documents (RFC 8414 / RFC 9728); the authorization server's issuer is `https://<your-api-host>/api/auth`:
 
 - `GET /.well-known/oauth-authorization-server/api/auth` (also at `/.well-known/oauth-authorization-server` and `/api/auth/.well-known/oauth-authorization-server`)

@@ -1,6 +1,7 @@
 import { IconLogout } from "@tabler/icons-react";
 import { AboutSection } from "@/features/settings/pages/settings-page/about-section";
 import { LinkedAccounts } from "@/features/settings/pages/settings-page/linked-accounts";
+import { McpConnections } from "@/features/settings/pages/settings-page/mcp-connections";
 import { Passkeys } from "@/features/settings/pages/settings-page/passkeys";
 import { ThemeSetting } from "@/features/settings/pages/settings-page/theme-setting";
 import { PageHeader } from "@/shared/components/page-header";
@@ -24,6 +25,7 @@ export function SettingsPage() {
 				<ThemeSetting />
 				<LinkedAccounts />
 				<Passkeys />
+				<McpConnections />
 				<AboutSection />
 				<ItemGroup size="xl" variant="inset">
 					<Item asChild variant="destructive">
