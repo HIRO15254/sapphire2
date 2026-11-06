@@ -27,6 +27,10 @@ import { queryClient as appQueryClient } from "@/utils/trpc";
 import { renderIntegrationPage, trpcHttpHandler } from "./integration";
 import { createTestQueryClient } from "./test-utils";
 
+vi.mock("@sapphire2/env/web", () => ({
+	env: { VITE_SERVER_URL: "http://localhost:8787" },
+}));
+
 const t = initTRPC.create();
 const undoName = /Undo/;
 const notFoundText = /not found/i;
