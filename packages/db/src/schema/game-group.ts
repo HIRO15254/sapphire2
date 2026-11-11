@@ -8,7 +8,9 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import type { BuiltinGroupKey } from "../constants/game-variants";
+import { ANTE_TYPES } from "../constants/rule";
 import { user } from "./auth";
+import { oneOf } from "./sql-checks";
 
 export const gameGroup = sqliteTable(
 	"game_group",
@@ -30,6 +32,7 @@ export const gameGroup = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		fixedAnteType: text("fixed_ante_type", { enum: ANTE_TYPES }),
 		id: text("id").primaryKey(),
 		label: text("label").notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
@@ -61,6 +64,10 @@ export const gameGroup = sqliteTable(
 		check(
 			"game_group_blind3_required_check",
 			sql`${table.blind3Required} IN (0, 1)`
+		),
+		check(
+			"game_group_fixed_ante_type_check",
+			oneOf(table.fixedAnteType, ANTE_TYPES)
 		),
 	]
 );

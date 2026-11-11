@@ -49,6 +49,12 @@ Big Bet has only SB and BB; there is no Straddle field. User-created structures 
 
 Only a labeled field may be Required (BAD_REQUEST otherwise). Rule writes reject a NULL required blind or a value in an unlabeled field using the lineup group’s stored `game_group_id`. New stake writes guard the validated group labels and required flags in the same batch; a concurrent change returns CONFLICT. Reusing an existing version does not revalidate its stakes. Clearing a label while saved stakes still contain a value in that field returns CONFLICT.
 
+### Fixed ante type
+
+`game_group.fixed_ante_type` is NULL (each stake chooses its ante type) or `none | all | bb`, which fixes the type of every stake the client supplies for that structure. It is a per-structure setting, never a special case of a built-in key, so a user-created structure can carry the same condition; built-in Stud starts at `all` and Limit and Big Bet at NULL. Every structure, built-in included, can change it.
+
+When it is set, an omitted or NULL supplied `anteType` is saved as the fixed type, an equal one is kept, and a different one is BAD_REQUEST; a structure fixed to `none` also rejects a supplied `ante` amount. The default is filled before the unchanged-version comparison, so resending the saved stakes keeps the version; the rejection runs only when a new version is written. Carried stakes and reused versions are neither checked nor rewritten, and changing the setting never rewrites saved stakes. The stake guard also asserts the `fixed_ante_type` it read, so a concurrent change returns CONFLICT. Migration `0084_fixed_ante_type` set built-in Stud to `all` and aligned the `ante_type` of every stake saved on it to `all`, so the stats stakes key does not split around the change.
+
 ### Cash versions
 
 `cash_rule` contains nullable `ring_game_id`, nullable `parent_rule_id`, required `lineup_id`, nullable `min_buy_in`, `max_buy_in`, `table_size`, and `house_rules`, besides the common columns.

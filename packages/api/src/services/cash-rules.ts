@@ -26,7 +26,9 @@ import {
 	resolveDefaultGame,
 } from "./game-lineup";
 import {
+	assertFixedAnteTypes,
 	assertStakeBlinds,
+	loadStakeStructures,
 	type PlannedStake,
 	planStakes,
 	stakeInputSchema,
@@ -247,13 +249,19 @@ export async function prepareCashRule(
 			message: "The current rule version has no game",
 		});
 	}
+	const structures = await loadStakeStructures(
+		db,
+		userId,
+		(input.stakes ?? []).map((stake) => stake.gameGroupId)
+	);
 	const stakes = planStakes(
 		lineup.groups.map((group) => ({
 			gameGroupId: group.gameGroupId,
 			lineupGroupId: group.id,
 		})),
 		input.stakes,
-		current?.stakes ?? []
+		current?.stakes ?? [],
+		structures
 	);
 	const scalars = mergeCashScalars(input, current ?? null);
 	validateBuyInRange(scalars.minBuyIn, scalars.maxBuyIn);
@@ -261,7 +269,8 @@ export async function prepareCashRule(
 	if (current && cashSignature(current) === cashSignature(content)) {
 		return { id: current.id, statements: [] as BatchStatement[] };
 	}
-	const stakeGuards = await assertStakeBlinds(db, userId, stakes);
+	assertFixedAnteTypes(input.stakes ?? [], structures);
+	const stakeGuards = await assertStakeBlinds(db, userId, stakes, structures);
 	const id = crypto.randomUUID();
 	const statements: BatchStatement[] = [
 		...stakeGuards,

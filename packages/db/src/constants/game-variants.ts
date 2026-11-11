@@ -1,3 +1,5 @@
+import type { ANTE_TYPES } from "./rule";
+
 export type BuiltinGroupKey = "bigbet" | "limit" | "stud";
 
 interface DefaultGameGroup {
@@ -7,6 +9,7 @@ interface DefaultGameGroup {
 	blind2Required: boolean;
 	blind3Label: string | null;
 	blind3Required: boolean;
+	fixedAnteType: (typeof ANTE_TYPES)[number] | null;
 	key: BuiltinGroupKey;
 	label: string;
 }
@@ -19,6 +22,7 @@ export const DEFAULT_GAME_GROUPS: DefaultGameGroup[] = [
 		blind2Required: true,
 		blind3Label: null,
 		blind3Required: false,
+		fixedAnteType: null,
 		key: "limit",
 		label: "Limit",
 	},
@@ -29,6 +33,7 @@ export const DEFAULT_GAME_GROUPS: DefaultGameGroup[] = [
 		blind2Required: true,
 		blind3Label: "Bring-in",
 		blind3Required: false,
+		fixedAnteType: "all",
 		key: "stud",
 		label: "Stud",
 	},
@@ -39,6 +44,7 @@ export const DEFAULT_GAME_GROUPS: DefaultGameGroup[] = [
 		blind2Required: true,
 		blind3Label: null,
 		blind3Required: false,
+		fixedAnteType: null,
 		key: "bigbet",
 		label: "Big Bet",
 	},
