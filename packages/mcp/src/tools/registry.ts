@@ -479,14 +479,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	},
 	{
 		description:
-			"List the user's game mixes (named rotations such as HORSE), with games as variant IDs in rotation order; use game_variant_list to resolve the IDs. Archived mixes are omitted unless includeArchived is true.",
+			"List the user's game mixes (named sets of games such as HORSE), with games as variant IDs in the server's fixed order (game group, then variant list order); use game_variant_list to resolve the IDs. Archived mixes are omitted unless includeArchived is true.",
 		inputSchema: gameMixListInputSchema,
 		name: "game_mix_list",
 		procedurePath: "gameMix.list",
 	},
 	{
 		description:
-			"Create a game mix from existing active variants. label must be unique across the user's mixes, ignoring case and surrounding spaces, archived mixes included — a label held by an archived mix is rejected with a hint to restore it with game_mix_restore instead. A variant may share the mix's label. games lists 2–30 distinct variant IDs in rotation order, spanning at most 12 game groups.",
+			"Create a game mix from existing active variants. label must be unique across the user's mixes, ignoring case and surrounding spaces, archived mixes included — a label held by an archived mix is rejected with a hint to restore it with game_mix_restore instead. A variant may share the mix's label. games lists 2–60 distinct variant IDs spanning at most 12 game groups. A mix is an unordered set: the server stores the games in game-group order (game_group_list order), then game_variant_list order within a group, whatever order you send. A set of games already held by another of the user's mixes, archived and built-in included, is rejected with CONFLICT naming that mix.",
 		destructiveHint: false,
 		idempotentHint: false,
 		inputSchema: gameMixCreateInputSchema,
@@ -495,7 +495,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	},
 	{
 		description:
-			"Update a game mix by id. Only supplied fields change, except that games REPLACES the whole rotation — read game_mix_list first (with includeArchived: true when the mix is archived) and send back the full list. games contains 2–30 distinct variant IDs spanning at most 12 game groups; already-member archived variants may be retained but not newly added. Sending label alone leaves games untouched. Existing ring-game lineups retain their saved composition when the mix changes; selecting the mix again uses its current rotation. Renaming changes their displayed mix name without changing their composition.",
+			"Update a game mix by id. Only supplied fields change, except that games REPLACES the whole rotation — read game_mix_list first (with includeArchived: true when the mix is archived) and send back the full list. games contains 2–60 distinct variant IDs spanning at most 12 game groups and is stored in the same fixed order as game_mix_create; a set already held by another mix is rejected with CONFLICT. Already-member archived variants may be retained but not newly added. Sending label alone leaves games untouched. Existing ring-game lineups retain their saved composition when the mix changes; selecting the mix again uses its current games. Renaming changes their displayed mix name without changing their composition.",
 		destructiveHint: true,
 		idempotentHint: true,
 		inputSchema: gameMixUpdateInputSchema,

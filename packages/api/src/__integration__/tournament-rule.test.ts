@@ -1,4 +1,5 @@
 import { entry, entryTournament } from "@sapphire2/db/schema/entry";
+import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import {
 	tournamentRule,
@@ -61,6 +62,26 @@ function withoutIds<T>(value: T): unknown {
 async function versionCount(api: ApiFixture): Promise<number> {
 	return (await api.db.select({ id: tournamentRule.id }).from(tournamentRule))
 		.length;
+}
+
+async function legacyMix(api: ApiFixture, label: string, games: string[]) {
+	const id = crypto.randomUUID();
+	await api.db.insert(gameMix).values({
+		builtinKey: null,
+		id,
+		label,
+		updatedAt: new Date(),
+		userId: "alice",
+	});
+	await api.db.insert(gameMixVariant).values(
+		games.map((variantId, position) => ({
+			mixId: id,
+			position,
+			userId: "alice",
+			variantId,
+		}))
+	);
+	return { id };
 }
 
 describe("tournament rule versions on D1", () => {
@@ -264,18 +285,8 @@ describe("tournament rule versions on D1", () => {
 		api,
 	}) => {
 		const { room, nlh, plo, razz } = await setup(api);
-		const forward = requireCreatedRow(
-			await api.alice.gameMix.create({
-				games: [nlh.id, razz.id],
-				label: "NLH Razz",
-			})
-		);
-		const reversed = requireCreatedRow(
-			await api.alice.gameMix.create({
-				games: [razz.id, nlh.id],
-				label: "Razz NLH",
-			})
-		);
+		const forward = await legacyMix(api, "NLH Razz", [nlh.id, razz.id]);
+		const reversed = await legacyMix(api, "Razz NLH", [razz.id, nlh.id]);
 		const created = await api.alice.tournament.createWithLevels({
 			name: "Mixed",
 			roomId: room.id,

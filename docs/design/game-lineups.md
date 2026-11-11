@@ -122,7 +122,7 @@ Published lineups, versions, levels, stakes and prices are immutable. Master cre
 `game` is exactly one of `{ variantId }`, `{ gameMixId }`, `{ lineupId }`; on a tournament level, `null` means inherit. Each stakes element names its `gameGroupId`, which the server checks against the resulting ordered group. Omitted stakes carry forward by `(game_group_id, ordinal among groups of that structure)`, never by absolute position.
 
 - A variant produces one group with one variant.
-- A mix buckets its ordered variants by their current group, with groups ordered by the first appearance of that structure in the mix. Renames cannot reorder them.
+- A mix is an unordered set of games. Writes store its variants in canonical order (game-group list order, then variant list order), so a mix's groups follow structure order and the same set always yields the same lineup. A mix saved before this rule keeps its stored order until its games are saved again; lineups bucket its variants by their current group in first-appearance order. Renames cannot reorder them. One mix per set of games per user: a write whose set another mix holds is CONFLICT.
 - A lineup id reuses the immutable composition, including custom mixes with several groups of the same structure.
 - On create, omitted game inherits from the linked master or uses the user's builtin NLH when unlinked. No API manufactures an archived stand-in master.
 
