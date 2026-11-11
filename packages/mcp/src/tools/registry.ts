@@ -393,7 +393,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	},
 	{
 		description:
-			"List the user's game groups (the families game variants belong to, e.g. Limit / Stud / Big Bet), including the labels their three blind fields use whether each field is required (blind1Required-blind3Required), and fixedAnteType: the ante type every new stake of the group must use (none | all | bb), or null when it is chosen per stake. Archived groups are omitted unless includeArchived is true.",
+			"List the user's game groups (the families game variants belong to, e.g. Limit / Stud / Big Bet), including the labels their three blind fields use, whether each field is required (blind1Required-blind3Required), and fixedAnteType: the ante type every new stake of the group must use (none | all | bb), or null when it is chosen per stake. Archived groups are omitted unless includeArchived is true.",
 		inputSchema: gameGroupListInputSchema,
 		name: "game_group_list",
 		procedurePath: "gameGroup.list",
