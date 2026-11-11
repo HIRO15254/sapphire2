@@ -168,6 +168,8 @@ On manual update, a supplied `ManualPlay.id` identifies an existing Day of that 
 
 For newly written stake rows, the server rejects a null/omitted blind marked Required by its game group, or a value in a blind field without a label (`BAD_REQUEST`). Every stake row of a new rule version counts as newly written, including values carried forward from the previous version when `stakes` is omitted. Ante is outside this requirement system. Reusing an existing immutable rule version does not revalidate its stakes. The shared rule-write service enforces this.
 
+Ante type follows the game group's `fixedAnteType`, for stakes the client supplies only. When it is set, an omitted or null `anteType` is saved as the fixed type, an equal one is kept, a different one is `BAD_REQUEST`, and a group fixed to `none` also rejects a non-null `ante` (`BAD_REQUEST`). A null `fixedAnteType` keeps the supplied value. Carried stakes and reused versions are neither checked nor rewritten, and changing a group's setting never rewrites saved stakes. Ante amounts stay optional.
+
 ```ts
 type CashRuleInput = {
   game?: GameInput; stakes?: StakeInput[];
@@ -455,20 +457,20 @@ Breakdown groups sort weekday numerically, length by the bucket order above, and
 
 ## 16. `gameGroup`
 
-`GameGroup = {id,userId,label,blind1Label,blind2Label,blind3Label,blind1Required:boolean,blind2Required:boolean,blind3Required:boolean,builtinKey,archivedAt,createdAt,updatedAt}`. Label trimmed 1–30 characters; blind labels nullable, trimmed 1–20. Case-insensitive trimmed label uniqueness is within this master kind. Archived rows keep their label reservation.
+`GameGroup = {id,userId,label,blind1Label,blind2Label,blind3Label,blind1Required:boolean,blind2Required:boolean,blind3Required:boolean,fixedAnteType:'none'|'all'|'bb'|null,builtinKey,archivedAt,createdAt,updatedAt}`. Label trimmed 1–30 characters; blind labels nullable, trimmed 1–20. Case-insensitive trimmed label uniqueness is within this master kind. Archived rows keep their label reservation.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | `{includeArchived?:boolean}` | GameGroup[] | — | `game_group_list` |
-| `create` M | `{label,blind1Label?,blind2Label?,blind3Label?,blind1Required?:boolean=false,blind2Required?:boolean=false,blind3Required?:boolean=false}` | GameGroup | Duplicate: CONFLICT; Required field without a label: BAD_REQUEST | `game_group_create` |
-| `update` M | `{id,label?,blind1Label?:string|null,blind2Label?:string|null,blind3Label?:string|null,blind1Required?:boolean,blind2Required?:boolean,blind3Required?:boolean}` | GameGroup | Duplicate or clearing a label with stored stake values: CONFLICT; Required field without a label: BAD_REQUEST | `game_group_update` |
+| `create` M | `{label,blind1Label?,blind2Label?,blind3Label?,blind1Required?:boolean=false,blind2Required?:boolean=false,blind3Required?:boolean=false,fixedAnteType?:'none'|'all'|'bb'|null=null}` | GameGroup | Duplicate: CONFLICT; Required field without a label: BAD_REQUEST | `game_group_create` |
+| `update` M | `{id,label?,blind1Label?:string|null,blind2Label?:string|null,blind3Label?:string|null,blind1Required?:boolean,blind2Required?:boolean,blind3Required?:boolean,fixedAnteType?:'none'|'all'|'bb'|null}` | GameGroup | Duplicate or clearing a label with stored stake values: CONFLICT; Required field without a label: BAD_REQUEST | `game_group_update` |
 | `archive` M | IdInput | GameGroup | Active variants using group: CONFLICT | `game_group_archive` |
 | `restore` M | IdInput | GameGroup | — | `game_group_restore` |
 | `delete` M | IdInput | Ack | Variants or lineup groups reference it: CONFLICT, archive instead | Excluded: destructive |
 
-Only labeled blind fields may be Required; validate the merged group on create/update (`BAD_REQUEST`). User-created groups default all three flags to false (Optional). Clearing a blind label while any saved stake still has a value in that field is `CONFLICT`. Stake writes follow §2; existing version reuse is exempt, not newly written rows. Ante is unaffected.
+Only labeled blind fields may be Required; validate the merged group on create/update (`BAD_REQUEST`). User-created groups default all three flags to false (Optional). Clearing a blind label while any saved stake still has a value in that field is `CONFLICT`. Stake writes follow §2; existing version reuse is exempt, not newly written rows. Ante is unaffected by the Required flags. `fixedAnteType` (null = chosen per stake) can be set on builtin and user groups alike; omitted on update keeps it, null clears it, and a change never rewrites saved stakes (§2).
 
-Builtin defaults: Limit requires Small Bet and Big Bet; Stud requires Small Bet and Big Bet, with Bring-in Optional. Big Bet has only SB and BB, both Required.
+Builtin defaults: Limit requires Small Bet and Big Bet; Stud requires Small Bet and Big Bet, with Bring-in Optional. Big Bet has only SB and BB, both Required. Stud fixes the ante type to `all`; Limit and Big Bet leave it null.
 
 ## 17. `gameVariant`
 

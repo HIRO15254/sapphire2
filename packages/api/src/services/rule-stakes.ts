@@ -41,6 +41,13 @@ export interface CarriedStake extends StakeValues {
 
 export type PlannedStake = StakeTarget & StakeValues;
 
+type AnteType = (typeof ANTE_TYPES)[number];
+
+export type StakeStructures = ReadonlyMap<
+	string,
+	typeof gameGroup.$inferSelect
+>;
+
 const EMPTY_STAKE: StakeValues = {
 	ante: null,
 	anteType: null,
@@ -70,10 +77,68 @@ export function stakeValues(stake: StakeValues): StakeValues {
 	};
 }
 
+export async function loadStakeStructures(
+	db: Database,
+	userId: string,
+	gameGroupIds: string[],
+	known: StakeStructures = new Map()
+): Promise<StakeStructures> {
+	const missing = [...new Set(gameGroupIds)].filter((id) => !known.has(id));
+	if (missing.length === 0) {
+		return known;
+	}
+	const rows = await selectInChunks(
+		missing,
+		(chunk) =>
+			db
+				.select()
+				.from(gameGroup)
+				.where(and(eq(gameGroup.userId, userId), inArray(gameGroup.id, chunk))),
+		1
+	);
+	return new Map([...known, ...rows.map((row) => [row.id, row] as const)]);
+}
+
+function suppliedAnteType(
+	stake: StakeInput,
+	structures: StakeStructures
+): AnteType | null {
+	return (
+		stake.anteType ?? structures.get(stake.gameGroupId)?.fixedAnteType ?? null
+	);
+}
+
+export function assertFixedAnteTypes(
+	stakes: StakeInput[],
+	structures: StakeStructures
+): void {
+	for (const stake of stakes) {
+		const structure = structures.get(stake.gameGroupId);
+		const fixed = structure?.fixedAnteType ?? null;
+		if (structure === undefined || fixed === null) {
+			continue;
+		}
+		const anteType = stake.anteType ?? null;
+		if (anteType !== null && anteType !== fixed) {
+			throw new TRPCError({
+				code: "BAD_REQUEST",
+				message: `${structure.label} fixes the ante type to ${fixed}; omit anteType or send ${fixed}`,
+			});
+		}
+		if (fixed === "none" && (stake.ante ?? null) !== null) {
+			throw new TRPCError({
+				code: "BAD_REQUEST",
+				message: `${structure.label} has no ante; leave it empty`,
+			});
+		}
+	}
+}
+
 export function planStakes(
 	groups: StakeTarget[],
 	supplied: StakeInput[] | undefined,
-	previous: CarriedStake[]
+	previous: CarriedStake[],
+	structures: StakeStructures = new Map()
 ): PlannedStake[] {
 	if (supplied === undefined) {
 		const carried = new Map(withStructureKeys(previous));
@@ -98,13 +163,15 @@ export function planStakes(
 		return {
 			...group,
 			ante: stake.ante ?? null,
-			anteType: stake.anteType ?? null,
+			anteType: suppliedAnteType(stake, structures),
 			blind1: stake.blind1 ?? null,
 			blind2: stake.blind2 ?? null,
 			blind3: stake.blind3 ?? null,
 		};
 	});
 }
+
+const GUARD_GROUPS_PER_STATEMENT = 9;
 
 const BLIND_FIELDS = [
 	{ label: "blind1Label", required: "blind1Required", value: "blind1" },
@@ -115,22 +182,21 @@ const BLIND_FIELDS = [
 export async function assertStakeBlinds(
 	db: Database,
 	userId: string,
-	stakes: (StakeValues & { gameGroupId: string })[]
+	stakes: (StakeValues & { gameGroupId: string })[],
+	known?: StakeStructures
 ): Promise<BatchStatement[]> {
 	const ids = [...new Set(stakes.map((stake) => stake.gameGroupId))];
 	if (ids.length === 0) {
 		return [];
 	}
-	const rows = await selectInChunks(
-		ids,
-		(chunk) =>
-			db
-				.select()
-				.from(gameGroup)
-				.where(and(eq(gameGroup.userId, userId), inArray(gameGroup.id, chunk))),
-		1
+	const loaded = await loadStakeStructures(db, userId, ids, known);
+	const groups = new Map(
+		ids.flatMap((id) => {
+			const row = loaded.get(id);
+			return row ? [[id, row] as const] : [];
+		})
 	);
-	const groups = new Map(rows.map((row) => [row.id, row]));
+	const rows = [...groups.values()];
 	for (const stake of stakes) {
 		const group = groups.get(stake.gameGroupId);
 		if (!group) {
@@ -157,10 +223,16 @@ export async function assertStakeBlinds(
 		}
 	}
 	const guards: BatchStatement[] = [];
-	for (let index = 0; index < rows.length; index += 10) {
-		const conditions = rows.slice(index, index + 10).map(
-			(group) =>
-				sql`EXISTS (SELECT 1 FROM ${gameGroup}
+	for (
+		let index = 0;
+		index < rows.length;
+		index += GUARD_GROUPS_PER_STATEMENT
+	) {
+		const conditions = rows
+			.slice(index, index + GUARD_GROUPS_PER_STATEMENT)
+			.map(
+				(group) =>
+					sql`EXISTS (SELECT 1 FROM ${gameGroup}
 				WHERE ${gameGroup.id} = ${group.id} AND ${gameGroup.userId} = ${userId}
 				AND ${gameGroup.label} IS ${group.label}
 				AND ${gameGroup.blind1Label} IS ${group.blind1Label}
@@ -168,8 +240,9 @@ export async function assertStakeBlinds(
 				AND ${gameGroup.blind3Label} IS ${group.blind3Label}
 				AND ${gameGroup.blind1Required} IS ${Number(group.blind1Required)}
 				AND ${gameGroup.blind2Required} IS ${Number(group.blind2Required)}
-				AND ${gameGroup.blind3Required} IS ${Number(group.blind3Required)})`
-		);
+				AND ${gameGroup.blind3Required} IS ${Number(group.blind3Required)}
+				AND ${gameGroup.fixedAnteType} IS ${group.fixedAnteType})`
+			);
 		guards.push(
 			guardStatement(db, "stake-blinds", sql.join(conditions, sql` AND `))
 		);

@@ -589,6 +589,13 @@
       "when": 1793935589228,
       "tag": "0083_oauth_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "6",
+      "when": 1794386219452,
+      "tag": "0084_fixed_ante_type",
+      "breakpoints": true
     }
   ]
 }

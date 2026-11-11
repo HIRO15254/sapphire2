@@ -82,7 +82,7 @@ const AMOUNT_CONVENTIONS =
 	"Blinds and ante are nonnegative integers, not converted asset amounts; minBuyIn and maxBuyIn are nonnegative integers.";
 
 const STAKE_BLINDS =
-	"Each written stake must fill every blind its game group marks required (blind1Required-blind3Required in game_group_list) and leave empty every blind whose label is null; ante is exempt. This is checked whenever a new rule version is written, carried stakes included, and not when an unchanged version is kept.";
+	"Each written stake must fill every blind its game group marks required (blind1Required-blind3Required in game_group_list) and leave empty every blind whose label is null; ante is exempt. This is checked whenever a new rule version is written, carried stakes included, and not when an unchanged version is kept. When a game group has a fixedAnteType (game_group_list), omit anteType on its supplied stakes and the fixed type is saved; any other anteType is rejected, and a group fixed to none also rejects an ante amount. Carried stakes keep their saved anteType.";
 
 const RING_GAME_RULE = `rule.game selects exactly one of { variantId }, { gameMixId }, or { lineupId }. Use game_variant_list or game_mix_list for active IDs, or a lineupId from ring_game_list_by_room to preserve an existing composition, including archived selections. Newly selecting archived masters is rejected. rule.stakes, when supplied, must contain exactly one stake per resulting lineup group in order, each with its gameGroupId and optional blind1-3, ante, and anteType. A mix groups variants by their game group in first-appearance order. Omitted stakes carry forward by gameGroupId and occurrence, not position. ${STAKE_BLINDS}`;
 
@@ -393,14 +393,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	},
 	{
 		description:
-			"List the user's game groups (the families game variants belong to, e.g. Limit / Stud / Big Bet), including the labels their three blind fields use and whether each field is required (blind1Required-blind3Required). Archived groups are omitted unless includeArchived is true.",
+			"List the user's game groups (the families game variants belong to, e.g. Limit / Stud / Big Bet), including the labels their three blind fields use whether each field is required (blind1Required-blind3Required), and fixedAnteType: the ante type every new stake of the group must use (none | all | bb), or null when it is chosen per stake. Archived groups are omitted unless includeArchived is true.",
 		inputSchema: gameGroupListInputSchema,
 		name: "game_group_list",
 		procedurePath: "gameGroup.list",
 	},
 	{
 		description:
-			"Create a game group. label must be unique across the user's groups, ignoring case and surrounding spaces, archived groups included — a label held by an archived group is rejected with a hint to restore that group with game_group_restore instead. The blind label fields name that family's blind columns (e.g. SB / BB). blind1Required-blind3Required (default false) mark a field that every newly written stake must fill; only a labeled field can be required.",
+			"Create a game group. label must be unique across the user's groups, ignoring case and surrounding spaces, archived groups included — a label held by an archived group is rejected with a hint to restore that group with game_group_restore instead. The blind label fields name that family's blind columns (e.g. SB / BB). blind1Required-blind3Required (default false) mark a field that every newly written stake must fill; only a labeled field can be required. fixedAnteType (none | all | bb, default null) fixes the ante type of every newly supplied stake of the group; null lets each stake choose.",
 		destructiveHint: false,
 		idempotentHint: false,
 		inputSchema: gameGroupCreateInputSchema,
@@ -409,7 +409,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	},
 	{
 		description:
-			"Update a game group by id. Only the supplied fields change; pass null to clear a blind label. Only a labeled field can be required, so clearing the label of a required field needs its blindNRequired false in the same call. Clearing a label is rejected while any saved ring-game or tournament stake still has a value in that field. Renaming it re-labels every variant shown under it, and for a user-created group it also moves the group's position in game_group_list.",
+			"Update a game group by id. Only the supplied fields change; pass null to clear a blind label, or fixedAnteType null to let each stake choose its ante type again. Built-in groups accept fixedAnteType too. Changing fixedAnteType never rewrites saved stakes; it applies to stakes supplied afterwards. Only a labeled field can be required, so clearing the label of a required field needs its blindNRequired false in the same call. Clearing a label is rejected while any saved ring-game or tournament stake still has a value in that field. Renaming it re-labels every variant shown under it, and for a user-created group it also moves the group's position in game_group_list.",
 		destructiveHint: true,
 		idempotentHint: true,
 		inputSchema: gameGroupUpdateInputSchema,
