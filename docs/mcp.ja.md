@@ -138,7 +138,7 @@ OAuth プロバイダの更新（better-auth 1.7）以前に作成した接続�
 
 ゲームグループは `fixedAnteType`（`none` / `all` / `bb`。stakes ごとに選ぶときは null）も持ちます。組み込みの Stud は `all` に固定されています。設定があるグループの stakes を送るときは `anteType` を省略すると固定の種別で保存されます。違う `anteType` は拒否され、`none` に固定したグループでは ante の金額も拒否されます（`BAD_REQUEST`）。引き継いだ stakes と変更のない版は保存済みの種別のままで、`game_group_update` で設定を変えても保存済みの stakes は書き換わりません。
 
-`game_mix_create` は最大 12 グループにわたる重複のない variant ID を 2〜30 件必要とし、`game_mix_update` で `games` を指定した場合も同じ制限が適用されます。更新では既存のアーカイブ済み variant は維持できますが、新たに追加できません。`game_variant_update` で新たに選ぶグループはアクティブである必要があります。
+`game_mix_create` は最大 12 グループにわたる重複のない variant ID を 2〜60 件必要とし、`game_mix_update` で `games` を指定した場合も同じ制限が適用されます。ミックスは順番を持たないゲームの集まりです。送った順番にかかわらず、サーバーはグループの並び順、その中は variant の一覧の並び順で保存します。同じゲームの組み合わせをほかのミックス（アーカイブ済みと組み込みを含む）が持っていれば拒否します（`CONFLICT`、「Same games as …」）。更新では既存のアーカイブ済み variant は維持できますが、新たに追加できません。`game_variant_update` で新たに選ぶグループはアクティブである必要があります。
 
 `hand_list` は 1 つの play session のハンドを `handNo` の大きい順に 1 ページ 1〜50 件（既定 20 件）返し、`{ items, nextCursor }` を返します。次のページは `nextCursor` を `cursor` に渡します。cursor は取得したときの `playSessionId` でだけ使えます。play session のハンド数はすべての詳細度のハンドの件数、現在のボタンは最大の `handNo` のハンドの `buttonSeat` です。`detail` は `count`（ボード・席・ポット・レーキ・メモなし）、`summary`（ライブ中のメモ。Hero の 1 席・ボード・ポット・レーキ・メモを持ち、アクションは持たない）、`full`（全席とアクション。アクションは `hand_get_by_id` が返す）のいずれかです。summary の値はメモであり、統計には使いません。`isHero` は `playerId` がユーザー自身のプレイヤーである席を示します。ハンドカウンターの書き込み（`hand.add`・`hand.undoLast`）、詳細の書き込み `hand.update`、`hand.delete` は公開していません。
 

@@ -29,12 +29,20 @@ function flattenedWrites(
 }
 
 function gameMixCaller(userId: string, select: Record<string, Rows>) {
+	const defaults: Record<string, Record<string, unknown>> = {
+		[MIX_TABLE]: { archivedAt: null },
+		[VARIANT_TABLE]: {
+			archivedAt: null,
+			groupBuiltinKey: null,
+			groupId: "grp-1",
+			groupLabel: "Big Bet",
+			sortOrder: 0,
+		},
+	};
 	const activeRows = Object.fromEntries(
 		Object.entries(select).map(([table, rows]) => [
 			table,
-			table === MIX_TABLE || table === VARIANT_TABLE
-				? rows.map((row) => ({ archivedAt: null, ...row }))
-				: rows,
+			rows.map((row) => ({ ...defaults[table], ...row })),
 		])
 	);
 	const mock = createChainableMockDb({
@@ -64,10 +72,16 @@ async function expectTrpcCode(
 const CUR_OWNER = "user-1";
 const CUR_OTHER = "user-2";
 const OWNED_GROUP = { id: "grp-1", label: "Big Bet", userId: CUR_OWNER };
-const OWNED_VARIANT_1 = { id: "gv-1", label: "NL Hold'em", userId: CUR_OWNER };
+const OWNED_VARIANT_1 = {
+	id: "gv-1",
+	label: "NL Hold'em",
+	sortOrder: 0,
+	userId: CUR_OWNER,
+};
 const OWNED_VARIANT_2 = {
 	id: "gv-2",
 	label: "Limit Hold'em",
+	sortOrder: 1,
 	userId: CUR_OWNER,
 };
 const OTHER_VARIANT = { id: "gv-x", label: "Their Mix", userId: CUR_OTHER };
@@ -136,13 +150,13 @@ describe("gameMix.create input validation", () => {
 		});
 	});
 
-	it("accepts a games array at the 30-entry boundary", () => {
-		const games = Array.from({ length: 30 }, (_, i) => `v${i}`);
+	it("accepts a games array at the 60-entry boundary", () => {
+		const games = Array.from({ length: 60 }, (_, i) => `v${i}`);
 		expectAccepts(appRouter.gameMix.create, { games, label: "My Mix" });
 	});
 
-	it("rejects a games array with 31 entries", () => {
-		const games = Array.from({ length: 31 }, (_, i) => `v${i}`);
+	it("rejects a games array with 61 entries", () => {
+		const games = Array.from({ length: 61 }, (_, i) => `v${i}`);
 		expectRejects(appRouter.gameMix.create, { games, label: "My Mix" });
 	});
 });
@@ -185,13 +199,13 @@ describe("gameMix.update input validation", () => {
 		expectRejects(appRouter.gameMix.update, { games: ["v1"], id: "mix-1" });
 	});
 
-	it("rejects a provided games array with 31 entries", () => {
-		const games = Array.from({ length: 31 }, (_, i) => `v${i}`);
+	it("rejects a provided games array with 61 entries", () => {
+		const games = Array.from({ length: 61 }, (_, i) => `v${i}`);
 		expectRejects(appRouter.gameMix.update, { games, id: "mix-1" });
 	});
 
-	it("accepts a games array at the 30-entry boundary", () => {
-		const games = Array.from({ length: 30 }, (_, i) => `v${i}`);
+	it("accepts a games array at the 60-entry boundary", () => {
+		const games = Array.from({ length: 60 }, (_, i) => `v${i}`);
 		expectAccepts(appRouter.gameMix.update, { games, id: "mix-1" });
 	});
 });
@@ -650,6 +664,7 @@ describe("gameMix normalized membership persistence", () => {
 			groupId: OWNED_GROUP.id,
 			id: `variant-${index}`,
 			label: `Variant ${index}`,
+			sortOrder: index,
 			userId: CUR_OWNER,
 		}));
 		const games = variants.map((variant) => variant.id);
@@ -693,7 +708,7 @@ describe("gameMix normalized membership persistence", () => {
 		expect(memberships.every((row) => row.userId === CUR_OWNER)).toBe(true);
 		expect(new Set(memberships.map((row) => row.mixId)).size).toBe(1);
 		expect(batch).toHaveBeenCalledTimes(1);
-		expect(batch.mock.calls[0]?.[0]).toHaveLength(5);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(6);
 	});
 
 	it("chunks membership inserts by the row's real column count, not a literal width", async () => {
@@ -701,6 +716,7 @@ describe("gameMix normalized membership persistence", () => {
 			groupId: OWNED_GROUP.id,
 			id: `variant-${index}`,
 			label: `Variant ${index}`,
+			sortOrder: index,
 			userId: CUR_OWNER,
 		}));
 		const { caller, inserted } = gameMixCaller(CUR_OWNER, {
@@ -734,6 +750,7 @@ describe("gameMix normalized membership persistence", () => {
 			groupId: OWNED_GROUP.id,
 			id: `replacement-${index}`,
 			label: `Replacement ${index}`,
+			sortOrder: index,
 			userId: CUR_OWNER,
 		}));
 		const games = variants.map((variant) => variant.id);
@@ -771,6 +788,6 @@ describe("gameMix normalized membership persistence", () => {
 		expect(memberships.every((row) => row.userId === CUR_OWNER)).toBe(true);
 		expect(deleteWhereParams).toContainEqual(["mix-1", CUR_OWNER]);
 		expect(batch).toHaveBeenCalledTimes(1);
-		expect(batch.mock.calls[0]?.[0]).toHaveLength(7);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(8);
 	});
 });

@@ -487,13 +487,13 @@ Builtin defaults: Limit requires Small Bet and Big Bet; Stud requires Small Bet 
 
 ## 18. `gameMix`
 
-`GameMix = {id,userId,label,builtinKey,archivedAt,games:Id[],createdAt,updatedAt}` with variant ids in rotation order. Labels 1–30 trimmed; the label namespace guard is defined by [data model](data-model.md) §5.2. Games: 2–30 unique owned ids spanning at most 12 groups. Update may retain an archived member already in the mix, but cannot add a newly selected archived member.
+`GameMix = {id,userId,label,builtinKey,archivedAt,games:Id[],createdAt,updatedAt}`. A mix is an unordered set of games; `games` comes back in the canonical order the server saved: game-group list order (built-ins first, then by label), then variant list order (`sortOrder`, label, id) within a group, regardless of the order sent. Labels 1–30 trimmed; the label namespace guard is defined by [data model](data-model.md) §5.2. Games: 2–60 unique owned ids spanning at most 12 groups. One mix per set of games per user: a create or games update whose set another mix holds, archived and built-in included, is `CONFLICT` "Same games as <label>". Update may retain an archived member already in the mix, but cannot add a newly selected archived member.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | `{includeArchived?:boolean}` | GameMix[] | — | `game_mix_list` |
-| `create` M | `{label,games:Id[]}` | GameMix | Duplicate label: CONFLICT; archived/duplicate members: BAD_REQUEST | `game_mix_create` |
-| `update` M | `{id,label?,games?:Id[]}` | GameMix | Same; supplied games replaces complete rotation | `game_mix_update` |
+| `create` M | `{label,games:Id[]}` | GameMix | Duplicate label or same set of games: CONFLICT; archived/duplicate members: BAD_REQUEST | `game_mix_create` |
+| `update` M | `{id,label?,games?:Id[]}` | GameMix | Same; supplied games replaces the complete set | `game_mix_update` |
 | `archive` M | IdInput | GameMix | — | `game_mix_archive` |
 | `restore` M | IdInput | GameMix | Archived member: BAD_REQUEST | `game_mix_restore` |
 | `delete` M | IdInput | Ack | Referenced by lineup: CONFLICT, archive instead | Excluded: destructive |

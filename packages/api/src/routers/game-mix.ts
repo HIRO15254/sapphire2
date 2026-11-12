@@ -1,4 +1,8 @@
-import { DEFAULT_GAME_MIXES } from "@sapphire2/db/constants/game-variants";
+import {
+	DEFAULT_GAME_GROUPS,
+	DEFAULT_GAME_MIXES,
+} from "@sapphire2/db/constants/game-variants";
+import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameLineup } from "@sapphire2/db/schema/game-lineup";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
@@ -28,7 +32,8 @@ import {
 } from "./_game-masters";
 
 const labelSchema = z.string().trim().min(1).max(30);
-const gamesSchema = z.array(idSchema).min(2).max(30);
+export const MAX_MIX_GAMES = 60;
+const gamesSchema = z.array(idSchema).min(2).max(MAX_MIX_GAMES);
 
 const BUILTIN_ORDER: Map<string, number> = new Map(
 	DEFAULT_GAME_MIXES.map((m, index) => [m.key, index])
@@ -36,18 +41,123 @@ const BUILTIN_ORDER: Map<string, number> = new Map(
 
 const compareMixes = compareBuiltinFirst(BUILTIN_ORDER);
 
+const compareGroups = compareBuiltinFirst(
+	new Map(DEFAULT_GAME_GROUPS.map((g, index) => [g.key, index]))
+);
+
+interface OwnedGame {
+	archivedAt: Date | null;
+	groupBuiltinKey: string | null;
+	groupId: string;
+	groupLabel: string;
+	id: string;
+	label: string;
+	sortOrder: number;
+}
+
+function canonicalGames(owned: OwnedGame[]): string[] {
+	return owned
+		.toSorted(
+			(a, b) =>
+				compareGroups(
+					{ builtinKey: a.groupBuiltinKey, label: a.groupLabel },
+					{ builtinKey: b.groupBuiltinKey, label: b.groupLabel }
+				) ||
+				a.groupId.localeCompare(b.groupId) ||
+				a.sortOrder - b.sortOrder ||
+				a.label.localeCompare(b.label) ||
+				a.id.localeCompare(b.id)
+		)
+		.map((game) => game.id);
+}
+
+function sameGamesCondition(
+	userId: string,
+	games: string[],
+	excludeMixId: string | null
+) {
+	return sql`SELECT ${gameMixVariant.mixId} FROM ${gameMixVariant}
+		WHERE ${gameMixVariant.userId} = ${userId}
+		${excludeMixId === null ? sql`` : sql`AND ${gameMixVariant.mixId} <> ${excludeMixId}`}
+		GROUP BY ${gameMixVariant.mixId}
+		HAVING count(*) = ${games.length}
+		AND sum(${gameMixVariant.variantId} IN (SELECT value FROM json_each(${JSON.stringify(games)}))) = ${games.length}`;
+}
+
+function sameGamesGuard(
+	db: Db,
+	userId: string,
+	games: string[],
+	excludeMixId: string | null
+): BatchStatement {
+	return guardStatement(
+		db,
+		"unique mix games",
+		sql`NOT EXISTS (${sameGamesCondition(userId, games, excludeMixId)})`
+	);
+}
+
+async function runMixBatch(
+	db: Db,
+	userId: string,
+	statements: BatchStatement[],
+	sameGames: { excludeMixId: string | null; games: string[] } | null
+): Promise<void> {
+	try {
+		await runGuardedBatch(db, statements);
+	} catch (error) {
+		if (
+			sameGames === null ||
+			!(error instanceof TRPCError && error.code === "CONFLICT")
+		) {
+			throw error;
+		}
+		const [same] = await db
+			.select({ label: gameMix.label })
+			.from(gameMix)
+			.where(
+				and(
+					eq(gameMix.userId, userId),
+					sql`${gameMix.id} IN (${sameGamesCondition(userId, sameGames.games, sameGames.excludeMixId)})`
+				)
+			)
+			.orderBy(gameMix.createdAt, gameMix.id)
+			.limit(1);
+		if (!same) {
+			throw error;
+		}
+		// biome-ignore lint/style/useErrorCause: TRPCError receives the original error in its cause option.
+		throw new TRPCError({
+			cause: error,
+			code: "CONFLICT",
+			message: `Same games as ${same.label}`,
+		});
+	}
+}
+
 async function validateGamesOwnership(
 	db: Db,
 	ids: string[],
 	userId: string
-): Promise<{ archivedAt: Date | null; groupId: string; id: string }[]> {
+): Promise<OwnedGame[]> {
 	const owned = await db
 		.select({
 			archivedAt: gameVariant.archivedAt,
+			groupBuiltinKey: gameGroup.builtinKey,
 			groupId: gameVariant.groupId,
+			groupLabel: gameGroup.label,
 			id: gameVariant.id,
+			label: gameVariant.label,
+			sortOrder: gameVariant.sortOrder,
 		})
 		.from(gameVariant)
+		.innerJoin(
+			gameGroup,
+			and(
+				eq(gameGroup.id, gameVariant.groupId),
+				eq(gameGroup.userId, gameVariant.userId)
+			)
+		)
 		.where(and(inArray(gameVariant.id, ids), eq(gameVariant.userId, userId)));
 
 	if (owned.length !== ids.length) {
@@ -170,9 +280,11 @@ export const gameMixRouter = router({
 			);
 			assertNoNewArchivedGames(ownedGames, new Set());
 			assertGroupSpanWithinLimit(ownedGames);
+			const games = canonicalGames(ownedGames);
 
 			const id = crypto.randomUUID();
 			const statements: BatchStatement[] = [
+				sameGamesGuard(ctx.db, userId, games, null),
 				groupSpanGuard(ctx.db, userId, input.games),
 				activeReferencesGuard(ctx.db, gameVariant, input.games, userId),
 				ctx.db.insert(gameMix).values({
@@ -184,12 +296,12 @@ export const gameMixRouter = router({
 				}),
 			];
 			statements.push(
-				...insertChunks(mixMembershipRows(id, userId, input.games), (chunk) =>
+				...insertChunks(mixMembershipRows(id, userId, games), (chunk) =>
 					ctx.db.insert(gameMixVariant).values(chunk)
 				)
 			);
 			await runLabelWrite(ctx.db, "game mix", userId, input.label, () =>
-				runGuardedBatch(ctx.db, statements)
+				runMixBatch(ctx.db, userId, statements, { excludeMixId: null, games })
 			);
 			return await selectMix(ctx.db, userId, id);
 		}),
@@ -292,6 +404,7 @@ export const gameMixRouter = router({
 			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
 
 			const statements: BatchStatement[] = [];
+			let sameGames: { excludeMixId: string; games: string[] } | null = null;
 			if (input.games !== undefined) {
 				assertNoDuplicateGames(input.games);
 				const ownedGames = await validateGamesOwnership(
@@ -316,6 +429,9 @@ export const gameMixRouter = router({
 					new Set(current.map((row) => row.variantId))
 				);
 				assertGroupSpanWithinLimit(ownedGames);
+				const games = canonicalGames(ownedGames);
+				sameGames = { excludeMixId: input.id, games };
+				statements.push(sameGamesGuard(ctx.db, userId, games, input.id));
 				const snapshot = JSON.stringify(current);
 				statements.push(
 					guardStatement(
@@ -364,9 +480,8 @@ export const gameMixRouter = router({
 						)
 				);
 				statements.push(
-					...insertChunks(
-						mixMembershipRows(input.id, userId, input.games),
-						(chunk) => ctx.db.insert(gameMixVariant).values(chunk)
+					...insertChunks(mixMembershipRows(input.id, userId, games), (chunk) =>
+						ctx.db.insert(gameMixVariant).values(chunk)
 					)
 				);
 			}
@@ -384,7 +499,7 @@ export const gameMixRouter = router({
 					.where(and(eq(gameMix.id, input.id), eq(gameMix.userId, userId)))
 			);
 			await runLabelWrite(ctx.db, "game mix", userId, input.label, () =>
-				runGuardedBatch(ctx.db, statements)
+				runMixBatch(ctx.db, userId, statements, sameGames)
 			);
 			return await selectMix(ctx.db, userId, input.id);
 		}),

@@ -36,7 +36,9 @@ Variants reference groups and mix membership references variants by id. Immutabl
 
 Mixes contain ordered variant ids. Rule writes use id-based lineups and stakes ([`game-lineup.ts`](../../packages/api/src/services/game-lineup.ts), [`rule-stakes.ts`](../../packages/api/src/services/rule-stakes.ts)); a lineup group holds variants of one game group by construction.
 
-`validateGamesOwnership` guards the `games` array (ordered `game_variant` ids) on mix create/update: one `WHERE id IN (…) AND userId = caller` query; if the owned count differs from the requested count → uniform FORBIDDEN. Callers must reject duplicate ids first (`assertNoDuplicateGames`) so the count comparison is meaningful; `groupId` is returned so the caller can also bound the group span.
+`validateGamesOwnership` guards the `games` array on mix create/update: one `WHERE id IN (…) AND userId = caller` query joined to the variant's group; if the owned count differs from the requested count → uniform FORBIDDEN. Callers must reject duplicate ids first (`assertNoDuplicateGames`) so the count comparison is meaningful; the group fields let the caller bound the group span and order the games.
+
+A mix is an unordered set (SA2-450). `canonicalGames` stores the members in game-group list order (`compareBuiltinFirst`, then group id), then variant `sortOrder`, label and id, so the same set always produces the same `position`s and therefore the same lineup. Up to 60 games (`MAX_MIX_GAMES`) are accepted; the group span stays at 12. A user holds at most one mix per set: the write batch carries a `unique mix games` guard (no other mix of the user, archived and built-in included, with the same member count all inside the set), and when it fails the router looks up that mix and returns `CONFLICT` "Same games as <label>".
 
 ## Archive and deletion guards
 
