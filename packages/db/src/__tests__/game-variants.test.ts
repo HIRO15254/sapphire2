@@ -29,7 +29,7 @@ describe("DEFAULT_GAME_GROUPS", () => {
 		}
 	});
 
-	it("built-in structures carry the Must / Optional blind fields of the spec", () => {
+	it("built-in structures carry the Must / Optional blind fields and the fixed ante type of the spec", () => {
 		expect(DEFAULT_GAME_GROUPS).toEqual([
 			{
 				blind1Label: "Small Bet",
@@ -38,6 +38,7 @@ describe("DEFAULT_GAME_GROUPS", () => {
 				blind2Required: true,
 				blind3Label: null,
 				blind3Required: false,
+				fixedAnteType: null,
 				key: "limit",
 				label: "Limit",
 			},
@@ -48,6 +49,7 @@ describe("DEFAULT_GAME_GROUPS", () => {
 				blind2Required: true,
 				blind3Label: "Bring-in",
 				blind3Required: false,
+				fixedAnteType: "all",
 				key: "stud",
 				label: "Stud",
 			},
@@ -58,6 +60,7 @@ describe("DEFAULT_GAME_GROUPS", () => {
 				blind2Required: true,
 				blind3Label: null,
 				blind3Required: false,
+				fixedAnteType: null,
 				key: "bigbet",
 				label: "Big Bet",
 			},

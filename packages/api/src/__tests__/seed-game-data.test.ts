@@ -54,7 +54,7 @@ describe("seedDefaultGameData", () => {
 		}
 	});
 
-	it("seeds groups with builtinKey/label/blind labels and required flags from DEFAULT_GAME_GROUPS", async () => {
+	it("seeds groups with builtinKey/label/blind labels, required flags and fixed ante type from DEFAULT_GAME_GROUPS", async () => {
 		const { db, inserted } = emptyAccountDb();
 		await seedDefaultGameData(db, USER_ID);
 		const rows = inserted[GROUP_TABLE] as Record<string, unknown>[];
@@ -68,6 +68,7 @@ describe("seedDefaultGameData", () => {
 			expect(row?.blind1Required).toBe(def.blind1Required);
 			expect(row?.blind2Required).toBe(def.blind2Required);
 			expect(row?.blind3Required).toBe(def.blind3Required);
+			expect(row?.fixedAnteType).toBe(def.fixedAnteType);
 			expect(typeof row?.id).toBe("string");
 			// biome-ignore lint/correctness/noUnsafeOptionalChaining: Preserve the failure when the expected seeded ID is missing.
 			expect((row?.id as string).length).toBeGreaterThan(0);

@@ -6,6 +6,7 @@ import {
 	cashRuleStake,
 	tournamentRuleLevelStake,
 } from "@sapphire2/db/schema/rule";
+import { anteTypeSchema } from "@sapphire2/db/schemas/game";
 import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull, notExists } from "drizzle-orm";
@@ -97,6 +98,7 @@ export const gameGroupCreateInputSchema = z.object({
 	blind2Required: z.boolean().optional(),
 	blind3Label: blindLabelSchema,
 	blind3Required: z.boolean().optional(),
+	fixedAnteType: anteTypeSchema.nullable().optional(),
 	label: labelSchema,
 });
 
@@ -107,6 +109,7 @@ export const gameGroupUpdateInputSchema = z.object({
 	blind2Required: z.boolean().optional(),
 	blind3Label: blindLabelSchema,
 	blind3Required: z.boolean().optional(),
+	fixedAnteType: anteTypeSchema.nullable().optional(),
 	id: idSchema,
 	label: labelSchema.optional(),
 });
@@ -169,6 +172,7 @@ export const gameGroupRouter = router({
 			await runLabelWrite(ctx.db, "game group", userId, input.label, () =>
 				ctx.db.insert(gameGroup).values({
 					builtinKey: null,
+					fixedAnteType: input.fixedAnteType ?? null,
 					id,
 					label: input.label,
 					userId,
@@ -300,6 +304,9 @@ export const gameGroupRouter = router({
 						.update(gameGroup)
 						.set({
 							...(input.label === undefined ? {} : { label: input.label }),
+							...(input.fixedAnteType === undefined
+								? {}
+								: { fixedAnteType: input.fixedAnteType }),
 							...blinds,
 							updatedAt: new Date(),
 						})

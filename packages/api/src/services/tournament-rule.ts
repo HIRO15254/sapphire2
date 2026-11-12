@@ -34,10 +34,13 @@ import {
 	resolveDefaultGame,
 } from "./game-lineup";
 import {
+	assertFixedAnteTypes,
 	assertStakeBlinds,
 	type CarriedStake,
+	loadStakeStructures,
 	type PlannedStake,
 	planStakes,
+	type StakeStructures,
 	type StakeValues,
 	stakeInputSchema,
 	stakeValues,
@@ -481,7 +484,8 @@ function planLevels(
 	current: TournamentRuleOutput | null,
 	currentLineups: Map<string, Lineup>,
 	defaultLineup: Lineup,
-	planner: LineupPlanner
+	planner: LineupPlanner,
+	structures: StakeStructures
 ): PlannedLevel[] {
 	if (input === undefined) {
 		return (current?.levels ?? []).map((level) => {
@@ -528,7 +532,8 @@ function planLevels(
 			stakes: planStakes(
 				stakeTargets(lineup),
 				level.stakes,
-				carriedStakes(current?.levels[index])
+				carriedStakes(current?.levels[index]),
+				structures
 			),
 		};
 	});
@@ -595,14 +600,11 @@ export async function planTournamentRuleWrite(params: {
 		current !== null,
 		"Choose a game for the tournament"
 	);
-	await validateOwnedIds(
-		db,
-		gameGroup,
-		(input.levels ?? []).flatMap((level) =>
-			(level.stakes ?? []).map((stake) => stake.gameGroupId)
-		),
-		userId
+	const suppliedGroupIds = (input.levels ?? []).flatMap((level) =>
+		(level.stakes ?? []).map((stake) => stake.gameGroupId)
 	);
+	await validateOwnedIds(db, gameGroup, suppliedGroupIds, userId);
+	const structures = await loadStakeStructures(db, userId, suppliedGroupIds);
 	const games = [
 		...(defaultGame ? [defaultGame] : []),
 		...(input.levels ?? []).flatMap((level) =>
@@ -631,7 +633,8 @@ export async function planTournamentRuleWrite(params: {
 			current,
 			currentLineups,
 			defaultLineup,
-			planner
+			planner,
+			structures
 		),
 		lineup: defaultLineup,
 		prices,
@@ -646,10 +649,15 @@ export async function planTournamentRuleWrite(params: {
 	) {
 		return { ruleId: current.id, statements: [] };
 	}
+	assertFixedAnteTypes(
+		(input.levels ?? []).flatMap((level) => level.stakes ?? []),
+		structures
+	);
 	const stakeGuards = await assertStakeBlinds(
 		db,
 		userId,
-		content.levels.flatMap((level) => level.stakes)
+		content.levels.flatMap((level) => level.stakes),
+		structures
 	);
 
 	const remainingAssets = new Map<string, number>();

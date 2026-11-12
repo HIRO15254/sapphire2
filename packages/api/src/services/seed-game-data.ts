@@ -72,6 +72,7 @@ export async function planDefaultGameData(
 				blind3Label: g.blind3Label,
 				blind3Required: g.blind3Required,
 				builtinKey: g.key,
+				fixedAnteType: g.fixedAnteType,
 				id: groupIdByKey.get(g.key) as string,
 				label: g.label,
 				updatedAt: now,
