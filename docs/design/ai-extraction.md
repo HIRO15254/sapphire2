@@ -57,3 +57,13 @@ Collapsing them into one error would hide which knob to turn.
 ## Web integration
 
 The current web application has no `aiExtract` consumer. The former tournament form's merge behavior is described as history in the [archive](../archive/ai-extraction-history.md), not as a current implementation.
+
+## Icon keywords
+
+SA2-453. `aiExtract.suggestIconKeywords` turns a name a user typed (any language) into 3–5 lowercase English words that `useIconSuggestion` feeds into the icon tag search ([web-platform.md](web-platform.md#user-chosen-icons-tablericon-iconpicker)). The model never sees the icon list: the ~5,200 names would cost about 20k input tokens per call, while the name alone is a few dozen.
+
+- The name is the user message, serialized as JSON data; the instructions live in `instructions` and tell the model to treat the name only as something to describe.
+- The wire schema is `{ keywords: string[] }`. The router lowercases the words, splits multi-word entries, keeps only `^[a-z][a-z0-9-]{0,29}$`, removes duplicates and caps the list at five, so the output can only ever be search words.
+- The client uses `maxRetries: 0` and a 10 s timeout, and `ICON_KEYWORDS_MAX_OUTPUT_TOKENS` (2048) leaves room for reasoning. The web hook swallows every failure: a missing suggestion is not an error.
+- It is excluded from MCP: an MCP client is itself an LLM and can choose an icon name directly.
+- There is no per-user call limit yet. Calls happen only on a name field's blur when the rules found nothing and the icon is still unset, and results are cached per name in the browser session.

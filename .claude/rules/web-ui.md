@@ -29,7 +29,7 @@ Mobile data entry happens in bottom sheets — `Drawer` / `FormSheet`, not `Dial
 - **Fixed UI icons** (buttons, navigation, empty states, anything chosen in code) use `@tabler/icons-react` components. Do not add `lucide-react` imports in new code.
 - **User-chosen icons** (a category's icon, stored as a Tabler name string) render with [`TablerIcon`](../../apps/web/src/shared/components/tabler-icon/tabler-icon.tsx) and are picked with [`IconPicker`](../../apps/web/src/shared/components/icon-picker/icon-picker.tsx). Both draw from `@tabler/icons-webfont`, whose data, font and picker sheet load lazily so the first load does not grow (SA2-452). Never use the webfont for a fixed icon, and never import every `@tabler/icons-react` component to draw a stored name.
 - `@tabler/icons-react`, `@tabler/icons-webfont` and `@tabler/icons` (tag data) stay pinned to the same exact version so a name draws the same glyph everywhere.
-- A form that names something with an icon fills the icon from the name with [`useIconSuggestion`](../../apps/web/src/shared/hooks/use-icon-suggestion.ts): it fills only an unset icon the user has not picked (None counts as picked) and never replaces the stored icon of an edited item.
+- A form that names something with an icon fills the icon from the name with [`useIconSuggestion`](../../apps/web/src/shared/hooks/use-icon-suggestion.ts): it fills only an unset icon the user has not picked (None counts as picked) and never replaces the stored icon of an edited item. When the rules find nothing it asks the LLM for keywords once per blur (SA2-453); call `onNameBlur` from the name field's blur, never on change.
 
 ## Accessibility
 
