@@ -4,6 +4,7 @@ import { and, asc, eq, isNull, notExists, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { isLedgerCategoryNameConflictError } from "../lib/db-errors";
+import { iconNameSchema } from "../lib/master-input-schemas";
 import { validateEntityOwnership } from "../lib/ownership";
 
 type Db = Parameters<
@@ -13,6 +14,7 @@ type Db = Parameters<
 const categoryColumns = {
 	archivedAt: ledgerCategory.archivedAt,
 	createdAt: ledgerCategory.createdAt,
+	icon: ledgerCategory.icon,
 	id: ledgerCategory.id,
 	name: ledgerCategory.name,
 	updatedAt: ledgerCategory.updatedAt,
@@ -49,6 +51,7 @@ async function runCategoryNameWrite<T>(write: () => Promise<T>): Promise<T> {
 }
 
 const categoryName = z.string().trim().min(1).max(100);
+const categoryIcon = iconNameSchema.nullable().optional();
 
 export const ledgerCategoryIdInputSchema = z.object({ id: z.string().min(1) });
 
@@ -56,9 +59,13 @@ export const ledgerCategoryListInputSchema = z
 	.object({ includeArchived: z.boolean().optional() })
 	.optional();
 
-export const ledgerCategoryCreateInputSchema = z.object({ name: categoryName });
+export const ledgerCategoryCreateInputSchema = z.object({
+	icon: categoryIcon,
+	name: categoryName,
+});
 
 export const ledgerCategoryUpdateInputSchema = z.object({
+	icon: categoryIcon,
 	id: z.string().min(1),
 	name: categoryName,
 });
@@ -89,6 +96,7 @@ export const ledgerCategoryRouter = router({
 			const id = crypto.randomUUID();
 			await runCategoryNameWrite(() =>
 				ctx.db.insert(ledgerCategory).values({
+					icon: input.icon ?? null,
 					id,
 					name: input.name,
 					updatedAt: new Date(),
@@ -176,7 +184,11 @@ export const ledgerCategoryRouter = router({
 			await runCategoryNameWrite(() =>
 				ctx.db
 					.update(ledgerCategory)
-					.set({ name: input.name, updatedAt: new Date() })
+					.set({
+						...(input.icon === undefined ? {} : { icon: input.icon }),
+						name: input.name,
+						updatedAt: new Date(),
+					})
 					.where(
 						and(
 							eq(ledgerCategory.id, input.id),

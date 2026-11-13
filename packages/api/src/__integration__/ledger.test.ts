@@ -611,6 +611,27 @@ describe("ledgerCategory on D1", () => {
 		).resolves.toMatchObject({ id: bonus.id, name: "BONUS" });
 	});
 
+	test("an icon is stored on create, kept when an update omits it, and cleared by null", async ({
+		api,
+	}) => {
+		const gift = requireCreatedRow(
+			await api.alice.ledgerCategory.create({ icon: "gift", name: "Bonus" })
+		);
+		await api.alice.ledgerCategory.update({ id: gift.id, name: "Gift" });
+		expect(
+			await api.db
+				.select({ icon: ledgerCategory.icon, name: ledgerCategory.name })
+				.from(ledgerCategory)
+				.where(eq(ledgerCategory.id, gift.id))
+		).toEqual([{ icon: "gift", name: "Gift" }]);
+		await expect(
+			api.alice.ledgerCategory.update({ icon: null, id: gift.id, name: "Gift" })
+		).resolves.toMatchObject({ icon: null });
+		await expect(
+			api.alice.ledgerCategory.create({ icon: "Gift Box", name: "Other" })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+
 	test("a referenced category cannot be deleted but archives and restores with its lines kept, and list shows archived ones only on request", async ({
 		api,
 	}) => {

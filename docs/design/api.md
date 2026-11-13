@@ -375,13 +375,13 @@ Exchange atomically writes negative from and positive to with one transferId. Ed
 
 ## 12. `ledgerCategory`
 
-`Category = {id,name,archivedAt,createdAt,updatedAt}`. Names are trimmed, case-insensitively unique per user including archived rows.
+`Category = {id,name,icon,archivedAt,createdAt,updatedAt}`. Names are trimmed, case-insensitively unique per user including archived rows. `icon` is a Tabler icon name or null (no icon); the API checks only its shape (`IconName` = `^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64 characters) and keeps no allowlist, so the web treats a name its icon font lacks the same as null.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | `{includeArchived?:boolean}` | Category[] ordered lower(name), id ascending | — | Excluded: wallet |
-| `create` M | `{name:trimmed string 1..100}` | Category | Duplicate: CONFLICT | Excluded: wallet |
-| `update` M | `{id,name:trimmed string 1..100}` | Category | Duplicate: CONFLICT | Excluded: wallet |
+| `create` M | `{name:trimmed string 1..100,icon?:IconName|null}` | Category | Duplicate: CONFLICT | Excluded: wallet |
+| `update` M | `{id,name:trimmed string 1..100,icon?:IconName|null}`; omitted icon keeps the stored one, null clears it | Category | Duplicate: CONFLICT | Excluded: wallet |
 | `archive` M | IdInput | Category | — | Excluded: wallet |
 | `restore` M | IdInput | Category | — | Excluded: wallet |
 | `delete` M | IdInput | Ack | Referenced by a ledger line: CONFLICT, message "Category is in use; archive it instead" | Excluded: destructive |
