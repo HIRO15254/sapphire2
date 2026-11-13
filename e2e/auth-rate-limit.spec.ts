@@ -9,8 +9,8 @@ test("the deployed Worker answers 429 to a fourth sign-in from one connecting IP
 		const response = await request.post(`${API_URL}/api/auth/sign-in/email`, {
 			data: { email: "nobody@example.test", password: "wrong-password" },
 			headers: {
-				"cf-connecting-ip": "203.0.113.70",
 				Origin: "https://localhost:13001",
+				"x-test-client-ip": "203.0.113.70",
 			},
 		});
 		statuses.push(response.status());
@@ -30,7 +30,7 @@ test("the deployed Worker answers 429 to the 21st client registration from one c
 				redirect_uris: ["http://localhost:9999/callback"],
 				token_endpoint_auth_method: "none",
 			},
-			headers: { "cf-connecting-ip": "203.0.113.71" },
+			headers: { "x-test-client-ip": "203.0.113.71" },
 		});
 		statuses.push(response.status());
 	}

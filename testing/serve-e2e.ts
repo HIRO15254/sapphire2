@@ -23,10 +23,13 @@ const edgeScript = `let next = 0;
 export default {
 	async fetch(request, env) {
 		const headers = new Headers(request.headers);
-		if (!headers.has("cf-connecting-ip")) {
+		let clientIp = headers.get("x-test-client-ip");
+		if (!clientIp) {
 			next += 1;
-			headers.set("cf-connecting-ip", \`198.18.\${(next >> 8) & 255}.\${next & 255}\`);
+			clientIp = \`198.18.\${(next >> 8) & 255}.\${next & 255}\`;
 		}
+		headers.delete("x-test-client-ip");
+		headers.set("cf-connecting-ip", clientIp);
 		const body = request.body ? await request.arrayBuffer() : null;
 		return env.API.fetch(new Request(request, { body, headers }));
 	},
