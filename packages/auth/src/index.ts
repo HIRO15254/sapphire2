@@ -162,6 +162,7 @@ interface AuthOptions {
 		rpID: string;
 		rpName: string;
 	};
+	rateLimitEnabled: boolean;
 	secret: string;
 }
 
@@ -261,6 +262,7 @@ export function createAuth(
 			},
 		},
 		plugins,
+		rateLimit: { enabled: options.rateLimitEnabled },
 		secret: options.secret,
 		session: {
 			expiresIn: SESSION_EXPIRES_IN_SECONDS,

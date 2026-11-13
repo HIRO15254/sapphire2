@@ -43,8 +43,12 @@ export type WorkerClient = (
 	init?: WorkerRequestInit
 ) => Promise<Response>;
 
-export function createWorkerClient(d1: TestD1Database): WorkerClient {
+export function createWorkerClient(
+	d1: TestD1Database,
+	vars: { NODE_ENV?: string } = {}
+): WorkerClient {
 	const env = {
+		...vars,
 		BETTER_AUTH_SECRET: "a".repeat(32),
 		BETTER_AUTH_URL: SERVER_URL,
 		CORS_ORIGIN: WEB_ORIGIN,
