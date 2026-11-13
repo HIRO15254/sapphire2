@@ -1,7 +1,9 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
+import { tablerIconsPlugin } from "./src/plugins/vite-plugin-tabler-icons";
 
 export default defineConfig({
+	plugins: [tablerIconsPlugin()],
 	resolve: {
 		alias: {
 			"@": path.resolve(import.meta.dirname, "./src"),

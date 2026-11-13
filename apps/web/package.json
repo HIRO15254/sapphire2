@@ -21,7 +21,8 @@
     "@sapphire2/api": "workspace:*",
     "@sapphire2/db": "workspace:*",
     "@sapphire2/env": "workspace:*",
-    "@tabler/icons-react": "^3.50.0",
+    "@tabler/icons-react": "3.50.0",
+    "@tabler/icons-webfont": "3.50.0",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.4",
     "@tanstack/query-async-storage-persister": "5.106.1",
@@ -52,6 +53,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261106.1",
     "@sapphire2/config": "workspace:*",
+    "@tabler/icons": "3.50.0",
     "@tanstack/router-plugin": "^1.168.48",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",

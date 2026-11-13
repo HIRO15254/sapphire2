@@ -18,7 +18,7 @@ Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules.
 - **Validation**: Zod (workspace catalog). Import as `import z from "zod"` (default import) — a Vite bundler issue breaks the namespace import.
 - **Tests**: Vitest + Testing Library (jsdom), `node:sqlite` migration specs, Miniflare D1 integration, Playwright (HTTPS browser / OAuth / WebAuthn).
 - **Lint / format**: Ultracite (Biome preset) — its defaults are the code standard; run via `bun run lint` / `bun run fix`.
-- **Icons**: `@tabler/icons-react` only (`check:rules` rejects `lucide-react` imports).
+- **Icons**: `@tabler/icons-react` for every icon fixed in the UI (`check:rules` rejects `lucide-react` imports). Icons the user picks are stored as Tabler names and drawn from `@tabler/icons-webfont` by `TablerIcon` / `IconPicker` only; keep both packages on the same exact version. See [`.claude/rules/web-ui.md`](.claude/rules/web-ui.md#icons).
 
 ## Commands
 
