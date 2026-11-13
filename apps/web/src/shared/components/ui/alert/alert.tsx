@@ -1,4 +1,8 @@
-import { IconCircleX, IconInfoCircle } from "@tabler/icons-react";
+import {
+	IconAlertTriangle,
+	IconCircleX,
+	IconInfoCircle,
+} from "@tabler/icons-react";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
@@ -14,6 +18,7 @@ const alertVariants = cva(
 			variant: {
 				default: "bg-card",
 				destructive: "bg-destructive-soft",
+				warning: "bg-warning-soft",
 			},
 		},
 	}
@@ -25,6 +30,9 @@ const ALERT_ICONS = {
 	),
 	destructive: (
 		<IconCircleX aria-hidden className="text-destructive-text mt-px size-4" />
+	),
+	warning: (
+		<IconAlertTriangle aria-hidden className="text-warning-text mt-px size-4" />
 	),
 };
 

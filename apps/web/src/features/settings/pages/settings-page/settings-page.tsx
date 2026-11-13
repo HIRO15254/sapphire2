@@ -4,6 +4,7 @@ import { LinkedAccounts } from "@/features/settings/pages/settings-page/linked-a
 import { McpConnections } from "@/features/settings/pages/settings-page/mcp-connections";
 import { Passkeys } from "@/features/settings/pages/settings-page/passkeys";
 import { ThemeSetting } from "@/features/settings/pages/settings-page/theme-setting";
+import { WalletSettings } from "@/features/settings/pages/settings-page/wallet-settings";
 import { PageHeader } from "@/shared/components/page-header";
 import {
 	Item,
@@ -22,6 +23,7 @@ export function SettingsPage() {
 			<PageHeader back={{ fallbackTo: "/more" }} heading="Settings" />
 
 			<main className="flex flex-col gap-[22px] px-3.5 pt-4 pb-6 text-[length:var(--m-text-secondary)]">
+				<WalletSettings />
 				<ThemeSetting />
 				<LinkedAccounts />
 				<Passkeys />
