@@ -83,6 +83,7 @@ export const ledgerCategory = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		icon: text("icon"),
 		id: text("id").primaryKey(),
 		name: text("name").notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })

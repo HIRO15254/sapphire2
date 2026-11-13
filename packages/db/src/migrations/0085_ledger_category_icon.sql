@@ -1,0 +1,1 @@
+ALTER TABLE `ledger_category` ADD `icon` text;
