@@ -13,6 +13,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MoreRouteImport } from './routes/more'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as AssetsIndexRouteImport } from './routes/assets/index'
+import { Route as AssetsAssetIdRouteImport } from './routes/assets/$assetId'
+import { Route as AssetsArchivedRouteImport } from './routes/assets/archived'
+import { Route as AssetsCategoriesRouteImport } from './routes/assets/categories'
+import { Route as AssetsRatesBaseAssetIdQuoteAssetIdRouteImport } from './routes/assets/rates/$baseAssetId/$quoteAssetId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +39,54 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AssetsIndexRoute = AssetsIndexRouteImport.update({
+  id: '/assets/',
+  path: '/assets/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssetsAssetIdRoute = AssetsAssetIdRouteImport.update({
+  id: '/assets/$assetId',
+  path: '/assets/$assetId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssetsArchivedRoute = AssetsArchivedRouteImport.update({
+  id: '/assets/archived',
+  path: '/assets/archived',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssetsCategoriesRoute = AssetsCategoriesRouteImport.update({
+  id: '/assets/categories',
+  path: '/assets/categories',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssetsRatesBaseAssetIdQuoteAssetIdRoute =
+  AssetsRatesBaseAssetIdQuoteAssetIdRouteImport.update({
+    id: '/assets/rates/$baseAssetId/$quoteAssetId',
+    path: '/assets/rates/$baseAssetId/$quoteAssetId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/more': typeof MoreRoute
   '/settings': typeof SettingsRoute
+  '/assets/$assetId': typeof AssetsAssetIdRoute
+  '/assets/archived': typeof AssetsArchivedRoute
+  '/assets/categories': typeof AssetsCategoriesRoute
+  '/assets/': typeof AssetsIndexRoute
+  '/assets/rates/$baseAssetId/$quoteAssetId': typeof AssetsRatesBaseAssetIdQuoteAssetIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/more': typeof MoreRoute
   '/settings': typeof SettingsRoute
+  '/assets/$assetId': typeof AssetsAssetIdRoute
+  '/assets/archived': typeof AssetsArchivedRoute
+  '/assets/categories': typeof AssetsCategoriesRoute
+  '/assets': typeof AssetsIndexRoute
+  '/assets/rates/$baseAssetId/$quoteAssetId': typeof AssetsRatesBaseAssetIdQuoteAssetIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +94,46 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/more': typeof MoreRoute
   '/settings': typeof SettingsRoute
+  '/assets/$assetId': typeof AssetsAssetIdRoute
+  '/assets/archived': typeof AssetsArchivedRoute
+  '/assets/categories': typeof AssetsCategoriesRoute
+  '/assets/': typeof AssetsIndexRoute
+  '/assets/rates/$baseAssetId/$quoteAssetId': typeof AssetsRatesBaseAssetIdQuoteAssetIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/more' | '/settings'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/more'
+    | '/settings'
+    | '/assets/$assetId'
+    | '/assets/archived'
+    | '/assets/categories'
+    | '/assets/'
+    | '/assets/rates/$baseAssetId/$quoteAssetId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/more' | '/settings'
-  id: '__root__' | '/' | '/login' | '/more' | '/settings'
+  to:
+    | '/'
+    | '/login'
+    | '/more'
+    | '/settings'
+    | '/assets/$assetId'
+    | '/assets/archived'
+    | '/assets/categories'
+    | '/assets'
+    | '/assets/rates/$baseAssetId/$quoteAssetId'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/more'
+    | '/settings'
+    | '/assets/$assetId'
+    | '/assets/archived'
+    | '/assets/categories'
+    | '/assets/'
+    | '/assets/rates/$baseAssetId/$quoteAssetId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +141,11 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MoreRoute: typeof MoreRoute
   SettingsRoute: typeof SettingsRoute
+  AssetsAssetIdRoute: typeof AssetsAssetIdRoute
+  AssetsArchivedRoute: typeof AssetsArchivedRoute
+  AssetsCategoriesRoute: typeof AssetsCategoriesRoute
+  AssetsIndexRoute: typeof AssetsIndexRoute
+  AssetsRatesBaseAssetIdQuoteAssetIdRoute: typeof AssetsRatesBaseAssetIdQuoteAssetIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +178,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/assets/': {
+      id: '/assets/'
+      path: '/assets'
+      fullPath: '/assets/'
+      preLoaderRoute: typeof AssetsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assets/$assetId': {
+      id: '/assets/$assetId'
+      path: '/assets/$assetId'
+      fullPath: '/assets/$assetId'
+      preLoaderRoute: typeof AssetsAssetIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assets/archived': {
+      id: '/assets/archived'
+      path: '/assets/archived'
+      fullPath: '/assets/archived'
+      preLoaderRoute: typeof AssetsArchivedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assets/categories': {
+      id: '/assets/categories'
+      path: '/assets/categories'
+      fullPath: '/assets/categories'
+      preLoaderRoute: typeof AssetsCategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assets/rates/$baseAssetId/$quoteAssetId': {
+      id: '/assets/rates/$baseAssetId/$quoteAssetId'
+      path: '/assets/rates/$baseAssetId/$quoteAssetId'
+      fullPath: '/assets/rates/$baseAssetId/$quoteAssetId'
+      preLoaderRoute: typeof AssetsRatesBaseAssetIdQuoteAssetIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +221,12 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MoreRoute: MoreRoute,
   SettingsRoute: SettingsRoute,
+  AssetsAssetIdRoute: AssetsAssetIdRoute,
+  AssetsArchivedRoute: AssetsArchivedRoute,
+  AssetsCategoriesRoute: AssetsCategoriesRoute,
+  AssetsIndexRoute: AssetsIndexRoute,
+  AssetsRatesBaseAssetIdQuoteAssetIdRoute:
+    AssetsRatesBaseAssetIdQuoteAssetIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

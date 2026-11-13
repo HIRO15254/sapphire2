@@ -1,4 +1,5 @@
 import type { Database } from "@sapphire2/db";
+import type { EntryKind, EntryStatus } from "@sapphire2/db/constants/entry";
 import type { LedgerRole } from "@sapphire2/db/constants/ledger";
 import { entry } from "@sapphire2/db/schema/entry";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
@@ -7,7 +8,11 @@ import { safeInteger } from "../lib/safe-integer";
 
 export interface AssetHistoryRow {
 	categoryId: string | null;
+	counterpartAssetId: string | null;
+	counterpartQuantity: number | null;
 	entryId: string | null;
+	entryKind: EntryKind | null;
+	entryStatus: EntryStatus | null;
 	id: string;
 	memo: string | null;
 	occurredAt: Date;
@@ -36,10 +41,22 @@ export async function selectAssetHistory(
 			? sql`(${occurredAt}, ${id}) < (${sql.param(cursor.occurredAt, ledgerLine.occurredAt)}, ${cursor.id})`
 			: undefined;
 	const firstOccurredAt = sql`MIN(${ledgerLine.occurredAt})`;
+	const counterpart = (column: string) =>
+		sql.raw(
+			`(SELECT other.${column} FROM ledger_line AS other WHERE other.transfer_id = ledger_line.transfer_id AND other.user_id = ledger_line.user_id AND other.id <> ledger_line.id LIMIT 1)`
+		);
 	const walletLines = db
 		.select({
 			categoryId: ledgerLine.categoryId,
+			counterpartAssetId: sql<string | null>`${counterpart("asset_id")}`.as(
+				"counterpart_asset_id"
+			),
+			counterpartQuantity: sql<number | null>`${counterpart("quantity")}`.as(
+				"counterpart_quantity"
+			),
 			entryId: sql<string | null>`NULL`.as("entry_id"),
+			entryKind: sql<EntryKind | null>`NULL`.as("entry_kind"),
+			entryStatus: sql<EntryStatus | null>`NULL`.as("entry_status"),
 			id: ledgerLine.id,
 			memo: ledgerLine.memo,
 			occurredAt: ledgerLine.occurredAt,
@@ -60,7 +77,13 @@ export async function selectAssetHistory(
 	const entryTotals = db
 		.select({
 			categoryId: sql<string | null>`NULL`.as("category_id"),
+			counterpartAssetId: sql<string | null>`NULL`.as("counterpart_asset_id"),
+			counterpartQuantity: sql<number | null>`NULL`.as("counterpart_quantity"),
 			entryId: sql<string | null>`${ledgerLine.entryId}`.as("entry_id"),
+			entryKind: sql<EntryKind | null>`MAX(${entry.kind})`.as("entry_kind"),
+			entryStatus: sql<EntryStatus | null>`MAX(${entry.status})`.as(
+				"entry_status"
+			),
 			id: sql<string>`${ledgerLine.entryId}`.as("id"),
 			memo: sql<string | null>`NULL`.as("memo"),
 			occurredAt: sql<Date>`${firstOccurredAt}`
@@ -92,5 +115,12 @@ export async function selectAssetHistory(
 		.unionAll(entryTotals)
 		.orderBy(desc(sql`occurred_at`), desc(sql`id`))
 		.limit(options.limit);
-	return rows.map((row) => ({ ...row, quantity: safeInteger(row.quantity) }));
+	return rows.map((row) => ({
+		...row,
+		counterpartQuantity:
+			row.counterpartQuantity === null
+				? null
+				: safeInteger(row.counterpartQuantity),
+		quantity: safeInteger(row.quantity),
+	}));
 }
