@@ -1,10 +1,10 @@
 # Automated PR Review
 
-The automated reviewer uses a single lean context with `claude-fable-5-2`, high effort and a limit of 80 turns. Subagents and Fast mode are disabled. The reviewer compares the changes against the linked Linear issue, including later decisions in its comments; missing or contradicted requirements go through the same verification as other findings.
+The automated reviewer uses a single context with `claude-fable-5-2`, high effort and a limit of 150 turns (a replayed 8,000-line PR took 83 tool calls). Subagents and Fast mode are disabled. The reviewer compares the changes against the linked Linear issue, including later decisions in its comments; missing or contradicted requirements go through the same verification as other findings.
 
 The base-branch [`scripts/review-issue-context.ts`](../../scripts/review-issue-context.ts) obtains the issue from `feature/sa2-<n>` and passes it to the reviewer. Only that job holds `LINEAR_API_KEY`; it does not check out or install PR code. Lookup failure does not stop the review and is reported in the summary.
 
-The author-side rules are in [`AGENTS.md`](../../AGENTS.md); historical review-loop measurements and the lean evaluation are in the [review history](../archive/pr-review-history.md) and [evaluation](../archive/pr-review-lean-evaluation.md).
+The author-side rules are in [`AGENTS.md`](../../AGENTS.md); historical review-loop measurements, the lean evaluation and the replay that led to the risk questions are in the [review history](../archive/pr-review-history.md), the [lean evaluation](../archive/pr-review-lean-evaluation.md) and the [risk-question replay](../archive/pr-review-risk-questions-evaluation.md).
 
 ## Mechanics
 

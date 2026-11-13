@@ -215,7 +215,7 @@ jobs:
 
             ${{ needs.issue.outputs.context || 'The issue job did not return the issue; review against author intent and say so in the coverage line.' }}
           claude_args: |
-            --max-turns 80
+            --max-turns 150
             --model claude-fable-5-2
             --effort high
             --disallowedTools "Task,Agent"
