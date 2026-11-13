@@ -321,20 +321,20 @@ Every level writes the context fields `buttonSeat,tableSize,levelOrdinal,stakes,
 
 ## 8. `asset`
 
-`Asset = {id,name,unit,description,kind:currency|item,decimals,archivedAt,isFavorite,balance,createdAt,updatedAt}`. Balance is signed native quantity per [data model](data-model.md) §12.4, including real entry and wallet lines; for an item the same field is holdings. A buy-in reduces it immediately even while the entry is open. Virtual lines never change balance.
+`Asset = {id,name,unit,description,kind:currency|item,decimals,archivedAt,isFavorite,isReferenced,balance,createdAt,updatedAt}`. `isReferenced` is the same reference test that blocks `delete` and kind/decimals changes, so a screen can disable those actions before the user tries them. Balance is signed native quantity per [data model](data-model.md) §12.4, including real entry and wallet lines; for an item the same field is holdings. A buy-in reduces it immediately even while the entry is open. Virtual lines never change balance.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | `{includeArchived?:boolean}` | Asset[] ordered favorite first, then createdAt and id ascending | — | `asset_list` |
 | `getById` Q | IdInput | Asset | — | Excluded: duplicate read |
-| `create` M | `{name:trimmed string 1..100,unit?:string<=20,description?:string<=50000,kind:currency|item,decimals?:integer 0..4=0}` | Asset | Case-insensitive trimmed name collision: CONFLICT | Excluded: wallet |
+| `create` M | `{name:trimmed string 1..100,unit?:string<=20,description?:string<=50000,kind:currency|item,decimals?:integer 0..4=0,initialRates?:{quoteAssetId,rateNum,rateDen}[]<=50}` | Asset | Case-insensitive trimmed name collision: CONFLICT; foreign quote: FORBIDDEN; archived quote or a quote listed twice: BAD_REQUEST | Excluded: wallet |
 | `update` M | `{id,name?,unit?:string<=20|null,description?:string<=50000|null,kind?,decimals?}` | Asset | Name collision: CONFLICT; kind or decimals change when referenced anywhere: CONFLICT | Excluded: wallet |
 | `archive` M | IdInput | Asset | — | Excluded: wallet |
 | `restore` M | IdInput | Asset | — | Excluded: wallet |
 | `delete` M | IdInput | Ack | Any ledger/rate/entry/master-default/price/setting reference: CONFLICT, message "Asset is in use; archive it instead" | Excluded: destructive |
 | `toggleFavorite` M | IdInput | Asset | — | Excluded: toggle |
 
-Archived assets retain references, rates and balances. New selections must be active; unchanged historical references remain readable. For manual payment replacement, archived asset references may be retained up to their existing count in the entry. For live event edits the limit is the existing count in that event; new events cannot select an archived asset.
+`initialRates` stores one rate per quote asset with the new asset as base, effective from the epoch, in the same batch as the asset, so a failure leaves neither. Archived assets retain references, rates and balances. New selections must be active; unchanged historical references remain readable. For manual payment replacement, archived asset references may be retained up to their existing count in the entry. For live event edits the limit is the existing count in that event; new events cannot select an archived asset.
 
 ## 9. `assetRate`
 
@@ -361,7 +361,7 @@ Without effectiveAt, list returns matching history. With it, returns only latest
 
 All procedures are **Excluded: wallet** (delete additionally destructive). Wallet writes cannot mutate projected or manual entry lines: `FORBIDDEN`, regardless of the line's owner. Entry money is changed only through entry/live.
 
-`WalletLine = {id,assetId,role:adjustment|exchange,quantity,effect:real,categoryId:null|Id,entryId:null,transferId:null|Id,occurredAt,memo:string|null}`. History items are `{kind:wallet,line:WalletLine}` or `{kind:entry,id,entryId,title:string|null,assetId,quantity,occurredAt}`; the latter sums real lines for that entry/asset and uses their earliest timestamp, and `id` equals `entryId`. Virtual entry lines do not masquerade as wallet balance movements. The cursor carries the asset id and the boundary `(occurredAt,id)`; another asset's cursor is FORBIDDEN.
+`WalletLine = {id,assetId,role:adjustment|exchange,quantity,effect:real,categoryId:null|Id,entryId:null,transferId:null|Id,occurredAt,memo:string|null}`. History items are `{kind:wallet,line:WalletLine,counterpart:{assetId,quantity}|null}` or `{kind:entry,id,entryId,entryKind:cash|tournament,isOpen:boolean,title:string|null,assetId,quantity,occurredAt}`. `counterpart` is the other leg of an exchange (null for an adjustment); `isOpen` is true while the entry is not settled. The entry item sums real lines for that entry/asset and uses their earliest timestamp, and `id` equals `entryId`. Virtual entry lines do not masquerade as wallet balance movements. The cursor carries the asset id and the boundary `(occurredAt,id)`; another asset's cursor is FORBIDDEN.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
@@ -375,7 +375,7 @@ Exchange atomically writes negative from and positive to with one transferId. Ed
 
 ## 12. `ledgerCategory`
 
-`Category = {id,name,icon,archivedAt,createdAt,updatedAt}`. Names are trimmed, case-insensitively unique per user including archived rows. `icon` is a Tabler icon name or null (no icon); the API checks only its shape (`IconName` = `^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64 characters) and keeps no allowlist, so the web treats a name its icon font lacks the same as null.
+`Category = {id,name,icon,lineCount,archivedAt,createdAt,updatedAt}`. `lineCount` counts the wallet records using the category, an exchange once. Names are trimmed, case-insensitively unique per user including archived rows. `icon` is a Tabler icon name or null (no icon); the API checks only its shape (`IconName` = `^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64 characters) and keeps no allowlist, so the web treats a name its icon font lacks the same as null.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |

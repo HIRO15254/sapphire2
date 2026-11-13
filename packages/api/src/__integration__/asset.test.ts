@@ -260,6 +260,21 @@ describe("asset references on D1", () => {
 			).rejects.toMatchObject(IN_USE);
 		}
 		expect(await storedRows(api)).toEqual(before);
+		expect(
+			Object.fromEntries(
+				(await api.alice.asset.list()).map(({ isReferenced, name }) => [
+					name,
+					isReferenced,
+				])
+			)
+		).toEqual({
+			Base: true,
+			Lined: true,
+			Played: true,
+			Quote: true,
+			Setting: true,
+			Unused: false,
+		});
 
 		expect(await api.alice.asset.delete({ id: unused.id })).toEqual({
 			success: true,
@@ -447,6 +462,69 @@ describe("asset rates on D1", () => {
 			raced.assetRate.create({ ...input, effectiveFrom: 103 })
 		).rejects.toMatchObject({ code: "CONFLICT" });
 		expect(await api.alice.assetRate.list()).toHaveLength(0);
+	});
+
+	test("create stores initial rates from the start with the asset, and refuses a foreign or archived currency without creating anything", async ({
+		api,
+	}) => {
+		const jpy = await createCurrency(api, "JPY");
+		const usd = await createCurrency(api, "USD");
+		const created = requireCreatedRow(
+			await api.alice.asset.create({
+				initialRates: [
+					{ quoteAssetId: jpy.id, rateDen: 10, rateNum: 1 },
+					{ quoteAssetId: usd.id, rateDen: 1000, rateNum: 1 },
+				],
+				kind: "currency",
+				name: "Chips",
+			})
+		);
+		expect(
+			(await api.alice.assetRate.list({ baseAssetId: created.id }))
+				.map(({ effectiveFrom, quoteAssetId, rateDen, rateNum }) => ({
+					effectiveFrom,
+					quoteAssetId,
+					rateDen,
+					rateNum,
+				}))
+				.sort((a, b) => a.rateDen - b.rateDen)
+		).toEqual([
+			{
+				effectiveFrom: new Date(0),
+				quoteAssetId: jpy.id,
+				rateDen: 10,
+				rateNum: 1,
+			},
+			{
+				effectiveFrom: new Date(0),
+				quoteAssetId: usd.id,
+				rateDen: 1000,
+				rateNum: 1,
+			},
+		]);
+
+		const bobCurrency = requireCreatedRow(
+			await api.bob.asset.create({ kind: "currency", name: "Bob coin" })
+		);
+		await api.alice.asset.archive({ id: usd.id });
+		const before = await storedRows(api);
+		await expect(
+			api.alice.asset.create({
+				initialRates: [
+					{ quoteAssetId: bobCurrency.id, rateDen: 1, rateNum: 1 },
+				],
+				kind: "currency",
+				name: "Foreign",
+			})
+		).rejects.toMatchObject(FORBIDDEN);
+		await expect(
+			api.alice.asset.create({
+				initialRates: [{ quoteAssetId: usd.id, rateDen: 1, rateNum: 1 }],
+				kind: "currency",
+				name: "Archived",
+			})
+		).rejects.toMatchObject(BAD_REQUEST);
+		expect(await storedRows(api)).toEqual(before);
 	});
 
 	test("list returns the history, or the latest rate at or before effectiveAt for each directed pair", async ({

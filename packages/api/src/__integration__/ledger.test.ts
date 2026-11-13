@@ -564,7 +564,9 @@ describe("ledger.listByAsset on D1", () => {
 				{
 					assetId: jpy.id,
 					entryId: "trip",
+					entryKind: "cash",
 					id: "trip",
+					isOpen: false,
 					kind: "entry",
 					occurredAt: at(T0 + 60),
 					quantity: 20_000,
@@ -581,6 +583,71 @@ describe("ledger.listByAsset on D1", () => {
 				occurredAt: at(T0),
 				quantity: -200,
 			}),
+		]);
+	});
+});
+
+describe("asset history rows on D1", () => {
+	test("an exchange row names the other leg, an entry row carries its kind and whether it is still open, and a category counts an exchange once", async ({
+		api,
+	}) => {
+		const jpy = await createAsset(api.alice, "JPY");
+		const usd = await createAsset(api.alice, "USD");
+		const fx = requireCreatedRow(
+			await api.alice.ledgerCategory.create({ name: "FX" })
+		);
+		await api.alice.ledger.createExchange({
+			categoryId: fx.id,
+			from: { assetId: jpy.id, quantity: 15_000 },
+			occurredAt: T0 + 2,
+			to: { assetId: usd.id, quantity: 100 },
+		});
+		await api.alice.ledger.createAdjustment({
+			assetId: jpy.id,
+			categoryId: fx.id,
+			occurredAt: T0 + 1,
+			quantity: 500,
+		});
+		await seedEntry(api, "settled", "Friday cash", [
+			{ assetId: jpy.id, occurredAt: T0, quantity: -3000, role: "buy_in" },
+		]);
+		await api.db.insert(entry).values({
+			id: "running",
+			kind: "tournament",
+			playedOn: "2026-09-01",
+			source: "live",
+			status: "open",
+			title: "Sunday Main",
+			updatedAt: NOW,
+			userId: "alice",
+		});
+		await api.db.insert(ledgerLine).values({
+			assetId: jpy.id,
+			effect: "real",
+			entryId: "running",
+			id: "running:0",
+			occurredAt: at(T0 + 3),
+			quantity: -10_000,
+			role: "buy_in",
+			updatedAt: NOW,
+			userId: "alice",
+		});
+
+		const { items } = await api.alice.ledger.listByAsset({ assetId: jpy.id });
+		expect(
+			items.map((item) =>
+				item.kind === "entry"
+					? [item.title, item.entryKind, item.isOpen]
+					: [item.line.role, item.counterpart]
+			)
+		).toEqual([
+			["Sunday Main", "tournament", true],
+			["exchange", { assetId: usd.id, quantity: 100 }],
+			["adjustment", null],
+			["Friday cash", "cash", false],
+		]);
+		expect(await api.alice.ledgerCategory.list()).toMatchObject([
+			{ id: fx.id, lineCount: 2 },
 		]);
 	});
 });
