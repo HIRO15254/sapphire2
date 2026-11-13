@@ -1,21 +1,11 @@
-import { afterAll, expect, vi } from "vitest";
+import { expect } from "vitest";
 import { test } from "./test-fixture";
 import { createWorkerClient, jsonPost } from "./worker-http";
-
-const previousNodeEnv = vi.hoisted(() => {
-	const previous = process.env.NODE_ENV;
-	process.env.NODE_ENV = "production";
-	return previous;
-});
-
-afterAll(() => {
-	process.env.NODE_ENV = previousNodeEnv;
-});
 
 test("a client rotating X-Forwarded-For still exhausts the sign-in limit of its Cloudflare connecting IP", async ({
 	api,
 }) => {
-	const request = createWorkerClient(api.d1);
+	const request = createWorkerClient(api.d1, { NODE_ENV: "production" });
 	const statuses: number[] = [];
 	for (const forwardedFor of [
 		"198.51.100.1",

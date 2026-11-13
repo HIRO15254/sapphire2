@@ -4,7 +4,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Log, Miniflare } from "miniflare";
 import { applyMigrations } from "../packages/api/src/__integration__/test-database.ts";
-import { readWorkerCompatibility } from "./worker-compatibility.ts";
+import {
+	readWorkerCompatibility,
+	readWorkerVars,
+} from "./worker-compatibility.ts";
 
 const root = path.resolve(import.meta.dirname, "..");
 const runtime = path.join(root, ".test-runtime");
@@ -15,6 +18,19 @@ const workerLog = path.join(resultsDirectory, "worker.log");
 const webUrl = "https://localhost:13001";
 const apiUrl = "https://localhost:18787";
 const { compatibilityDate, compatibilityFlags } = readWorkerCompatibility();
+const apiWorkerName = "sapphire2-test-api";
+const edgeScript = `let next = 0;
+export default {
+	async fetch(request, env) {
+		const headers = new Headers(request.headers);
+		if (!headers.has("cf-connecting-ip")) {
+			next += 1;
+			headers.set("cf-connecting-ip", \`198.18.\${(next >> 8) & 255}.\${next & 255}\`);
+		}
+		const body = request.body ? await request.arrayBuffer() : null;
+		return env.API.fetch(new Request(request, { body, headers }));
+	},
+};`;
 
 await mkdir(runtime, { recursive: true });
 await mkdir(resultsDirectory, { recursive: true });
@@ -93,30 +109,42 @@ await build(
 );
 
 const api = new Miniflare({
-	bindings: {
-		BETTER_AUTH_SECRET: "local-test-secret-with-at-least-32-characters",
-		BETTER_AUTH_URL: apiUrl,
-		CORS_ORIGIN: webUrl,
-	},
 	cf: false,
-	compatibilityDate,
-	compatibilityFlags,
-	d1Databases: ["DB"],
 	host: "127.0.0.1",
 	https: true,
 	log: new TestLog(),
-	modules: [
-		{ path: path.join(workerDirectory, "worker.js"), type: "ESModule" },
-	],
-	name: "sapphire2-test-api",
-	outboundService: () =>
-		new Response("Unexpected external request in test", { status: 502 }),
 	port: 18_787,
+	workers: [
+		{
+			compatibilityDate,
+			modules: true,
+			name: "sapphire2-test-edge",
+			script: edgeScript,
+			serviceBindings: { API: apiWorkerName },
+		},
+		{
+			bindings: {
+				...readWorkerVars(),
+				BETTER_AUTH_SECRET: "local-test-secret-with-at-least-32-characters",
+				BETTER_AUTH_URL: apiUrl,
+				CORS_ORIGIN: webUrl,
+			},
+			compatibilityDate,
+			compatibilityFlags,
+			d1Databases: ["DB"],
+			modules: [
+				{ path: path.join(workerDirectory, "worker.js"), type: "ESModule" },
+			],
+			name: apiWorkerName,
+			outboundService: () =>
+				new Response("Unexpected external request in test", { status: 502 }),
+		},
+	],
 });
 let web: Miniflare | undefined;
 
 try {
-	await applyMigrations(await api.getD1Database("DB"));
+	await applyMigrations(await api.getD1Database("DB", apiWorkerName));
 	web = new Miniflare({
 		assets: {
 			assetConfig: { not_found_handling: "single-page-application" },

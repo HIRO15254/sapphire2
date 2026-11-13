@@ -39,6 +39,7 @@ interface Env {
 	GOOGLE_CLIENT_ID?: string;
 	GOOGLE_CLIENT_SECRET?: string;
 	GOOGLE_MAPS_API_KEY?: string;
+	NODE_ENV?: string;
 	OPENAI_API_KEY?: string;
 }
 
