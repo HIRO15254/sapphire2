@@ -139,3 +139,19 @@ export function iconGlyph(name: string): IconGlyph | null | undefined {
 export async function suggestIcon(text: string): Promise<string> {
 	return suggestIconFromWords(await loadIconSearchIndex(), text);
 }
+
+export async function suggestIconForKeywords(
+	keywords: string[]
+): Promise<string> {
+	if (keywords.length === 0) {
+		return "";
+	}
+	const index = await loadIconSearchIndex();
+	for (const keyword of keywords) {
+		const name = suggestIconFromWords(index, keyword);
+		if (name) {
+			return name;
+		}
+	}
+	return "";
+}

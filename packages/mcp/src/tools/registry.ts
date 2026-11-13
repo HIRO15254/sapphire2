@@ -609,6 +609,11 @@ export const DELIBERATELY_EXCLUDED: {
 			"Product decision: MCP clients are themselves multimodal LLMs and can read images directly",
 	},
 	{
+		paths: ["aiExtract.suggestIconKeywords"],
+		reason:
+			"Form helper that turns a name into icon search words; MCP clients are LLMs and can pick an icon name themselves",
+	},
+	{
 		paths: ["location.search", "location.resolveLink"],
 		reason:
 			"Venue search calls Google Places and uses external quota; link resolution is a screen workflow that can fetch Google Maps short links. Agents can search the web themselves",
