@@ -29,6 +29,8 @@ The author-side rules are in [`AGENTS.md`](../../AGENTS.md); historical review-l
 
 The reviewer runs with an explicit tool allowlist and without `gh api`; untrusted diff content cannot use that command to write to the PR. Thread resolution is performed separately from the machine-readable trailer.
 
+The reviewer's instructions come from the base branch, not from the PR. Before the reviewer starts, `claude-code-action` restores `.claude/` (the reviewer skill, the rule files and the settings), `CLAUDE.md` and `.husky/` from the base branch and keeps the PR's copies under `.claude-pr/` as material to review, not to execute. A PR that edits the reviewer is therefore reviewed by the reviewer on `dev`, and its edit takes effect only after the merge; a change to the reviewer is measured by replaying past PRs, not by its own review round. `AGENTS.md` is not in the restored set and is read from the PR head; a PR that changes it is excluded from auto-merge.
+
 **Hooks** — the review session runs with `disableAllHooks` so the repo's Stop hook (`bun x ultracite fix && bun run test:unit --changed HEAD && bun x ultracite check && bun scripts/check-rules.ts`) does not fire at the end of a review; it exists for authoring sessions.
 
 ## Outcome job: Linear status and auto-merge
