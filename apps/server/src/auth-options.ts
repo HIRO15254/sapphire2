@@ -23,6 +23,7 @@ interface AuthEnv {
 	DISCORD_CLIENT_SECRET?: string;
 	GOOGLE_CLIENT_ID?: string;
 	GOOGLE_CLIENT_SECRET?: string;
+	NODE_ENV?: string;
 }
 
 export function buildAuthOptions(env: AuthEnv, db: Database): AuthOptions {
@@ -45,6 +46,7 @@ export function buildAuthOptions(env: AuthEnv, db: Database): AuthOptions {
 			await runBatch(db, [selfPlayerInsert(db, userId), ...statements]);
 		},
 		passkey: resolvePasskeyRp(corsOrigin),
+		rateLimitEnabled: env.NODE_ENV === "production",
 		secret: env.BETTER_AUTH_SECRET,
 	};
 }

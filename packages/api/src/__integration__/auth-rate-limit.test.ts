@@ -1,21 +1,11 @@
-import { afterAll, expect, vi } from "vitest";
+import { expect } from "vitest";
 import { test } from "./test-fixture";
 import { createWorkerClient, jsonPost } from "./worker-http";
-
-const previousNodeEnv = vi.hoisted(() => {
-	const previous = process.env.NODE_ENV;
-	process.env.NODE_ENV = "production";
-	return previous;
-});
-
-afterAll(() => {
-	process.env.NODE_ENV = previousNodeEnv;
-});
 
 test("a client rotating X-Forwarded-For still exhausts the sign-in limit of its Cloudflare connecting IP", async ({
 	api,
 }) => {
-	const request = createWorkerClient(api.d1);
+	const request = createWorkerClient(api.d1, { NODE_ENV: "production" });
 	const statuses: number[] = [];
 	for (const forwardedFor of [
 		"198.51.100.1",
@@ -44,4 +34,19 @@ test("a client rotating X-Forwarded-For still exhausts the sign-in limit of its 
 		)
 	);
 	expect(otherClient.status).not.toBe(429);
+});
+
+test("session checks from one connecting IP are never rate limited, so navigation cannot sign the user out", async ({
+	api,
+}) => {
+	const request = createWorkerClient(api.d1, { NODE_ENV: "production" });
+	const statuses: number[] = [];
+	for (let attempt = 0; attempt < 101; attempt += 1) {
+		// biome-ignore lint/performance/noAwaitInLoops: Rate-limit assertions depend on request order.
+		const response = await request("/api/auth/get-session", {
+			headers: { "cf-connecting-ip": "203.0.113.9" },
+		});
+		statuses.push(response.status);
+	}
+	expect(statuses).not.toContain(429);
 });

@@ -1,17 +1,7 @@
-import { afterAll, expect, vi } from "vitest";
+import { expect } from "vitest";
 import type { TestD1Database } from "./test-database";
 import { test } from "./test-fixture";
 import { createWorkerClient, jsonPost } from "./worker-http";
-
-const previousNodeEnv = vi.hoisted(() => {
-	const previous = process.env.NODE_ENV;
-	process.env.NODE_ENV = "production";
-	return previous;
-});
-
-afterAll(() => {
-	process.env.NODE_ENV = previousNodeEnv;
-});
 
 const REGISTER_PATH = "/api/auth/oauth2/register";
 const MAX_BODY_BYTES = 16 * 1024;
@@ -79,7 +69,7 @@ test.for([
 test("one connecting IP registers at most 20 clients per hour", async ({
 	api,
 }) => {
-	const request = createWorkerClient(api.d1);
+	const request = createWorkerClient(api.d1, { NODE_ENV: "production" });
 	const statuses: number[] = [];
 	for (let attempt = 0; attempt < 21; attempt += 1) {
 		// biome-ignore lint/performance/noAwaitInLoops: Rate-limit requests must remain sequential.
