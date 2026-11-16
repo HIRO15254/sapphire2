@@ -1,0 +1,52 @@
+name: Wait for the ci check
+description: Wait until the named check on a commit completes and report its conclusion as `state` (success, the failing conclusion, or timeout).
+
+inputs:
+  head-sha:
+    description: The commit whose check is awaited.
+    required: true
+  check-name:
+    description: The name of the check run.
+    required: true
+  wait-minutes:
+    description: How long to wait before reporting timeout.
+    required: true
+  token:
+    description: A token that can read check runs.
+    required: true
+
+outputs:
+  state:
+    description: success, the failing conclusion, or timeout.
+    value: ${{ steps.wait.outputs.state }}
+
+runs:
+  using: composite
+  steps:
+    - id: wait
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        CI_CHECK_NAME: ${{ inputs.check-name }}
+        CI_WAIT_MINUTES: ${{ inputs.wait-minutes }}
+      run: |
+        set -euo pipefail
+        deadline=$(( $(date +%s) + CI_WAIT_MINUTES * 60 ))
+        state=timeout
+        while [ "$(date +%s)" -lt "$deadline" ]; do
+          line=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?check_name=${CI_CHECK_NAME}&filter=latest" \
+            --jq '.check_runs[0] | "\(.status // "none") \(.conclusion // "none")"' 2>/dev/null || echo "none none")
+          status=${line% *}
+          conclusion=${line#* }
+          if [ "$status" = "completed" ]; then
+            if [ "$conclusion" = "success" ]; then state=success; else state=$conclusion; fi
+            break
+          fi
+          sleep 30
+        done
+        echo "state=${state}" >> "$GITHUB_OUTPUT"
+        echo "ci check '${CI_CHECK_NAME}' on ${HEAD_SHA}: ${state}"
+        if [ "$state" != "success" ]; then
+          echo "- review skipped: ci check is \`${state}\` on \`${HEAD_SHA}\`; the next code push re-evaluates" >> "$GITHUB_STEP_SUMMARY"
+        fi

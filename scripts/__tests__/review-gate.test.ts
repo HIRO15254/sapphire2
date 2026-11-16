@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
 	decideReview,
+	decideTier,
+	extractFinalMessage,
 	extractReviewTrailer,
 	formatGithubOutputs,
 	formatSummaryOutputs,
 	type GateInput,
 	hasPublishedSummary,
+	parseNumstat,
 	parseReviewResult,
 	parseReviewState,
 	renderStateComment,
@@ -458,5 +461,70 @@ describe("formatSummaryOutputs", () => {
 		expect(formatSummaryOutputs(false, { subtype: "", trailer: null })).toBe(
 			"has_log=false\nhas_summary=false\nsubtype=\n"
 		);
+	});
+});
+
+describe("decideTier", () => {
+	const file = (path: string, changedLines = 10) => ({ changedLines, path });
+
+	it("sends a PR with a migration, auth or Worker source to the deep tier", () => {
+		for (const path of [
+			"packages/db/src/migrations/0084_example.sql",
+			"packages/auth/src/index.ts",
+			"apps/server/src/worker.ts",
+			"apps/server/wrangler.toml",
+		]) {
+			expect(decideTier("full", [file(path, 1)]).tier, path).toBe("deep");
+		}
+	});
+
+	it("counts API source lines across files and switches to deep at 300", () => {
+		const below = [
+			file("packages/api/src/routers/a.ts", 200),
+			file("packages/mcp/src/tools/registry.ts", 99),
+		];
+		expect(decideTier("full", below).tier).toBe("standard");
+		expect(
+			decideTier("full", [...below, file("packages/db/src/schema/a.ts", 1)])
+				.tier
+		).toBe("deep");
+	});
+
+	it("does not count tests, generated migration metadata or web code", () => {
+		const files = [
+			file("packages/api/src/__integration__/a.test.ts", 2000),
+			file("packages/auth/src/__tests__/index.test.ts", 500),
+			file("packages/db/src/migrations/meta/0084_snapshot.json", 9000),
+			file("apps/web/src/features/x/page.tsx", 3000),
+		];
+		expect(decideTier("full", files).tier).toBe("standard");
+	});
+
+	it("keeps an incremental round with one reviewer", () => {
+		expect(
+			decideTier("incremental", [file("packages/auth/src/index.ts")]).tier
+		).toBe("standard");
+	});
+});
+
+describe("parseNumstat", () => {
+	it("reads added plus deleted lines and treats a binary file as zero", () => {
+		expect(
+			parseNumstat("12\t3\tpackages/api/src/a.ts\n-\t-\tapps/web/logo.png\n")
+		).toEqual([
+			{ changedLines: 15, path: "packages/api/src/a.ts" },
+			{ changedLines: 0, path: "apps/web/logo.png" },
+		]);
+	});
+});
+
+describe("extractFinalMessage", () => {
+	it("returns the last result text of an execution log and empty when none", () => {
+		const log = JSON.stringify([
+			{ result: "first", subtype: "success", type: "result" },
+			{ result: "## Candidates\n", subtype: "success", type: "result" },
+		]);
+		expect(extractFinalMessage(log)).toBe("## Candidates\n");
+		expect(extractFinalMessage("[]")).toBe("");
 	});
 });
