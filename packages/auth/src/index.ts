@@ -262,7 +262,10 @@ export function createAuth(
 			},
 		},
 		plugins,
-		rateLimit: { enabled: options.rateLimitEnabled },
+		rateLimit: {
+			customRules: { "/get-session": false },
+			enabled: options.rateLimitEnabled,
+		},
 		secret: options.secret,
 		session: {
 			expiresIn: SESSION_EXPIRES_IN_SECONDS,
