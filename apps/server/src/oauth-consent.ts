@@ -21,23 +21,37 @@ function hostOf(candidate: unknown): string | undefined {
 	}
 }
 
-export function redirectHostsFrom(redirectUris: unknown): string[] {
-	if (!Array.isArray(redirectUris)) {
-		return [];
-	}
-	const hosts = new Set<string>();
-	for (const candidate of redirectUris) {
-		const host = hostOf(candidate);
-		if (host) {
-			hosts.add(host);
+function registeredRedirectUris(stored: unknown): unknown[] {
+	let value = stored;
+	if (typeof value === "string") {
+		try {
+			value = JSON.parse(value);
+		} catch {
+			return [];
 		}
 	}
-	return [...hosts];
+	return Array.isArray(value) ? value : [];
+}
+
+export function destinationHostFrom(
+	storedRedirectUris: unknown,
+	requestedRedirectUri: string | null
+): string | null {
+	if (
+		!(
+			requestedRedirectUri &&
+			registeredRedirectUris(storedRedirectUris).includes(requestedRedirectUri)
+		)
+	) {
+		return null;
+	}
+	return hostOf(requestedRedirectUri) ?? null;
 }
 
 export interface ConsentPageQuery {
 	clientId: string;
 	oauthQuery: string;
+	redirectUri: string | null;
 }
 
 export function parseConsentPageQuery(url: string): ConsentPageQuery | null {
@@ -46,5 +60,9 @@ export function parseConsentPageQuery(url: string): ConsentPageQuery | null {
 	if (!(clientId && params.get("sig"))) {
 		return null;
 	}
-	return { clientId, oauthQuery: params.toString() };
+	return {
+		clientId,
+		oauthQuery: params.toString(),
+		redirectUri: params.get("redirect_uri"),
+	};
 }

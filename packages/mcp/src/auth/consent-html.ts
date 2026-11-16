@@ -2,9 +2,9 @@ import { toolPermissionSummary } from "../tools/registry";
 
 export interface ConsentHtmlProps {
 	clientName: string;
+	destinationHost: string | null;
 	nonce: string;
 	oauthQuery: string;
-	redirectHosts: string[];
 }
 
 function escapeHtml(value: string): string {
@@ -118,14 +118,11 @@ const SCRIPT = `
 	document.getElementById("deny").addEventListener("click", () => decide(false));
 `;
 
-function renderDestination(redirectHosts: string[]): string {
-	if (redirectHosts.length === 0) {
+function renderDestination(destinationHost: string | null): string {
+	if (!destinationHost) {
 		return '<p class="destination">This application did not register a recognizable destination. Only approve it if you started this yourself.</p>';
 	}
-	const hosts = redirectHosts
-		.map((host) => `<code>${escapeHtml(host)}</code>`)
-		.join(", ");
-	return `<p class="destination">Your data will be sent to ${hosts}. Anyone can register an application under any name — check this destination before approving.</p>`;
+	return `<p class="destination">Your data will be sent to <code>${escapeHtml(destinationHost)}</code>. Anyone can register an application under any name — check this destination before approving.</p>`;
 }
 
 export function renderConsentHtml(props: ConsentHtmlProps): string {
@@ -151,7 +148,7 @@ export function renderConsentHtml(props: ConsentHtmlProps): string {
 <p class="lead"><strong>${clientName}</strong> is asking for access to your sapphire2 account. If you approve, it will be able to:</p>
 </div>
 <ul>${permissionItems}</ul>
-${renderDestination(props.redirectHosts)}
+${renderDestination(props.destinationHost)}
 <div class="alert" id="error" role="alert" hidden>
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M10 10l4 4m0 -4l-4 4"/></svg>
 <div><p class="alert-title">Couldn't finish connecting</p><p class="alert-description">Close this page and try connecting again.</p></div>
