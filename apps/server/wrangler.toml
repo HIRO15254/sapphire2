@@ -6,6 +6,11 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 NODE_ENV = "production"
 
+[[ratelimits]]
+name = "PAID_API_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
 [[d1_databases]]
 binding = "DB"
 database_name = "sapphire2-db"

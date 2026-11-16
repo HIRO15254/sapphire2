@@ -54,6 +54,14 @@ These have different causes and different remedies, so they are reported as **se
 
 Collapsing them into one error would hide which knob to turn.
 
+## Paid API rate limit
+
+SA2-465. Every procedure that bills an external provider — the three `aiExtract` procedures (OpenAI) and `location.search` / `location.resolveLink` (Google Places and outbound Maps fetches) — is built on `paidProcedure` ([`packages/api/src/index.ts`](../../packages/api/src/index.ts)), not `protectedProcedure`. Before the handler runs it asks the `PAID_API_RATE_LIMITER` binding (a Cloudflare Workers Rate Limiting binding declared in [`apps/server/wrangler.toml`](../../apps/server/wrangler.toml)) with the caller's user id as the key, and rejects with `TOO_MANY_REQUESTS` when the user is over the limit. The limit is shared by all paid procedures: 10 calls per user per 60 seconds. Each call of a tRPC batch passes the middleware separately, so batching does not bypass it.
+
+- **Fail closed.** When the binding is absent (for example a Worker started without the wrangler config, as in the E2E Miniflare harness) every paid procedure throws `INTERNAL_SERVER_ERROR`, so a missing binding cannot silently remove the limit. `wrangler dev` simulates the binding locally.
+- **What it does not bound.** The Workers binding counts per location and only over 10 or 60 second windows, so it caps burst rate per account, not daily spend, and self-registered accounts each get their own allowance. The spend backstop is the provider-side budget: a monthly hard budget on the OpenAI project and a daily quota on the Google Maps key, set in those consoles. An in-app per-user daily quota would need a D1 counter table and is tracked in SA2-680. Image size limits are tracked in SA2-203.
+- **Guard.** `scripts/check-rules.ts` rejects any file under `packages/api/src` (tests excluded) that reaches a paid provider (`new OpenAI(`, `ctx.openaiApiKey`, `ctx.googleMapsApiKey`, the Places URL) and still names `protectedProcedure` or `publicProcedure`.
+
 ## Web integration
 
 The current web application has no `aiExtract` consumer. The former tournament form's merge behavior is described as history in the [archive](../archive/ai-extraction-history.md), not as a current implementation.

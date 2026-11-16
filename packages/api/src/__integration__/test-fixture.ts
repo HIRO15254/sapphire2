@@ -267,6 +267,7 @@ async function createApiFixture() {
 				db: callerDb,
 				googleMapsApiKey: undefined,
 				openaiApiKey: undefined,
+				paidApiRateLimiter: undefined,
 				session,
 			});
 		}

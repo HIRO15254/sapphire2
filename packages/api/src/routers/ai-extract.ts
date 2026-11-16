@@ -16,7 +16,7 @@ import {
 	EXTRACTION_MAX_OUTPUT_TOKENS,
 	ICON_KEYWORDS_MAX_OUTPUT_TOKENS,
 } from "../ai/models";
-import { protectedProcedure, router } from "../index";
+import { paidProcedure, router } from "../index";
 import {
 	TABLE_PLAYER_SOURCE_APP_IDS,
 	TABLE_PLAYER_SOURCE_APPS,
@@ -248,7 +248,7 @@ function withoutNulls(value: unknown): unknown {
 }
 
 export const aiExtractRouter = router({
-	extractTablePlayers: protectedProcedure
+	extractTablePlayers: paidProcedure
 		.input(
 			z.object({
 				sourceApp: z.enum(TABLE_PLAYER_SOURCE_APP_IDS),
@@ -295,7 +295,7 @@ export const aiExtractRouter = router({
 
 			return { seats: deduped };
 		}),
-	extractTournamentData: protectedProcedure
+	extractTournamentData: paidProcedure
 		.input(
 			z.object({
 				sources: z.array(SourceSchema).min(1).max(5),
@@ -340,7 +340,7 @@ export const aiExtractRouter = router({
 
 			return parsed.data;
 		}),
-	suggestIconKeywords: protectedProcedure
+	suggestIconKeywords: paidProcedure
 		.input(z.object({ name: z.string().trim().min(1).max(100) }))
 		.mutation(async ({ ctx, input }) => {
 			if (!ctx.openaiApiKey) {

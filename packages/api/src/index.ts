@@ -38,3 +38,22 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 		},
 	});
 });
+
+export const paidProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+	if (!ctx.paidApiRateLimiter) {
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message: "Paid API rate limiter is not configured",
+		});
+	}
+	const { success } = await ctx.paidApiRateLimiter.limit({
+		key: ctx.session.user.id,
+	});
+	if (!success) {
+		throw new TRPCError({
+			code: "TOO_MANY_REQUESTS",
+			message: "Too many requests. Try again in a minute.",
+		});
+	}
+	return next();
+});
