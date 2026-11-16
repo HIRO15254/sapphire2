@@ -44,6 +44,15 @@ describe("review workflow token permissions", () => {
 		expect(resolver?.[1].steps.every((step) => !step.uses)).toBe(true);
 	});
 
+	it("gives the deep-tier finders no write permission on the repository or the PR", () => {
+		const { find } = workflow.jobs;
+		if (!find) {
+			throw new Error("Expected the find job");
+		}
+		expect(find.permissions?.contents).toBe("read");
+		expect(find.permissions?.["pull-requests"]).toBe("read");
+	});
+
 	it("finishes thread resolution before checking unresolved threads for auto-merge", () => {
 		const { outcome } = workflow.jobs;
 		if (!outcome) {

@@ -46,12 +46,33 @@ export type GateDecision =
 			reason: string;
 	  };
 
+export type ReviewTier = "deep" | "standard";
+
+export interface ChangedFile {
+	changedLines: number;
+	path: string;
+}
+
+export interface TierDecision {
+	reason: string;
+	tier: ReviewTier;
+}
+
 export const STATE_MARKER = "<!-- pre-merge-review:state";
 const MARKER_PATTERN = /<!-- pre-merge-review:state (?<payload>\{.*?\}) -->/u;
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const DOC_FILE = /\.md$/u;
 const TRAILER_PATTERN = /<!-- pr-review: (?<payload>\{.*?\}) -->/gu;
 const SUMMARY_HEADING_PATTERN = /^#{1,6}\s*レビュー結果/mu;
+const DEEP_SOURCE_LINES = 300;
+const MIGRATION_SQL = /^packages\/db\/src\/migrations\/[^/]+\.sql$/u;
+const AUTH_OR_WORKER =
+	/^(?:packages\/auth\/|apps\/server\/src\/|apps\/server\/wrangler\.toml$)/u;
+const API_SOURCE =
+	/^(?:packages\/api\/src\/|packages\/mcp\/src\/|packages\/db\/src\/schema\/)/u;
+const TEST_FILE =
+	/(?:^|\/)(?:__tests__|__integration__)\/|\.test\.[cm]?tsx?$|^e2e\//u;
+const NUMSTAT_LINE = /^(?<added>\d+|-)\t(?<deleted>\d+|-)\t(?<path>.+)$/u;
 
 function nextRound(state: ReviewState | null, reason: string): GateDecision {
 	return {
@@ -108,6 +129,48 @@ export function decideReview(input: GateInput): GateDecision {
 		input.state,
 		`automatic round ${rounds + 1} of ${input.maxAutoRounds}`
 	);
+}
+
+export function parseNumstat(numstat: string): ChangedFile[] {
+	const files: ChangedFile[] = [];
+	for (const line of numstat.split("\n")) {
+		const groups = NUMSTAT_LINE.exec(line)?.groups;
+		if (!groups) {
+			continue;
+		}
+		const added = groups.added === "-" ? 0 : Number(groups.added);
+		const deleted = groups.deleted === "-" ? 0 : Number(groups.deleted);
+		files.push({ changedLines: added + deleted, path: groups.path ?? "" });
+	}
+	return files;
+}
+
+export function decideTier(
+	mode: "full" | "incremental",
+	files: ChangedFile[]
+): TierDecision {
+	if (mode === "incremental") {
+		return { reason: "incremental round", tier: "standard" };
+	}
+	const source = files.filter((file) => !TEST_FILE.test(file.path));
+	const migration = source.find((file) => MIGRATION_SQL.test(file.path));
+	if (migration) {
+		return { reason: `migration ${migration.path}`, tier: "deep" };
+	}
+	const authOrWorker = source.find((file) => AUTH_OR_WORKER.test(file.path));
+	if (authOrWorker) {
+		return { reason: `auth or Worker ${authOrWorker.path}`, tier: "deep" };
+	}
+	const apiLines = source
+		.filter((file) => API_SOURCE.test(file.path))
+		.reduce((sum, file) => sum + file.changedLines, 0);
+	if (apiLines >= DEEP_SOURCE_LINES) {
+		return { reason: `${apiLines} changed lines of API source`, tier: "deep" };
+	}
+	return {
+		reason: `${apiLines} changed lines of API source`,
+		tier: "standard",
+	};
 }
 
 export function parseReviewState(commentBodies: string[]): ReviewState | null {
@@ -220,7 +283,7 @@ export function formatPublishedOutputs(trackingComment: string): string {
 	return `is_published=${hasPublishedSummary(trackingComment)}\n`;
 }
 
-export function parseReviewResult(log: string): ReviewResult {
+function lastResultEvent(log: string): ResultEvent | undefined {
 	const found: ResultEvent[] = [];
 	const whole = parseJson(log);
 	if (whole === undefined) {
@@ -233,11 +296,19 @@ export function parseReviewResult(log: string): ReviewResult {
 	} else {
 		collectResultEvents(whole, found);
 	}
-	const last = found.at(-1);
+	return found.at(-1);
+}
+
+export function parseReviewResult(log: string): ReviewResult {
+	const last = lastResultEvent(log);
 	if (!last) {
 		return { subtype: "", trailer: null };
 	}
 	return { subtype: last.subtype, trailer: extractReviewTrailer(last.result) };
+}
+
+export function extractFinalMessage(log: string): string {
+	return lastResultEvent(log)?.result ?? "";
 }
 
 export function formatSummaryOutputs(
@@ -330,6 +401,25 @@ function summaryCommand(): void {
 	emitOutputs(formatSummaryOutputs(logPath !== undefined, result));
 }
 
+function tierCommand(): void {
+	const mode = requireEnv("MODE") === "incremental" ? "incremental" : "full";
+	const numstat = readFileSync(requireEnv("NUMSTAT_FILE"), "utf8");
+	const decision = decideTier(mode, parseNumstat(numstat));
+	emitOutputs(
+		`tier=${decision.tier}\ntier_reason=${decision.reason.replace(/\s+/gu, " ")}\n`
+	);
+}
+
+function candidatesCommand(): void {
+	const logPath = process.env.EXECUTION_FILE ?? "";
+	const message =
+		logPath !== "" && existsSync(logPath)
+			? extractFinalMessage(readFileSync(logPath, "utf8"))
+			: "";
+	writeFileSync(requireEnv("CANDIDATES_FILE"), message);
+	emitOutputs(`has_candidates=${message.trim() !== ""}\n`);
+}
+
 function publishedCommand(): void {
 	const path = process.env.TRACKING_COMMENT_FILE ?? "";
 	const body =
@@ -347,6 +437,10 @@ if (import.meta.main) {
 		summaryCommand();
 	} else if (command === "published") {
 		publishedCommand();
+	} else if (command === "tier") {
+		tierCommand();
+	} else if (command === "candidates") {
+		candidatesCommand();
 	} else if (command === "last-sha") {
 		const comments = JSON.parse(requireEnv("STATE_COMMENTS")) as string[];
 		console.log(parseReviewState(comments)?.lastSha ?? "");
