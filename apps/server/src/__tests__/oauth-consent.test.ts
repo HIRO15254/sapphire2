@@ -83,6 +83,12 @@ describe("destinationHostFrom", () => {
 				"http://localhost:53211/other"
 			)
 		).toBeNull();
+		expect(
+			destinationHostFrom(
+				["HTTP://localhost:9999/callback"],
+				"HTTP://localhost:53211/callback"
+			)
+		).toBe("localhost:53211");
 	});
 
 	it("treats an opaque registered URI as unknown so the warning still fires", () => {

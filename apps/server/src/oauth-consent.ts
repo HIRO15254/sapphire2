@@ -35,7 +35,7 @@ function registeredRedirectUris(stored: unknown): unknown[] {
 
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const LOOPBACK_PORT =
-	/^(?<origin>http:\/\/[^/?#]*?)(?::\d*)?(?<rest>[/?#].*)?$/su;
+	/^(?<origin>http:\/\/[^/?#]*?)(?::\d*)?(?<rest>[/?#].*)?$/isu;
 
 function withoutLoopbackPort(uri: string): string | undefined {
 	try {
