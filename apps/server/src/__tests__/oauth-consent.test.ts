@@ -70,6 +70,21 @@ describe("destinationHostFrom", () => {
 		expect(destinationHostFrom(REGISTERED, null)).toBeNull();
 	});
 
+	it("accepts a loopback URI on another port, as the provider does", () => {
+		expect(
+			destinationHostFrom(
+				["http://localhost:9999/callback"],
+				"http://localhost:53211/callback"
+			)
+		).toBe("localhost:53211");
+		expect(
+			destinationHostFrom(
+				["http://localhost:9999/callback"],
+				"http://localhost:53211/other"
+			)
+		).toBeNull();
+	});
+
 	it("treats an opaque registered URI as unknown so the warning still fires", () => {
 		expect(
 			destinationHostFrom(

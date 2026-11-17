@@ -33,6 +33,34 @@ function registeredRedirectUris(stored: unknown): unknown[] {
 	return Array.isArray(value) ? value : [];
 }
 
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const LOOPBACK_PORT =
+	/^(?<origin>http:\/\/[^/?#]*?)(?::\d*)?(?<rest>[/?#].*)?$/su;
+
+function withoutLoopbackPort(uri: string): string | undefined {
+	try {
+		const { hostname, protocol } = new URL(uri);
+		if (!(protocol === "http:" && LOOPBACK_HOSTNAMES.has(hostname))) {
+			return undefined;
+		}
+	} catch {
+		return undefined;
+	}
+	const groups = LOOPBACK_PORT.exec(uri)?.groups;
+	return groups ? `${groups.origin}${groups.rest ?? ""}` : undefined;
+}
+
+function isRegistered(registered: unknown[], requested: string): boolean {
+	const requestedWithoutPort = withoutLoopbackPort(requested);
+	return registered.some(
+		(uri) =>
+			uri === requested ||
+			(requestedWithoutPort !== undefined &&
+				typeof uri === "string" &&
+				withoutLoopbackPort(uri) === requestedWithoutPort)
+	);
+}
+
 export function destinationHostFrom(
 	storedRedirectUris: unknown,
 	requestedRedirectUri: string | null
@@ -40,7 +68,10 @@ export function destinationHostFrom(
 	if (
 		!(
 			requestedRedirectUri &&
-			registeredRedirectUris(storedRedirectUris).includes(requestedRedirectUri)
+			isRegistered(
+				registeredRedirectUris(storedRedirectUris),
+				requestedRedirectUri
+			)
 		)
 	) {
 		return null;

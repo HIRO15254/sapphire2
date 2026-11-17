@@ -343,6 +343,11 @@ describe("MCP OAuth authorization server", () => {
 	test.for([
 		["the registered loopback URI", REDIRECT_URI, "localhost:9999"],
 		["the decoy URI", "https://decoy.example/cb", "decoy.example"],
+		[
+			"the loopback URI on another port",
+			"http://localhost:53211/callback",
+			"localhost:53211",
+		],
 	])(
 		"the consent page names only the host of the requested redirect URI (%s)",
 		async ([, redirectUri, shownHost], { api }) => {
