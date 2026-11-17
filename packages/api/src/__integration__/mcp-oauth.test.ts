@@ -13,6 +13,7 @@ import {
 
 const REDIRECT_URI = "http://localhost:9999/callback";
 const MCP_RESOURCE = `${SERVER_URL}/mcp`;
+const DESTINATION_PARAGRAPH = /<p class="destination">(?<text>[\s\S]*?)<\/p>/u;
 
 interface TokenResponse {
 	access_token?: string;
@@ -22,6 +23,7 @@ interface TokenResponse {
 
 interface AuthorizeOptions {
 	codeChallengeMethod?: string;
+	redirectUri?: string;
 	state?: string;
 }
 
@@ -33,13 +35,16 @@ function form(fields: Record<string, string>) {
 	};
 }
 
-async function registerClient(request: WorkerClient): Promise<string> {
+async function registerClient(
+	request: WorkerClient,
+	redirectUris: string[] = [REDIRECT_URI]
+): Promise<string> {
 	const response = await request(
 		"/api/auth/oauth2/register",
 		jsonPost({
 			client_name: "Test MCP client",
 			grant_types: ["authorization_code", "refresh_token"],
-			redirect_uris: [REDIRECT_URI],
+			redirect_uris: redirectUris,
 			response_types: ["code"],
 			token_endpoint_auth_method: "none",
 		})
@@ -54,13 +59,17 @@ async function consentPageQuery(
 	jar: CookieJar,
 	clientId: string,
 	codeChallenge: string,
-	{ codeChallengeMethod = "S256", state = "state-1" }: AuthorizeOptions = {}
+	{
+		codeChallengeMethod = "S256",
+		redirectUri = REDIRECT_URI,
+		state = "state-1",
+	}: AuthorizeOptions = {}
 ): Promise<Response> {
 	const params = new URLSearchParams({
 		client_id: clientId,
 		code_challenge: codeChallenge,
 		code_challenge_method: codeChallengeMethod,
-		redirect_uri: REDIRECT_URI,
+		redirect_uri: redirectUri,
 		resource: MCP_RESOURCE,
 		response_type: "code",
 		scope: "openid profile offline_access",
@@ -330,6 +339,50 @@ describe("MCP OAuth authorization server", () => {
 		expect(redirect.searchParams.get("state")).toBe("deny-state");
 		expect(redirect.searchParams.get("code")).toBeNull();
 	});
+
+	test.for([
+		["the registered loopback URI", REDIRECT_URI, "localhost:9999"],
+		["the decoy URI", "https://decoy.example/cb", "decoy.example"],
+		[
+			"the loopback URI on another port",
+			"http://localhost:53211/callback",
+			"localhost:53211",
+		],
+	])(
+		"the consent page names only the host of the requested redirect URI (%s)",
+		async ([, redirectUri, shownHost], { api }) => {
+			const request = createWorkerClient(api.d1);
+			const jar = await signUp(request, "destination@example.test");
+			const registered = [
+				"https://decoy.example/cb",
+				REDIRECT_URI,
+				"https://other.example/cb",
+			];
+			const clientId = await registerClient(request, registered);
+			const authorize = await consentPageQuery(
+				request,
+				jar,
+				clientId,
+				"x".repeat(43),
+				{ redirectUri }
+			);
+			expect(authorize.status).toBe(302);
+			const page = await request(authorize.headers.get("location") ?? "", {
+				jar,
+				method: "GET",
+			});
+			expect(page.status).toBe(200);
+			const destination =
+				DESTINATION_PARAGRAPH.exec(await page.text())?.groups?.text ?? "";
+			expect(destination).toContain(`<code>${shownHost}</code>`);
+			for (const uri of registered) {
+				const { host } = new URL(uri);
+				if (host !== shownHost) {
+					expect(destination).not.toContain(host);
+				}
+			}
+		}
+	);
 
 	test.for([
 		"javascript:alert(document.domain)",

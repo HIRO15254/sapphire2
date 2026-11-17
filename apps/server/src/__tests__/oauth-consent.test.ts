@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	destinationHostFrom,
 	forceConsentPrompt,
 	isAuthorizePath,
 	parseConsentPageQuery,
-	redirectHostsFrom,
 } from "../oauth-consent";
 
 const AUTHORIZE =
@@ -52,47 +52,58 @@ describe("isAuthorizePath", () => {
 	});
 });
 
-describe("redirectHostsFrom", () => {
-	it("extracts the host of a single registered redirect URI", () => {
-		expect(
-			redirectHostsFrom(["https://claude.ai/api/mcp/auth_callback"])
-		).toEqual(["claude.ai"]);
+describe("destinationHostFrom", () => {
+	const REQUESTED = "https://claude.ai/api/mcp/auth_callback";
+	const REGISTERED = ["https://decoy.example/cb", REQUESTED];
+
+	it.each([
+		["an array", REGISTERED],
+		["the provider's double-encoded JSON text", JSON.stringify(REGISTERED)],
+	])("shows only the requested URI's host when stored as %s", (_, stored) => {
+		expect(destinationHostFrom(stored, REQUESTED)).toBe("claude.ai");
 	});
 
-	it("lists the host of every registered redirect URI", () => {
+	it("shows nothing when the requested URI is not one the client registered", () => {
 		expect(
-			redirectHostsFrom(["https://claude.ai/cb", "http://localhost:9999/cb"])
-		).toEqual(["claude.ai", "localhost:9999"]);
+			destinationHostFrom(REGISTERED, "https://attacker.example/cb")
+		).toBeNull();
+		expect(destinationHostFrom(REGISTERED, null)).toBeNull();
 	});
 
-	it("de-duplicates hosts that appear more than once", () => {
+	it("accepts a loopback URI on another port, as the provider does", () => {
 		expect(
-			redirectHostsFrom(["https://claude.ai/a", "https://claude.ai/b"])
-		).toEqual(["claude.ai"]);
+			destinationHostFrom(
+				["http://localhost:9999/callback"],
+				"http://localhost:53211/callback"
+			)
+		).toBe("localhost:53211");
+		expect(
+			destinationHostFrom(
+				["http://localhost:9999/callback"],
+				"http://localhost:53211/other"
+			)
+		).toBeNull();
+		expect(
+			destinationHostFrom(
+				["HTTP://localhost:9999/callback"],
+				"HTTP://localhost:53211/callback"
+			)
+		).toBe("localhost:53211");
 	});
 
-	it("drops opaque URIs that have no host so the unknown-destination warning still fires", () => {
-		expect(redirectHostsFrom(["urn:ietf:wg:oauth:2.0:oob"])).toEqual([]);
+	it("treats an opaque registered URI as unknown so the warning still fires", () => {
 		expect(
-			redirectHostsFrom(["urn:ietf:wg:oauth:2.0:oob", "https://ok.test/cb"])
-		).toEqual(["ok.test"]);
+			destinationHostFrom(
+				["urn:ietf:wg:oauth:2.0:oob"],
+				"urn:ietf:wg:oauth:2.0:oob"
+			)
+		).toBeNull();
 	});
 
-	it("drops unparseable entries rather than rendering attacker text", () => {
-		expect(
-			redirectHostsFrom([
-				"not a url",
-				"<script>alert(1)</script>",
-				42,
-				"https://ok.test/cb",
-			])
-		).toEqual(["ok.test"]);
-	});
-
-	it.each([null, undefined, "", "https://claude.ai/cb"])(
-		"returns [] for the non-array %s",
-		(value) => {
-			expect(redirectHostsFrom(value)).toEqual([]);
+	it.each([null, "not json", '"https://claude.ai/api/mcp/auth_callback"'])(
+		"shows nothing when the stored value %s is not a list",
+		(stored) => {
+			expect(destinationHostFrom(stored, REQUESTED)).toBeNull();
 		}
 	);
 });
@@ -106,6 +117,13 @@ describe("parseConsentPageQuery", () => {
 		expect(query?.oauthQuery).toBe(
 			"client_id=c1&scope=openid+profile&exp=1&sig=abc"
 		);
+	});
+
+	it("reads the requested redirect URI from the signed query", () => {
+		const query = parseConsentPageQuery(
+			"http://localhost:8787/oauth/consent?client_id=c1&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&sig=abc"
+		);
+		expect(query?.redirectUri).toBe("https://claude.ai/cb");
 	});
 
 	it("returns null without a signature or client id", () => {
