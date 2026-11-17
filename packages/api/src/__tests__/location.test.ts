@@ -47,6 +47,7 @@ describe("location.resolveLink input validation", () => {
 
 function locationCaller() {
 	return appRouter.createCaller({
+		paidApiRateLimiter: { limit: () => Promise.resolve({ success: true }) },
 		session: { user: { id: "user-1" } },
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).location;
 }
@@ -72,6 +73,7 @@ describe("location.search provider boundary", () => {
 		vi.stubGlobal("fetch", fetchMock);
 		const caller = appRouter.createCaller({
 			googleMapsApiKey: "test-key",
+			paidApiRateLimiter: { limit: () => Promise.resolve({ success: true }) },
 			session: { user: { id: "user-1" } },
 		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
 		await expect(

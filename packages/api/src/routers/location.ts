@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import z from "zod";
-import { protectedProcedure, router } from "../index";
+import { paidProcedure, router } from "../index";
 
 const SHORT_MAPS_HOSTS = new Set(["maps.app.goo.gl", "goo.gl"]);
 
@@ -199,7 +199,7 @@ const placesResponseSchema = z.object({
 });
 
 export const locationRouter = router({
-	resolveLink: protectedProcedure
+	resolveLink: paidProcedure
 		.input(z.object({ url: z.string().url() }))
 		.mutation(async ({ input }) => {
 			if (!isGoogleMapsUrl(input.url)) {
@@ -222,7 +222,7 @@ export const locationRouter = router({
 			}
 			return coords;
 		}),
-	search: protectedProcedure
+	search: paidProcedure
 		.input(z.object({ query: z.string().min(1).max(200) }))
 		.mutation(async ({ ctx, input }) => {
 			if (!ctx.googleMapsApiKey) {

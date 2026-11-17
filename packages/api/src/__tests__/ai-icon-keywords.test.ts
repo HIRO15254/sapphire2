@@ -19,6 +19,7 @@ const { appRouter } = await import("../routers");
 function makeCaller() {
 	return appRouter.createCaller({
 		openaiApiKey: "test-key",
+		paidApiRateLimiter: { limit: () => Promise.resolve({ success: true }) },
 		session: { user: { id: "user-1" } },
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).aiExtract;
 }

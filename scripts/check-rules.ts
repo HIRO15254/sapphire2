@@ -361,6 +361,44 @@ if (unguardedSeeds.length > 0) {
 	}
 }
 
+const PAID_API_CALL =
+	/new OpenAI\(|ctx\.openaiApiKey|ctx\.googleMapsApiKey|places\.googleapis\.com/u;
+const UNMETERED_PROCEDURE = /\b(?:protectedProcedure|publicProcedure)\b/u;
+const unmeteredPaidCalls: string[] = [];
+for await (const scannedPath of new Glob("packages/api/src/**/*.ts").scan(
+	"."
+)) {
+	const path = normalizeRulePath(scannedPath);
+	if (
+		IGNORED_DIRS.test(path) ||
+		/__tests__|__integration__|\.test\./u.test(path)
+	) {
+		continue;
+	}
+	const text = await readFile(path, "utf8");
+	if (!(PAID_API_CALL.test(text) && UNMETERED_PROCEDURE.test(text))) {
+		continue;
+	}
+	for (const [i, line] of text.split("\n").entries()) {
+		if (UNMETERED_PROCEDURE.test(line)) {
+			unmeteredPaidCalls.push(`${path}:${i + 1}: ${line.trim()}`);
+		}
+	}
+}
+
+if (unmeteredPaidCalls.length > 0) {
+	failed = true;
+	console.error(
+		"\ncheck-rules FAIL: router calls a billed external API without paidProcedure"
+	);
+	console.error(
+		"  rule: docs/design/ai-extraction.md (Paid API rate limit, SA2-465)"
+	);
+	for (const hit of unmeteredPaidCalls) {
+		console.error(`  ${hit}`);
+	}
+}
+
 const COMMENT_POLICY_RULE = ".claude/rules/comments.md";
 const COMMENT_GLOBS = [
 	"apps/**/*.{ts,tsx}",

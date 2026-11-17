@@ -1,5 +1,8 @@
 import { trpcServer } from "@hono/trpc-server";
-import { createContextFactory } from "@sapphire2/api/context";
+import {
+	createContextFactory,
+	type PaidApiRateLimiter,
+} from "@sapphire2/api/context";
 import { appRouter } from "@sapphire2/api/routers/index";
 import { createAuth, hashMcpAccessToken } from "@sapphire2/auth";
 import { createDb } from "@sapphire2/db";
@@ -41,6 +44,7 @@ interface Env {
 	GOOGLE_MAPS_API_KEY?: string;
 	NODE_ENV?: string;
 	OPENAI_API_KEY?: string;
+	PAID_API_RATE_LIMITER?: PaidApiRateLimiter;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -222,7 +226,8 @@ app.use("/trpc/*", async (c, next) => {
 		auth,
 		db,
 		c.env.OPENAI_API_KEY,
-		c.env.GOOGLE_MAPS_API_KEY
+		c.env.GOOGLE_MAPS_API_KEY,
+		c.env.PAID_API_RATE_LIMITER
 	);
 	const middleware = trpcServer({
 		createContext: (_opts, context) => contextFactory({ context }),
@@ -306,6 +311,7 @@ app.all("/mcp", async (c) => {
 			db,
 			googleMapsApiKey: c.env.GOOGLE_MAPS_API_KEY,
 			openaiApiKey: c.env.OPENAI_API_KEY,
+			paidApiRateLimiter: c.env.PAID_API_RATE_LIMITER,
 			session,
 		});
 		const handler = createSapphireMcpHandler({

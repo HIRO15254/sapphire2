@@ -566,7 +566,7 @@ Opponent full-hand denominators and VPIP/PFR follow [statistics](statistics.md);
 
 ## 25. `location`
 
-Both are mutations and do not create rooms. `search` uses Google Places quota; `resolveLink` is a screen workflow that can fetch Google Maps short links. Both are excluded from MCP.
+Both are mutations and do not create rooms. Both are `paidProcedure`s and share the per-user rate limit in [ai-extraction.md](ai-extraction.md#paid-api-rate-limit). `search` uses Google Places quota; `resolveLink` is a screen workflow that can fetch Google Maps short links. Both are excluded from MCP.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |

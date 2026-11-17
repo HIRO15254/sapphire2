@@ -8,17 +8,28 @@ export interface CreateContextOptions {
 
 type AuthInstance = ReturnType<typeof createAuth>;
 
+export interface PaidApiRateLimiter {
+	limit: (options: { key: string }) => Promise<{ success: boolean }>;
+}
+
 export function createContextFactory(
 	authInstance: AuthInstance,
 	dbInstance: Database,
 	openaiApiKey?: string,
-	googleMapsApiKey?: string
+	googleMapsApiKey?: string,
+	paidApiRateLimiter?: PaidApiRateLimiter
 ) {
 	return async ({ context }: CreateContextOptions) => {
 		const session = await authInstance.api.getSession({
 			headers: context.req.raw.headers,
 		});
-		return { db: dbInstance, googleMapsApiKey, openaiApiKey, session };
+		return {
+			db: dbInstance,
+			googleMapsApiKey,
+			openaiApiKey,
+			paidApiRateLimiter,
+			session,
+		};
 	};
 }
 

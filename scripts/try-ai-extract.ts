@@ -76,6 +76,7 @@ async function main(): Promise<void> {
 	const sources = await Promise.all(paths.map(readSource));
 	const caller = appRouter.createCaller({
 		openaiApiKey,
+		paidApiRateLimiter: { limit: () => Promise.resolve({ success: true }) },
 		session: { user: { id: "try-ai-extract" } },
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).aiExtract;
 

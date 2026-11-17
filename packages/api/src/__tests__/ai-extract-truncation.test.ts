@@ -27,6 +27,7 @@ const IMAGE_SOURCE = {
 function makeCaller() {
 	return appRouter.createCaller({
 		openaiApiKey: "test-key",
+		paidApiRateLimiter: { limit: () => Promise.resolve({ success: true }) },
 		session: { user: { id: "user-1" } },
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).aiExtract;
 }
@@ -263,6 +264,7 @@ describe("extractTournamentData truncation reporting", () => {
 describe("missing API key", () => {
 	it("reports the OpenAI key as the missing configuration", async () => {
 		const caller = appRouter.createCaller({
+			paidApiRateLimiter: { limit: () => Promise.resolve({ success: true }) },
 			session: { user: { id: "user-1" } },
 		} as unknown as Parameters<typeof appRouter.createCaller>[0]).aiExtract;
 
