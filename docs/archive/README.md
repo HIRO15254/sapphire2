@@ -11,5 +11,6 @@ This archive preserves incidents, migration history, superseded decisions and ev
 - [Game masters history](game-masters-history.md) — master cutover and migration history.
 - [PR review history](pr-review-history.md) — review-loop data and decisions.
 - [PR review lean evaluation](pr-review-lean-evaluation.md) — evaluation report.
+- [PR review risk-question replay](pr-review-risk-questions-evaluation.md) — replay of four merged PRs with the old and new reviewer prompts.
 - [Testing and tooling history](testing-and-tooling-history.md) — testing decisions and migration history.
 - [Web platform history](web-platform-history.md) — web incidents and prior decisions.
