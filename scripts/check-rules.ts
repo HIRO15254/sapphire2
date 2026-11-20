@@ -184,10 +184,11 @@ for (const check of CHECKS) {
 
 const FEATURE_ROOT = "apps/web/src/features";
 const FEATURE_DEPENDENCIES: Record<string, string[]> = {
+	assets: [],
 	auth: [],
 	home: [],
 	more: [],
-	settings: ["update-notes"],
+	settings: ["assets", "update-notes"],
 	"update-notes": [],
 };
 const featureHits: string[] = [];

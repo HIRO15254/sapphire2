@@ -24,7 +24,7 @@ const router = createRouter({
 				persistOptions={{
 					// NOTE(ops): When a release changes any tRPC procedure's output shape or
 					// value semantics, bump this buster string in the same change (SA2-154).
-					buster: "2026-11-data-model-v2",
+					buster: "2026-11-u03-assets",
 					dehydrateOptions: {
 						shouldDehydrateQuery: shouldPersistQuery,
 					},

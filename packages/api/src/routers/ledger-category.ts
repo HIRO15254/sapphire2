@@ -16,6 +16,10 @@ const categoryColumns = {
 	createdAt: ledgerCategory.createdAt,
 	icon: ledgerCategory.icon,
 	id: ledgerCategory.id,
+	lineCount:
+		sql<number>`(SELECT COUNT(DISTINCT COALESCE(ledger_line.transfer_id, ledger_line.id)) FROM ledger_line WHERE ledger_line.category_id = ledger_category.id AND ledger_line.user_id = ledger_category.user_id)`.mapWith(
+			Number
+		),
 	name: ledgerCategory.name,
 	updatedAt: ledgerCategory.updatedAt,
 };
