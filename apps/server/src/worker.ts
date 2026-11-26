@@ -1,5 +1,6 @@
 import { trpcServer } from "@hono/trpc-server";
 import { createContextFactory } from "@sapphire2/api/context";
+import { TRPC_MAX_BODY_BYTES } from "@sapphire2/api/lib/request-limits";
 import { appRouter } from "@sapphire2/api/routers/index";
 import { createAuth, hashMcpAccessToken } from "@sapphire2/auth";
 import { createDb } from "@sapphire2/db";
@@ -11,6 +12,10 @@ import {
 	createSapphireMcpHandler,
 	renderConsentHtml,
 } from "@sapphire2/mcp";
+import {
+	TRPC_ERROR_CODES_BY_KEY,
+	type TRPCErrorResponse,
+} from "@trpc/server/rpc";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -208,6 +213,22 @@ app.get("/oauth/consent", async (c) => {
 		})
 	);
 });
+
+const trpcBodyLimit = bodyLimit({
+	maxSize: TRPC_MAX_BODY_BYTES,
+	onError: (c) => {
+		const response: TRPCErrorResponse = {
+			error: {
+				code: TRPC_ERROR_CODES_BY_KEY.PAYLOAD_TOO_LARGE,
+				data: { code: "PAYLOAD_TOO_LARGE", httpStatus: 413 },
+				message: `Request body exceeds ${TRPC_MAX_BODY_BYTES} bytes`,
+			},
+		};
+		return c.json(response, 413);
+	},
+});
+
+app.use("/trpc/*", trpcBodyLimit);
 
 app.use("/trpc/*", async (c, next) => {
 	if (
