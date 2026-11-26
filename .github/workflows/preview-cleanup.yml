@@ -87,7 +87,7 @@ jobs:
 
           for DEPLOYMENT_ID in $DEPLOYMENT_IDS; do
             curl -sf -X DELETE \
-              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}/deployments/${DEPLOYMENT_ID}" \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}/deployments/${DEPLOYMENT_ID}?force=true" \
               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" >/dev/null
             echo "Deleted Pages deployment: ${DEPLOYMENT_ID}"
           done
