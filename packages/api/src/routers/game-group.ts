@@ -9,7 +9,16 @@ import {
 import { anteTypeSchema } from "@sapphire2/db/schemas/game";
 import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
-import { and, eq, isNotNull, isNull, notExists } from "drizzle-orm";
+import {
+	and,
+	eq,
+	exists,
+	getTableColumns,
+	isNotNull,
+	isNull,
+	notExists,
+	sql,
+} from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { validateEntityOwnership } from "../lib/ownership";
@@ -80,6 +89,43 @@ const BUILTIN_ORDER: Map<string, number> = new Map(
 );
 
 const compareGroups = compareBuiltinFirst(BUILTIN_ORDER);
+
+function groupReferences(db: Db) {
+	return [
+		db
+			.select({ id: gameVariant.id })
+			.from(gameVariant)
+			.where(
+				and(
+					eq(gameVariant.groupId, gameGroup.id),
+					eq(gameVariant.userId, gameGroup.userId)
+				)
+			),
+		db
+			.select({ id: gameLineupGroup.id })
+			.from(gameLineupGroup)
+			.where(
+				and(
+					eq(gameLineupGroup.gameGroupId, gameGroup.id),
+					eq(gameLineupGroup.userId, gameGroup.userId)
+				)
+			),
+	] as const;
+}
+
+function selectOwnedGroups(db: Db, userId: string) {
+	const [variants, lineupGroups] = groupReferences(db);
+	return db
+		.select({
+			...getTableColumns(gameGroup),
+			isReferenced:
+				sql<boolean>`(${exists(variants)} OR ${exists(lineupGroups)})`.mapWith(
+					Boolean
+				),
+		})
+		.from(gameGroup)
+		.where(eq(gameGroup.userId, userId));
+}
 
 async function selectGroup(db: Db, userId: string, id: string) {
 	const [found] = await db
@@ -194,28 +240,7 @@ export const gameGroupRouter = router({
 					and(
 						eq(gameGroup.id, input.id),
 						eq(gameGroup.userId, userId),
-						notExists(
-							ctx.db
-								.select({ id: gameVariant.id })
-								.from(gameVariant)
-								.where(
-									and(
-										eq(gameVariant.groupId, gameGroup.id),
-										eq(gameVariant.userId, gameGroup.userId)
-									)
-								)
-						),
-						notExists(
-							ctx.db
-								.select({ id: gameLineupGroup.id })
-								.from(gameLineupGroup)
-								.where(
-									and(
-										eq(gameLineupGroup.gameGroupId, gameGroup.id),
-										eq(gameLineupGroup.userId, gameGroup.userId)
-									)
-								)
-						)
+						...groupReferences(ctx.db).map((reference) => notExists(reference))
 					)
 				)
 				.returning({ id: gameGroup.id });
@@ -231,16 +256,10 @@ export const gameGroupRouter = router({
 		.input(gameGroupListInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			let rows = await ctx.db
-				.select()
-				.from(gameGroup)
-				.where(eq(gameGroup.userId, userId));
+			let rows = await selectOwnedGroups(ctx.db, userId);
 			if (rows.length === 0) {
 				await seedDefaultGameData(ctx.db, userId);
-				rows = await ctx.db
-					.select()
-					.from(gameGroup)
-					.where(eq(gameGroup.userId, userId));
+				rows = await selectOwnedGroups(ctx.db, userId);
 			}
 			return rows
 				.filter((row) => input?.includeArchived || row.archivedAt === null)

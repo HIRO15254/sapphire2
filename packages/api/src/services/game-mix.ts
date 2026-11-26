@@ -1,6 +1,7 @@
 import type { Database } from "@sapphire2/db";
+import { gameLineup } from "@sapphire2/db/schema/game-lineup";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, exists, inArray, sql } from "drizzle-orm";
 import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
 
 export const gameMixColumns = {
@@ -19,13 +20,27 @@ export type GameMixWithGames = GameMixRow & {
 	games: string[];
 };
 
+export type ListedGameMix = GameMixWithGames & { isReferenced: boolean };
+
+export function mixLineupReference(db: Database) {
+	return db
+		.select({ id: gameLineup.id })
+		.from(gameLineup)
+		.where(
+			and(
+				eq(gameLineup.gameMixId, gameMix.id),
+				eq(gameLineup.userId, gameMix.userId)
+			)
+		);
+}
+
 const MAX_MIX_IDS_PER_LOOKUP = D1_MAX_BOUND_PARAMS - 1;
 
-export async function hydrateOwnedGameMixes(
+export async function hydrateOwnedGameMixes<T extends GameMixRow>(
 	db: Database,
 	userId: string,
-	mixes: GameMixRow[]
-): Promise<GameMixWithGames[]> {
+	mixes: T[]
+): Promise<(T & { games: string[] })[]> {
 	const ownedMixes = mixes.filter((mix) => mix.userId === userId);
 	if (ownedMixes.length === 0) {
 		return [];
@@ -69,9 +84,14 @@ export async function hydrateOwnedGameMixes(
 export async function listOwnedGameMixes(
 	db: Database,
 	userId: string
-): Promise<GameMixWithGames[]> {
+): Promise<ListedGameMix[]> {
 	const mixes = await db
-		.select(gameMixColumns)
+		.select({
+			...gameMixColumns,
+			isReferenced: sql<boolean>`${exists(mixLineupReference(db))}`.mapWith(
+				Boolean
+			),
+		})
 		.from(gameMix)
 		.where(eq(gameMix.userId, userId));
 	return await hydrateOwnedGameMixes(db, userId, mixes);

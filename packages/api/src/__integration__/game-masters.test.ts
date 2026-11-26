@@ -57,6 +57,17 @@ async function createDrawMasters(api: ApiFixture) {
 	return { group, mix, partner, variant };
 }
 
+async function referenceFlags(api: ApiFixture) {
+	const lists = await Promise.all([
+		api.alice.gameGroup.list({ includeArchived: true }),
+		api.alice.gameVariant.list({ includeArchived: true }),
+		api.alice.gameMix.list({ includeArchived: true }),
+	]);
+	return Object.fromEntries(
+		lists.flat().map((row) => [row.id, row.isReferenced])
+	);
+}
+
 async function rowCount(
 	api: ApiFixture,
 	table: typeof gameGroup | typeof gameVariant | typeof gameMix
@@ -256,6 +267,12 @@ describe("game masters (real D1)", () => {
 		).rejects.toMatchObject(rejection("CONFLICT", "active game variants"));
 
 		await api.alice.gameMix.archive({ id: mix.id });
+		expect(await referenceFlags(api)).toMatchObject({
+			[group.id]: true,
+			[mix.id]: false,
+			[partner.id]: true,
+			[variant.id]: true,
+		});
 		await expect(
 			api.alice.gameVariant.delete({ id: variant.id })
 		).rejects.toMatchObject(rejection("CONFLICT", "archive it instead"));
@@ -282,6 +299,7 @@ describe("game masters (real D1)", () => {
 			userId: "alice",
 			variantId: partner.id,
 		});
+		expect(await referenceFlags(api)).toMatchObject({ [mix.id]: true });
 		await expect(
 			api.alice.gameMix.delete({ id: mix.id })
 		).rejects.toMatchObject(rejection("CONFLICT", "archive it instead"));
@@ -290,7 +308,12 @@ describe("game masters (real D1)", () => {
 			.update(gameLineup)
 			.set({ gameMixId: null })
 			.where(eq(gameLineup.id, "lineup"));
+		expect(await referenceFlags(api)).toMatchObject({ [mix.id]: false });
 		await api.alice.gameMix.delete({ id: mix.id });
+		expect(await referenceFlags(api)).toMatchObject({
+			[partner.id]: true,
+			[variant.id]: false,
+		});
 		await expect(
 			api.alice.gameVariant.delete({ id: partner.id })
 		).rejects.toMatchObject(rejection("CONFLICT", "archive it instead"));
@@ -323,6 +346,7 @@ describe("game masters (real D1)", () => {
 			userId: "alice",
 			variantId: variant.id,
 		});
+		expect(await referenceFlags(api)).toMatchObject({ [variant.id]: true });
 		await expect(
 			api.alice.gameVariant.delete({ id: variant.id })
 		).rejects.toMatchObject(rejection("CONFLICT", "archive it instead"));
@@ -331,8 +355,13 @@ describe("game masters (real D1)", () => {
 		await api.db
 			.delete(gameLineupVariant)
 			.where(eq(gameLineupVariant.lineupGroupId, "lineup-group"));
+		expect(await referenceFlags(api)).toMatchObject({
+			[partner.id]: false,
+			[variant.id]: false,
+		});
 		await api.alice.gameVariant.delete({ id: variant.id });
 		await api.alice.gameVariant.delete({ id: partner.id });
+		expect(await referenceFlags(api)).toMatchObject({ [group.id]: true });
 		await expect(
 			api.alice.gameGroup.delete({ id: group.id })
 		).rejects.toMatchObject(rejection("CONFLICT", "archive it instead"));
@@ -340,6 +369,7 @@ describe("game masters (real D1)", () => {
 		await api.db
 			.delete(gameLineupGroup)
 			.where(eq(gameLineupGroup.id, "lineup-group"));
+		expect(await referenceFlags(api)).toMatchObject({ [group.id]: false });
 		await expect(api.alice.gameGroup.delete({ id: group.id })).resolves.toEqual(
 			{ success: true }
 		);

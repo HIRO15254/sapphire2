@@ -457,11 +457,11 @@ Breakdown groups sort weekday numerically, length by the bucket order above, and
 
 ## 16. `gameGroup`
 
-`GameGroup = {id,userId,label,blind1Label,blind2Label,blind3Label,blind1Required:boolean,blind2Required:boolean,blind3Required:boolean,fixedAnteType:'none'|'all'|'bb'|null,builtinKey,archivedAt,createdAt,updatedAt}`. Label trimmed 1–30 characters; blind labels nullable, trimmed 1–20. Case-insensitive trimmed label uniqueness is within this master kind. Archived rows keep their label reservation.
+`GameGroup = {id,userId,label,blind1Label,blind2Label,blind3Label,blind1Required:boolean,blind2Required:boolean,blind3Required:boolean,fixedAnteType:'none'|'all'|'bb'|null,builtinKey,archivedAt,createdAt,updatedAt}`. Label trimmed 1–30 characters; blind labels nullable, trimmed 1–20. Case-insensitive trimmed label uniqueness is within this master kind. Archived rows keep their label reservation. In all three game-master lists, `isReferenced` is the reference test that blocks `delete`, so the Games screen can offer "archive instead" before the user tries to delete.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `list` Q | `{includeArchived?:boolean}` | GameGroup[] | — | `game_group_list` |
+| `list` Q | `{includeArchived?:boolean}` | (GameGroup & {isReferenced:boolean})[] | — | `game_group_list` |
 | `create` M | `{label,blind1Label?,blind2Label?,blind3Label?,blind1Required?:boolean=false,blind2Required?:boolean=false,blind3Required?:boolean=false,fixedAnteType?:'none'|'all'|'bb'|null=null}` | GameGroup | Duplicate: CONFLICT; Required field without a label: BAD_REQUEST | `game_group_create` |
 | `update` M | `{id,label?,blind1Label?:string|null,blind2Label?:string|null,blind3Label?:string|null,blind1Required?:boolean,blind2Required?:boolean,blind3Required?:boolean,fixedAnteType?:'none'|'all'|'bb'|null}` | GameGroup | Duplicate or clearing a label with stored stake values: CONFLICT; Required field without a label: BAD_REQUEST | `game_group_update` |
 | `archive` M | IdInput | GameGroup | Active variants using group: CONFLICT | `game_group_archive` |
@@ -478,7 +478,7 @@ Builtin defaults: Limit requires Small Bet and Big Bet; Stud requires Small Bet 
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `list` Q | `{includeArchived?:boolean}` | GameVariant[] | — | `game_variant_list` |
+| `list` Q | `{includeArchived?:boolean}` | (GameVariant & {isReferenced:boolean})[] | — | `game_variant_list` |
 | `create` M | `{label,shortLabel?,groupId}` | GameVariant | Duplicate within variant namespace: CONFLICT; archived group: BAD_REQUEST; a mix may share the label | `game_variant_create` |
 | `update` M | `{id,label?,shortLabel?:string|null,groupId?,sortOrder?:nonnegative integer}` | GameVariant | Duplicate: CONFLICT; archived new group: BAD_REQUEST | `game_variant_update` |
 | `archive` M | IdInput | GameVariant | Used by active mix: CONFLICT | `game_variant_archive` |
@@ -491,7 +491,7 @@ Builtin defaults: Limit requires Small Bet and Big Bet; Stud requires Small Bet 
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `list` Q | `{includeArchived?:boolean}` | GameMix[] | — | `game_mix_list` |
+| `list` Q | `{includeArchived?:boolean}` | (GameMix & {isReferenced:boolean})[] | — | `game_mix_list` |
 | `create` M | `{label,games:Id[]}` | GameMix | Duplicate label or same set of games: CONFLICT; archived/duplicate members: BAD_REQUEST | `game_mix_create` |
 | `update` M | `{id,label?,games?:Id[]}` | GameMix | Same; supplied games replaces the complete set | `game_mix_update` |
 | `archive` M | IdInput | GameMix | — | `game_mix_archive` |
