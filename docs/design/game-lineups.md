@@ -174,6 +174,19 @@ Variant buckets use `mix:<id>` when a saved mix is present, `variant:<id>` for o
 
 Tools use the exact router schemas. Game inputs follow list-then-id via `game_variant_list` / `game_mix_list`; descriptions explain the group/stakes coupling, whole tournament replacement, inherited levels, required price assets and per-level/group ante type. No master delete is exposed through MCP. The API reference owns the final tool names and exposure decisions.
 
+## Stakes editor (web)
+
+The shared stakes parts live in `apps/web/src/features/games/components/` (`GameField`, `StakesFields`, `AnteTypeBulk`) with their pure rules in `features/games/utils/stakes.ts`. Rooms, the manual wizard and live editing compose them; they keep the server rules above on the client so a user never loses typed amounts or sends a stake the API rejects.
+
+- **State.** The editor holds one draft per lineup group, in group order. Each draft carries its `gameGroupId`, optional stored name and variant ids, plus amounts as text and the chosen `anteType` (NULL until chosen).
+- **Slots.** A variant gives one group. A mix buckets its stored games by each variant's current group in first-appearance order, which is the order the server writes and checks. A reused lineup keeps its stored groups and names.
+- **Changing the game** reseeds by `(gameGroupId, occurrence among groups of that structure)` — the server's carry rule — so a remaining structure keeps its amounts and two groups of one structure never swap them. A new group starts empty with the structure's `fixedAnteType`.
+- **Names.** A stored group name wins; otherwise the structure label, numbered (`Limit 1`, `Limit 2`) when the structure repeats, as the server hydrates it.
+- **Fields.** Only labeled blinds render, required exactly when the structure marks them; unlabeled fields are always sent as NULL. Amounts validate the whole string as a nonnegative safe integer (`100.5`, `1a` and `Infinity` are rejected, never truncated); the "Enter the …" errors for required blinds appear once the parent form has tried to submit.
+- **Ante.** A structure with `fixedAnteType` shows its type selected and locked, with "Set by the structure.". The amount is enabled only for `bb` / `all`; choosing None clears it, switching between `bb` and `all` keeps it, and the payload sends `ante: null` unless the type pays.
+- **Tournaments.** The ante-type bulk control applies one type to a structure on every non-break level, through the same clearing rule. It shows Mixed, with the level ranges of each type, only for a structure without a fixed type whose levels differ.
+- **Game picker.** It offers only active games and mixes; the field still shows an archived game already saved on the rule.
+
 ## Archive and deletion
 
 Game-master lists support archive/restore and `includeArchived`. Default lists exclude archived rows; existing rule hydration always resolves them. Labels remain unique among archived rows too. A conflicting create can guide the caller to restore. Delete returns CONFLICT when a variant, mix or group is referenced; group guards count both variants and stored lineup groups. Archived rows are not offered for new selections.

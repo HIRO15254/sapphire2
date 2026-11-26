@@ -186,6 +186,7 @@ const FEATURE_ROOT = "apps/web/src/features";
 const FEATURE_DEPENDENCIES: Record<string, string[]> = {
 	assets: [],
 	auth: [],
+	games: [],
 	home: [],
 	more: [],
 	settings: ["assets", "update-notes"],
