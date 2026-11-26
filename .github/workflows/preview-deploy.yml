@@ -3,6 +3,9 @@ name: Preview Deploy
 on:
   pull_request:
     types: [ opened, synchronize, reopened ]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
 
 concurrency:
   group: preview-deploy-${{ github.event.pull_request.number }}
@@ -15,6 +18,7 @@ env:
 
 jobs:
   setup:
+    if: github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.vars.outputs.pr_number }}

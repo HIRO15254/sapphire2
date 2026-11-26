@@ -37,7 +37,7 @@ The `outcome` job of `pre-merge-review.yml` runs after `review`, from the base b
 
 **Status** (moves only from AI Review or In Progress, so a human's Needs Input / Human Review is never overwritten): red `ci` → In Progress; approve with no important finding → Ready to Merge; anything else → In Progress, or Needs Input (plus a Linear comment) once the round reached `MAX_AUTO_ROUNDS`. A timed-out CI wait or a review that never published changes nothing.
 
-**Auto-merge** happens only when every condition holds, and merges with `merge_method: merge` guarded by the reviewed head sha, then dispatches `dev-deploy.yml` (a `GITHUB_TOKEN` merge does not trigger the `push` event) and sets Done:
+**Auto-merge** happens only when every condition holds, and merges with `merge_method: merge` guarded by the reviewed head sha, then dispatches `dev-deploy.yml` and `preview-cleanup.yml` with the PR number (a `GITHUB_TOKEN` merge triggers neither the `push` nor the `pull_request: closed` event) and sets Done:
 
 - the issue is found from the branch name (`feature/sa2-NNN`; a title naming another `SA2-` id rejects it) and, read from the Linear API, carries exactly one `level` label, `auto-merge`, and is not closed. The PR's own labels are never read.
 - same-repo PR, not draft, base `dev`; the approve came from an automatic round (not the `re-review` label, round ≤ 2) with zero `unverified` findings; the reviewed sha is still the PR head; no unresolved review thread (any author, so a nit the reviewer posted inline also sends the PR to a human).

@@ -3,131 +3,118 @@ name: Preview Cleanup
 on:
   pull_request:
     types: [ closed ]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Closed PR whose preview to delete. Leave empty to only sweep the previews of PRs that are not open.
+        required: false
+        type: string
+  schedule:
+    - cron: "17 18 * * *"
+
+concurrency:
+  group: preview-deploy-${{ github.event.pull_request.number || inputs.pr_number || 'sweep' }}
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
   WORKER_PREFIX: sapphire2-api-pr-
+  PROJECT_NAME: sapphire2-web
+  D1_PREFIX: sapphire2-db-pr-
 
 jobs:
   cleanup:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
     steps:
-      - name: Delete backend Worker
-        run: |
-          WORKER_NAME="${WORKER_PREFIX}${{ github.event.pull_request.number }}"
-          STATUS=$(curl -s -o /tmp/worker-delete.json -w "%{http_code}" -X DELETE \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${WORKER_NAME}?force=true" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
-          if [ "$STATUS" = "200" ]; then
-            echo "Deleted Worker: ${WORKER_NAME}"
-          elif [ "$STATUS" = "404" ]; then
-            echo "Worker ${WORKER_NAME} not found (already deleted)"
-          else
-            echo "Failed to delete Worker ${WORKER_NAME} (HTTP ${STATUS})"
-            cat /tmp/worker-delete.json
-            exit 1
-          fi
-        continue-on-error: true
-
-      - name: Delete orphan preview Workers
+      - name: Resolve the closed PR
+        id: target
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: |
-          OPEN_PRS=$(gh api \
-            "repos/${{ github.repository }}/pulls?state=open&per_page=100" \
-            --paginate \
-            --jq '.[].number' | sort -u)
-
-          WORKERS=$(curl -sf \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            | jq -r --arg prefix "${WORKER_PREFIX}" \
-              '.result[] | select(.id | startswith($prefix)) | .id')
-
-          if [ -z "$WORKERS" ]; then
-            echo "No preview Workers found"
+          if [ -z "$PR" ]; then
+            echo "No PR given; only sweeping the previews of PRs that are not open."
             exit 0
           fi
+          if ! [[ "$PR" =~ ^[0-9]+$ ]]; then
+            echo "::error::pr_number is not a PR number: ${PR}"
+            exit 1
+          fi
+          STATE=$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)
+          if [ "$STATE" = "OPEN" ]; then
+            echo "::error::PR #${PR} is open, so its preview is kept. Close it first."
+            exit 1
+          fi
+          echo "number=${PR}" >> "$GITHUB_OUTPUT"
 
-          for WORKER in $WORKERS; do
-            PR_NUM="${WORKER#${WORKER_PREFIX}}"
-            if echo "$OPEN_PRS" | grep -qx "$PR_NUM"; then
-              echo "Keeping ${WORKER} (PR #${PR_NUM} still open)"
-              continue
-            fi
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
-              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${WORKER}?force=true" \
-              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
-            if [ "$STATUS" = "200" ] || [ "$STATUS" = "404" ]; then
-              echo "Deleted orphan Worker: ${WORKER}"
-            else
-              echo "Failed to delete ${WORKER} (HTTP ${STATUS})"
-            fi
-          done
-        continue-on-error: true
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.base.ref || github.ref }}
 
-      - name: Delete frontend Pages deployments
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Delete preview resources
+        id: cleanup
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.target.outputs.number }}
+          CLOSED_AT: ${{ github.event.pull_request.closed_at }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPORT_PATH: ${{ runner.temp }}/preview-cleanup.md
+        run: bun scripts/preview-cleanup.ts
+
+      - name: Write a report for a cleanup that did not finish
+        if: always() && steps.target.outputs.number != '' && steps.cleanup.outcome != 'success'
+        env:
+          PR_NUMBER: ${{ steps.target.outputs.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPORT_PATH: ${{ runner.temp }}/preview-cleanup.md
         run: |
-          BRANCH_NAME="pr-${{ github.event.pull_request.number }}"
-          PROJECT_NAME="sapphire2-web"
-
-          DEPLOYMENT_IDS=$(curl -sf \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}/deployments" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            | jq -r ".result[] | select(.deployment_trigger.metadata.branch == \"${BRANCH_NAME}\") | .id")
-
-          if [ -z "$DEPLOYMENT_IDS" ]; then
-            echo "No Pages deployments found for ${BRANCH_NAME}"
+          if [ -s "$REPORT_PATH" ]; then
             exit 0
           fi
+          cat > "$REPORT_PATH" <<EOF
+          ## Preview Environment
 
-          for DEPLOYMENT_ID in $DEPLOYMENT_IDS; do
-            curl -sf -X DELETE \
-              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}/deployments/${DEPLOYMENT_ID}" \
-              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" >/dev/null
-            echo "Deleted Pages deployment: ${DEPLOYMENT_ID}"
-          done
-        continue-on-error: true
+          > [!WARNING]
+          > Preview cleanup did not finish, so every preview resource of this PR may still exist: Worker \`${WORKER_PREFIX}${PR_NUMBER}\`, Pages deployments of branch \`pr-${PR_NUMBER}\` in \`${PROJECT_NAME}\`, and D1 database \`${D1_PREFIX}${PR_NUMBER}\`.
 
-      - name: Delete D1 database
+          Read [the cleanup run](${RUN_URL}) to find the cause, fix it, and choose **Re-run failed jobs**. To delete the resources by hand instead, follow "Preview Cleanup Failure" in \`docs/deploy.md\`.
+          EOF
+
+      - name: Summarize
+        if: always()
+        env:
+          REPORT_PATH: ${{ runner.temp }}/preview-cleanup.md
         run: |
-          DB_NAME="sapphire2-db-pr-${{ github.event.pull_request.number }}"
-          DB_ID=$(curl -sf \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            | jq -r ".result[] | select(.name == \"${DB_NAME}\") | .uuid")
-
-          if [ -n "$DB_ID" ]; then
-            curl -sf -X DELETE \
-              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${DB_ID}" \
-              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
-            echo "Deleted D1 database: ${DB_ID}"
-          else
-            echo "No D1 database found for PR"
+          if [ -s "$REPORT_PATH" ]; then
+            cat "$REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
           fi
-        continue-on-error: true
 
-      - name: Update PR comment
+      - name: Find preview comment
+        if: always() && steps.target.outputs.number != ''
         uses: peter-evans/find-comment@v3
         id: find
         with:
-          issue-number: ${{ github.event.pull_request.number }}
+          issue-number: ${{ steps.target.outputs.number }}
           comment-author: github-actions[bot]
           body-includes: "Preview Environment"
 
-      - name: Mark as cleaned up
-        if: steps.find.outputs.comment-id != ''
+      - name: Update preview comment
+        if: always() && steps.target.outputs.number != '' && (steps.cleanup.outcome != 'success' || steps.find.outputs.comment-id != '')
         uses: peter-evans/create-or-update-comment@v4
         with:
           comment-id: ${{ steps.find.outputs.comment-id }}
+          issue-number: ${{ steps.target.outputs.number }}
           edit-mode: replace
-          body: |
-            ## Preview Environment
-
-            ~Preview environment has been cleaned up.~
-
-            _Cleaned up at: ${{ github.event.pull_request.closed_at }}_
+          body-path: ${{ runner.temp }}/preview-cleanup.md

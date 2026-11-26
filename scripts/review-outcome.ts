@@ -434,6 +434,18 @@ async function main(): Promise<void> {
 					method: "POST",
 				}
 			);
+			await github(
+				token,
+				`/repos/${repo}/actions/workflows/preview-cleanup.yml/dispatches`,
+				{
+					body: { inputs: { pr_number: pr }, ref: pull.base.ref },
+					method: "POST",
+				}
+			).catch((error: unknown) => {
+				console.log(
+					`::warning::could not start the preview cleanup of #${pr}; the daily sweep deletes it: ${String(error)}`
+				);
+			});
 			await setState(apiKey, issue, "Done");
 			return;
 		} catch (error) {
