@@ -363,6 +363,7 @@ if (unguardedSeeds.length > 0) {
 
 const D1_EXPORT_LINE = /\bd1\s+export\b.*$/gmu;
 const SCRUB_SEED_LINE = /\bscripts\/scrub-seed\.ts\b.*$/gmu;
+const REDIRECTED_TO_FILE = />\s*[^\s&|;]+\s+2>&1/u;
 const IMPORTED_FILE = /--file[= ]["']?(?<file>[^\s"';]+)/gu;
 const NON_DATA_IMPORTS = new Set([
 	"drop-triggers.sql",
@@ -392,6 +393,11 @@ for await (const scannedPath of new Glob("workflows/*.{yml,yaml}").scan({
 	}));
 	for (const line of exports) {
 		const output = flagValue(line, "output");
+		if (!REDIRECTED_TO_FILE.test(line)) {
+			unscrubbedSeeds.push(
+				`${path}: \`${line.trim()}\` — wrangler prints a download URL for the raw export; redirect its output to a file with \`> export.log 2>&1\``
+			);
+		}
 		if (output === undefined) {
 			unscrubbedSeeds.push(
 				`${path}: \`${line.trim()}\` — write the export to a file with --output=`
@@ -417,7 +423,7 @@ for await (const scannedPath of new Glob("workflows/*.{yml,yaml}").scan({
 if (unscrubbedSeeds.length > 0) {
 	failed = true;
 	console.error(
-		"\ncheck-rules FAIL: production D1 export imported without scripts/scrub-seed.ts"
+		"\ncheck-rules FAIL: production D1 export logged, or imported without scripts/scrub-seed.ts"
 	);
 	console.error("  rule: .claude/rules/db-migrations.md (SA2-458)");
 	for (const hit of unscrubbedSeeds) {

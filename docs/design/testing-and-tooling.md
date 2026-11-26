@@ -122,7 +122,7 @@ Each pattern is tested against the whole file first — so multiline patterns ca
 
 ### The seed-scrub check (delta beyond db-migrations.md)
 
-- It keys on `d1 export` lines, not on file names. Each export must write a file with `--output=`, and that file must be some `scripts/scrub-seed.ts --input=`. In a workflow that exports, every `--file=` import must be a scrub `--output=` or one of the non-data helpers (`drop-triggers.sql`, `rearm-triggers.sql`, `fk-on.sql`). A renamed or copied raw export therefore still fails.
+- It keys on `d1 export` lines, not on file names. Each export must write a file with `--output=` and send wrangler's own output to a file (`> export.log 2>&1`), because wrangler prints a presigned download URL for the raw export and the Actions logs are public. The export file must be some `scripts/scrub-seed.ts --input=`. In a workflow that exports, every `--file=` import must be a scrub `--output=` or one of the non-data helpers (`drop-triggers.sql`, `rearm-triggers.sql`, `fk-on.sql`). A renamed or copied raw export therefore still fails.
 - It stays static. Whether the policy covers the schema is a runtime question, which the scrub itself and [`scrub-seed.test.ts`](../../scripts/__tests__/scrub-seed.test.ts) answer.
 
 ### Regex-design deltas

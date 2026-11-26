@@ -145,7 +145,11 @@ jobs:
         run: |
           echo "Exporting data from: ${SOURCE_D1_DB_NAME}"
           git checkout wrangler.toml
-          bunx wrangler d1 export "${SOURCE_D1_DB_NAME}" --remote --no-schema --output=prod-export.sql
+          if ! bunx wrangler d1 export "${SOURCE_D1_DB_NAME}" --remote --no-schema --output=prod-export.sql > export.log 2>&1; then
+            sed -E 's#https?://[^[:space:]]+#<url removed>#g' export.log
+            exit 1
+          fi
+          rm export.log
           bun ../../scripts/scrub-seed.ts --input=prod-export.sql --output=seed.sql --keep-login-email="$PREVIEW_LOGIN_EMAIL"
           rm prod-export.sql
 

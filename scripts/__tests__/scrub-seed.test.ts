@@ -122,31 +122,38 @@ describe("scrub-seed", () => {
 		}
 	});
 
-	it("has a scrub decision for every table and column the migrations create, and none for anything they do not", () => {
-		const db = openMigratedDatabase();
-		try {
-			expect(unclassified(db)).toEqual([]);
-			const tables = new Set(
-				rowValues(
-					db,
-					"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
-				).map(([name]) => name)
-			);
-			expect(
-				Object.keys(SCRUB_POLICY).filter((table) => !tables.has(table))
-			).toEqual([]);
-			for (const [table, rule] of Object.entries(SCRUB_POLICY)) {
-				if (typeof rule === "object") {
-					expect(
-						rowValues(
-							db,
-							`SELECT name FROM pragma_table_info('${table}') ORDER BY name`
-						).map(([name]) => name)
-					).toEqual(Object.keys(rule.columns).toSorted());
-				}
+	it("has a scrub decision for every table and column any migration prefix creates, since production may lag behind, and none for anything none of them do", () => {
+		const gaps = new Set<string>();
+		const columns = new Map<string, Set<string>>();
+		openMigratedDatabase(undefined, (db) => {
+			for (const gap of unclassified(db)) {
+				gaps.add(gap);
 			}
-		} finally {
-			db.close();
+			for (const [table] of rowValues(
+				db,
+				"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+			)) {
+				const seen = columns.get(String(table)) ?? new Set();
+				for (const [column] of rowValues(
+					db,
+					`SELECT name FROM pragma_table_info('${String(table)}')`
+				)) {
+					seen.add(String(column));
+				}
+				columns.set(String(table), seen);
+			}
+		}).close();
+
+		expect([...gaps]).toEqual([]);
+		expect(
+			Object.keys(SCRUB_POLICY).filter((table) => !columns.has(table))
+		).toEqual([]);
+		for (const [table, rule] of Object.entries(SCRUB_POLICY)) {
+			if (typeof rule === "object") {
+				expect([...(columns.get(table) ?? [])].toSorted()).toEqual(
+					Object.keys(rule.columns).toSorted()
+				);
+			}
 		}
 	});
 });

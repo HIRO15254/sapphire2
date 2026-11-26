@@ -18,6 +18,7 @@ export type TableRule =
 const NULL_VALUE = { sql: "NULL" } as const;
 
 export const SCRUB_POLICY: Readonly<Record<string, TableRule>> = {
+	__legacy_custom_game_variant: "keep",
 	account: {
 		columns: {
 			access_token: NULL_VALUE,
@@ -37,8 +38,13 @@ export const SCRUB_POLICY: Readonly<Record<string, TableRule>> = {
 	},
 	asset: "keep",
 	asset_rate: "keep",
+	blind_level: "keep",
 	cash_rule: "keep",
 	cash_rule_stake: "keep",
+	currency: "keep",
+	currency_transaction: "keep",
+	custom_game_variant: "keep",
+	dashboard_widget: "keep",
 	entry: "keep",
 	entry_cash: "keep",
 	entry_tag: "keep",
@@ -51,6 +57,7 @@ export const SCRUB_POLICY: Readonly<Record<string, TableRule>> = {
 	game_lineup_variant: "keep",
 	game_mix: "keep",
 	game_mix_variant: "keep",
+	game_session: "keep",
 	game_variant: "keep",
 	hand: "keep",
 	hand_action: "keep",
@@ -60,7 +67,10 @@ export const SCRUB_POLICY: Readonly<Record<string, TableRule>> = {
 	hand_tag_link: "keep",
 	ledger_category: "keep",
 	ledger_line: "keep",
+	live_cash_game_session: "keep",
+	live_tournament_session: "keep",
 	oauth_access_token: "drop",
+	oauth_application: "drop",
 	oauth_client: "drop",
 	oauth_client_assertion: "drop",
 	oauth_client_resource: "drop",
@@ -73,16 +83,32 @@ export const SCRUB_POLICY: Readonly<Record<string, TableRule>> = {
 	player: "keep",
 	player_tag: "keep",
 	player_tag_link: "keep",
+	player_to_player_tag: "keep",
+	poker_session: "keep",
 	ring_game: "keep",
 	room: "keep",
 	session: "drop",
+	session_blind_level: "keep",
+	session_cash_detail: "keep",
+	session_chip_purchase: "keep",
+	session_chip_purchase_result: "keep",
+	session_event: "keep",
+	session_table_player: "keep",
+	session_tag: "keep",
+	session_to_session_tag: "keep",
+	session_tournament_detail: "keep",
+	store: "keep",
+	todo: "keep",
 	tournament: "keep",
+	tournament_chip_purchase: "keep",
 	tournament_rule: "keep",
 	tournament_rule_level: "keep",
 	tournament_rule_level_stake: "keep",
 	tournament_rule_price: "keep",
 	tournament_tag: "keep",
+	tournament_tag_def: "keep",
 	tournament_tag_link: "keep",
+	transaction_type: "keep",
 	update_note_view: "keep",
 	user: {
 		columns: {
@@ -139,7 +165,8 @@ function columnNames(db: DatabaseSync, table: string): string[] {
 }
 
 export function openMigratedDatabase(
-	migrationsDir = DEFAULT_MIGRATIONS
+	migrationsDir = DEFAULT_MIGRATIONS,
+	afterEachMigration?: (db: DatabaseSync) => void
 ): DatabaseSync {
 	const db = new DatabaseSync(":memory:", {
 		enableForeignKeyConstraints: false,
@@ -157,6 +184,7 @@ export function openMigratedDatabase(
 				db.exec(trimmed);
 			}
 		}
+		afterEachMigration?.(db);
 	}
 	return db;
 }
