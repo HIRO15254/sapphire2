@@ -71,7 +71,7 @@ export function GamesPicker({
 					</p>
 					{sections.map((section) => (
 						<div
-							className="bg-card border-border flex flex-col overflow-hidden rounded-lg border"
+							className="bg-card border-border flex shrink-0 flex-col overflow-hidden rounded-lg border"
 							key={section.id}
 						>
 							<div className="flex min-h-11 items-center gap-2.5 pr-0.5 pl-3">
