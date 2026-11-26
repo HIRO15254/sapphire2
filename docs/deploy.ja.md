@@ -282,6 +282,23 @@ Error: A project with this name does not exist
 
 `bunx wrangler pages project create sapphire2-web --production-branch main` で事前にプロジェクト作成が必要。
 
+### プレビューのクリーンアップ失敗
+
+削除が 1 件でも失敗すると Preview Cleanup ジョブは失敗し、PR の「Preview Environment」コメントは cleaned up と書かず、残っている可能性のあるリソースを Cloudflare のエラーとともに一覧します。前の削除が失敗しても後の削除はすべて試し、429・5xx・ネットワークエラーは 1 秒、2 秒、4 秒待って最大 3 回再試行します。既に無いリソース（404、または一覧に無い）は削除済みとして扱います。Cloudflare の一覧は先頭ページしか読まないため、それより後ろにあるリソースは見つかりません。open な PR を一覧できなかったときは、他の PR の Worker を削除しません。
+
+1. コメントに出た原因を直す（例: [トークンの権限](#cloudflare_api_token-権限不足)）。
+2. コメントのリンクからクリーンアップの実行を開き、**Re-run failed jobs** を選ぶ。再実行はすべての削除をやり直し、コメントを書き換える。
+3. 手で削除する場合は `<N>` を PR 番号に置き換える:
+   - Worker: `bunx wrangler delete --name sapphire2-api-pr-<N>`（「Worker of a closed PR」の行は、その Worker 名を示す）
+   - D1 データベース: `bunx wrangler d1 delete sapphire2-db-pr-<N>`
+   - Pages デプロイ: コメントの括弧内がデプロイ ID。ブランチの最新デプロイは `pr-<N>` のエイリアスを持ち、`force=true` を付けないと削除できない:
+
+     ```sh
+     curl -X DELETE \
+       "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/sapphire2-web/deployments/<deployment id>?force=true" \
+       -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+     ```
+
 ## 10. アーキテクチャ
 
 ### プレビューデプロイ（PR 作成・同期・再オープン時）
@@ -305,7 +322,11 @@ PR open/synchronize
 ```
 PR close/merge
   |
-  +-> Worker 削除 -> 孤児 Preview Worker 削除 -> Pages ブランチデプロイ削除 -> D1 データベース削除 -> PR コメント更新
+  +-> Worker 削除 -> クローズ済み PR の Worker 削除 -> Pages ブランチデプロイ削除 -> D1 データベース削除
+  |     （前の削除が失敗しても後の削除を試す。429/5xx/ネットワークエラーは再試行）
+  |
+  +-> すべて削除済みまたは既に無い -> PR コメントを cleaned up に更新
+  +-> 1 件でも失敗 -> 残っている可能性のあるものを PR コメントに一覧し、ジョブを失敗させる
 ```
 
 ### dev デプロイ（`dev` への push 時）

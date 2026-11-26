@@ -282,6 +282,23 @@ Error: A project with this name does not exist
 
 Create the project first: `bunx wrangler pages project create sapphire2-web --production-branch main`
 
+### Preview Cleanup Failure
+
+When a deletion fails, the Preview Cleanup job fails and the PR's "Preview Environment" comment lists every resource that may still exist with the Cloudflare error, instead of saying the preview was cleaned up. Every deletion is attempted even after an earlier one fails, and 429, 5xx and network errors are retried three times with a 1 s, 2 s, then 4 s wait. A resource that is already gone (404, or missing from the list) counts as cleaned up; the Cloudflare lists are read only to their first page, so a resource beyond it is not found. If open PRs cannot be listed, no other PR's Worker is deleted.
+
+1. Fix the cause shown in the comment, such as the [token permissions](#cloudflare_api_token-permission-error).
+2. Open the cleanup run linked from the comment and choose **Re-run failed jobs**. The rerun repeats every deletion and rewrites the comment.
+3. To delete by hand instead, replace `<N>` with the PR number:
+   - Worker: `bunx wrangler delete --name sapphire2-api-pr-<N>` (a "Worker of a closed PR" row names its Worker)
+   - D1 database: `bunx wrangler d1 delete sapphire2-db-pr-<N>`
+   - Pages deployment: the comment shows its ID in parentheses. The branch's latest deployment carries the `pr-<N>` alias and is deleted only with `force=true`:
+
+     ```sh
+     curl -X DELETE \
+       "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/sapphire2-web/deployments/<deployment id>?force=true" \
+       -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+     ```
+
 ## 10. Architecture
 
 ### Preview Deploy (on PR open, synchronize, or reopen)
@@ -305,7 +322,11 @@ PR open/synchronize
 ```
 PR close/merge
   |
-  +-> Delete Worker -> Delete orphan preview Workers -> Delete Pages branch deployments -> Delete D1 database -> Update PR comment
+  +-> Delete Worker -> Delete Workers of closed PRs -> Delete Pages branch deployments -> Delete D1 database
+  |     (each deletion runs even if an earlier one failed; 429/5xx/network errors are retried)
+  |
+  +-> Everything deleted or already gone -> mark the PR comment as cleaned up
+  +-> Any deletion failed -> list what may remain in the PR comment and fail the job
 ```
 
 ### Dev Deploy (on push to `dev`)
