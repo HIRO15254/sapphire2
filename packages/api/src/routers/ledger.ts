@@ -92,6 +92,13 @@ export const ledgerUpdateInputSchema = z.object({
 function toHistoryItem(assetId: string, row: AssetHistoryRow) {
 	if (row.entryId === null && isLedgerWalletRole(row.role)) {
 		return {
+			counterpart:
+				row.counterpartAssetId === null || row.counterpartQuantity === null
+					? null
+					: {
+							assetId: row.counterpartAssetId,
+							quantity: row.counterpartQuantity,
+						},
 			kind: "wallet" as const,
 			line: {
 				assetId,
@@ -110,7 +117,9 @@ function toHistoryItem(assetId: string, row: AssetHistoryRow) {
 	return {
 		assetId,
 		entryId: row.id,
+		entryKind: row.entryKind,
 		id: row.id,
+		isOpen: row.entryStatus === "open",
 		kind: "entry" as const,
 		occurredAt: row.occurredAt,
 		quantity: row.quantity,
