@@ -19,7 +19,7 @@ const normalize = (target: string) =>
 const readManifest = (dir: string): Promise<Manifest> =>
 	file(path.join(root, dir, "package.json")).json();
 
-const run = async (command: string[]) => {
+const run = async (command: string[], separator: RegExp | string) => {
 	const child = spawn(command, {
 		cwd: root,
 		stderr: "inherit",
@@ -29,7 +29,7 @@ const run = async (command: string[]) => {
 	if ((await child.exited) !== 0) {
 		throw new Error(`${command.join(" ")} failed`);
 	}
-	return output.split(LINE_BREAK).filter(Boolean);
+	return output.split(separator).filter(Boolean);
 };
 
 const projectArgs = (script: string, cwd: string) =>
@@ -47,18 +47,22 @@ if (!FILTERS_ALL.test(rootScript)) {
 }
 
 const sources = (
-	await run([
-		"git",
-		"ls-files",
-		"--cached",
-		"--others",
-		"--exclude-standard",
-		"--",
-		"*.ts",
-		"*.tsx",
-		"*.mts",
-		"*.cts",
-	])
+	await run(
+		[
+			"git",
+			"ls-files",
+			"-z",
+			"--cached",
+			"--others",
+			"--exclude-standard",
+			"--",
+			"*.ts",
+			"*.tsx",
+			"*.mts",
+			"*.cts",
+		],
+		"\0"
+	)
 )
 	.map(normalize)
 	.filter((source) => existsSync(path.join(root, source)));
@@ -90,7 +94,10 @@ for (const [index, dir] of workspaceDirs.entries()) {
 
 const listings = await Promise.all(
 	projects.map((project) =>
-		run([process.execPath, "x", "tsc", "--listFilesOnly", "-p", project])
+		run(
+			[process.execPath, "x", "tsc", "--listFilesOnly", "-p", project],
+			LINE_BREAK
+		)
 	)
 );
 const covered = new Set(listings.flat().map(normalize));
