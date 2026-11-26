@@ -4,5 +4,5 @@
     "strictNullChecks": true,
     "types": ["bun", "@cloudflare/workers-types"]
   },
-  "include": ["src"]
+  "include": ["src", "vitest.config.ts", "vitest.integration.config.ts"]
 }

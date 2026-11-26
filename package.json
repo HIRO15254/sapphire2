@@ -30,6 +30,7 @@
     "build": "bun run --filter '*' build",
     "check:rules": "bun scripts/check-rules.ts",
     "check:test-discovery": "bun testing/check-discovery.ts",
+    "check:type-coverage": "bun testing/check-type-coverage.ts",
     "check-types": "bun run --filter '*' check-types && tsc --noEmit -p scripts && tsc --noEmit -p testing",
     "db:generate": "bun run --filter @sapphire2/db db:generate",
     "db:migrate:local": "node ./node_modules/wrangler/bin/wrangler.js d1 migrations apply sapphire2-db --local -c apps/server/wrangler.toml",
