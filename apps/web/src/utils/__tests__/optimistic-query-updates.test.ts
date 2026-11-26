@@ -494,4 +494,74 @@ describe("overlapping optimistic query updates", () => {
 		first.clear();
 		second.clear();
 	});
+
+	it("keeps a rolled-back create on an unfetched list gone when a later mutation cancels the refetch", async () => {
+		const client = createTestQueryClient();
+		const create = beginOptimisticQueryUpdate(client, KEY, () =>
+			updateQueryItems<string>(client, KEY, (rows) => ["temp", ...rows], [
+				"temp",
+			])
+		);
+		const response = Promise.withResolvers<string[]>();
+		const refetch = client
+			.fetchQuery({
+				queryFn: () => response.promise,
+				queryKey: KEY,
+				staleTime: 0,
+			})
+			.catch(() => undefined);
+
+		expect(create.settle(false)).toBe(true);
+		expect(client.getQueryData(KEY)).toBeUndefined();
+		await client.cancelQueries({ queryKey: KEY });
+
+		expect(client.getQueryData(KEY)).toBeUndefined();
+		await refetch;
+		client.clear();
+	});
+
+	it("still delivers the refetch that was in flight when an unfetched list rolled back", async () => {
+		const client = createTestQueryClient();
+		const create = beginOptimisticQueryUpdate(client, KEY, () =>
+			updateQueryItems<string>(client, KEY, (rows) => ["temp", ...rows], [
+				"temp",
+			])
+		);
+		const response = Promise.withResolvers<string[]>();
+		const refetch = client.fetchQuery({
+			queryFn: () => response.promise,
+			queryKey: KEY,
+			staleTime: 0,
+		});
+
+		expect(create.settle(false)).toBe(true);
+		response.resolve(["server"]);
+
+		await expect(refetch).resolves.toEqual(["server"]);
+		expect(client.getQueryData(KEY)).toEqual(["server"]);
+		client.clear();
+	});
+
+	it("takes the refetch that lands after the last mutation settled as the server's answer", async () => {
+		const client = createTestQueryClient();
+		client.setQueryData(KEY, [{ amount: 100, id: "tx1" }]);
+		const topUp = beginOptimisticQueryUpdate(client, KEY, () =>
+			updateQueryItems<{ amount: number; id: string }>(client, KEY, (rows) =>
+				rows.map((row) => ({ ...row, amount: row.amount + 50 }))
+			)
+		);
+		const response = Promise.withResolvers<{ amount: number; id: string }[]>();
+		const refetch = client.fetchQuery({
+			queryFn: () => response.promise,
+			queryKey: KEY,
+			staleTime: 0,
+		});
+
+		expect(topUp.settle(true)).toBe(true);
+		response.resolve([{ amount: 150, id: "tx1" }]);
+		await refetch;
+
+		expect(client.getQueryData(KEY)).toEqual([{ amount: 150, id: "tx1" }]);
+		client.clear();
+	});
 });

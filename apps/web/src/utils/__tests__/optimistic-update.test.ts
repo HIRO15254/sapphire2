@@ -1,5 +1,6 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import { createTestQueryClient } from "@/__tests__/test-utils";
 import {
 	cancelTargets,
 	createOptimisticId,
@@ -62,51 +63,71 @@ describe("optimistic-update helpers", () => {
 		randomUUID.mockRestore();
 	});
 
-	it("snapshots and restores a single query", () => {
-		const queryClient = createQueryClientMock();
+	it("restores fetched data that an optimistic write replaced", () => {
+		const queryClient = createTestQueryClient();
 		const queryKey = ["players"] satisfies QueryKey;
-		vi.mocked(queryClient.getQueryData).mockReturnValue([{ id: "player-1" }]);
-
+		queryClient.setQueryData(queryKey, [{ id: "player-1" }]);
 		const snapshot = snapshotQuery(queryClient, queryKey);
+		updateQueryItems<{ id: string }>(queryClient, queryKey, (items) => [
+			...items,
+			{ id: "temp" },
+		]);
 
 		restoreSnapshots(queryClient, [snapshot]);
 
-		expect(snapshot).toEqual({
-			data: [{ id: "player-1" }],
-			kind: "query",
-			queryKey,
-		});
-		expect(queryClient.setQueryData).toHaveBeenCalledWith(queryKey, [
-			{ id: "player-1" },
-		]);
+		expect(queryClient.getQueryData(queryKey)).toEqual([{ id: "player-1" }]);
+		queryClient.clear();
 	});
 
-	it("snapshots and restores multiple matching queries", () => {
-		const queryClient = createQueryClientMock();
-		const entries: [QueryKey, { id: string }[]][] = [
-			[["players", "a"], [{ id: "player-a" }]],
-			[["players", "b"], [{ id: "player-b" }]],
-		];
-		vi.mocked(queryClient.getQueriesData).mockReturnValue(entries);
-
-		const snapshot = snapshotQueries(queryClient, { queryKey: ["players"] });
+	it("returns a list the optimistic write created back to unfetched", () => {
+		const queryClient = createTestQueryClient();
+		const queryKey = ["players"] satisfies QueryKey;
+		const snapshot = snapshotQuery(queryClient, queryKey);
+		updateQueryItems<{ id: string }>(
+			queryClient,
+			queryKey,
+			(items) => [...items, { id: "temp" }],
+			[{ id: "temp" }]
+		);
+		expect(queryClient.getQueryData(queryKey)).toEqual([{ id: "temp" }]);
 
 		restoreSnapshots(queryClient, [snapshot]);
 
-		expect(snapshot).toEqual({
-			entries,
-			kind: "queries",
-		});
-		expect(queryClient.setQueryData).toHaveBeenNthCalledWith(
-			1,
-			["players", "a"],
-			[{ id: "player-a" }]
+		expect(queryClient.getQueryData(queryKey)).toBeUndefined();
+		expect(queryClient.getQueryState(queryKey)?.status).toBe("pending");
+		queryClient.clear();
+	});
+
+	it("restores every query a mixed list of snapshots captured", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(["players", "a"], [{ id: "player-a" }]);
+		queryClient.setQueryData(["players", "b"], [{ id: "player-b" }]);
+		queryClient.setQueryData(["session"], { id: "s1" });
+		const snapshots = [
+			snapshotQueries(queryClient, { queryKey: ["players"] }),
+			snapshotQuery(queryClient, ["session"]),
+			null,
+			undefined,
+		];
+		updateQueriesData<{ id: string }[]>(
+			queryClient,
+			{ queryKey: ["players"] },
+			() => []
 		);
-		expect(queryClient.setQueryData).toHaveBeenNthCalledWith(
-			2,
-			["players", "b"],
-			[{ id: "player-b" }]
-		);
+		updateQueryData<{ id: string }>(queryClient, ["session"], () => ({
+			id: "temp",
+		}));
+
+		restoreSnapshots(queryClient, snapshots);
+
+		expect(queryClient.getQueryData(["players", "a"])).toEqual([
+			{ id: "player-a" },
+		]);
+		expect(queryClient.getQueryData(["players", "b"])).toEqual([
+			{ id: "player-b" },
+		]);
+		expect(queryClient.getQueryData(["session"])).toEqual({ id: "s1" });
+		queryClient.clear();
 	});
 
 	it("cancels and invalidates multiple target styles", async () => {
@@ -133,63 +154,6 @@ describe("optimistic-update helpers", () => {
 		expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, {
 			queryKey: ["sessions"],
 		});
-	});
-
-	it("snapshotQuery captures undefined when the cache is empty", () => {
-		const queryClient = createQueryClientMock();
-		vi.mocked(queryClient.getQueryData).mockReturnValue(undefined);
-
-		const snapshot = snapshotQuery(queryClient, ["players"]);
-
-		expect(snapshot).toEqual({
-			data: undefined,
-			kind: "query",
-			queryKey: ["players"],
-		});
-	});
-
-	it("snapshotQueries returns empty entries when no queries match", () => {
-		const queryClient = createQueryClientMock();
-		vi.mocked(queryClient.getQueriesData).mockReturnValue([]);
-
-		const snapshot = snapshotQueries(queryClient, {
-			queryKey: ["missing"],
-		});
-
-		expect(snapshot).toEqual({ entries: [], kind: "queries" });
-	});
-
-	it("restoreSnapshots ignores null and undefined entries", () => {
-		const queryClient = createQueryClientMock();
-
-		restoreSnapshots(queryClient, [null, undefined]);
-
-		expect(queryClient.setQueryData).not.toHaveBeenCalled();
-	});
-
-	it("restoreSnapshots handles a mixed array of query and queries snapshots", () => {
-		const queryClient = createQueryClientMock();
-
-		restoreSnapshots(queryClient, [
-			{ data: { id: "a" }, kind: "query", queryKey: ["players", "a"] },
-			{
-				entries: [[["sessions", "s1"], { id: "s1" }]],
-				kind: "queries",
-			},
-			null,
-		]);
-
-		expect(queryClient.setQueryData).toHaveBeenCalledTimes(2);
-		expect(queryClient.setQueryData).toHaveBeenNthCalledWith(
-			1,
-			["players", "a"],
-			{ id: "a" }
-		);
-		expect(queryClient.setQueryData).toHaveBeenNthCalledWith(
-			2,
-			["sessions", "s1"],
-			{ id: "s1" }
-		);
 	});
 
 	it("cancelTargets awaits every cancel in parallel", async () => {
