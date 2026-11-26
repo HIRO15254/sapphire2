@@ -7,9 +7,9 @@ const CONSENT_SCRIPT =
 
 const BASE_PROPS = {
 	clientName: "Claude",
+	destinationHost: "claude.ai",
 	nonce: "test-nonce",
 	oauthQuery: "client_id=c1&sig=abc",
-	redirectHosts: ["claude.ai"],
 };
 
 describe("renderConsentHtml", () => {
@@ -24,23 +24,14 @@ describe("renderConsentHtml", () => {
 		expect(html).toContain("Read your statistics");
 	});
 
-	it("shows the registered redirect host so a look-alike name is detectable", () => {
+	it("shows the destination host so a look-alike name is detectable", () => {
 		const html = renderConsentHtml(BASE_PROPS);
 		expect(html).toContain("claude.ai");
 		expect(html).toContain("Anyone can register an application under any name");
 	});
 
-	it("lists every registered redirect host", () => {
-		const html = renderConsentHtml({
-			...BASE_PROPS,
-			redirectHosts: ["claude.ai", "localhost:9999"],
-		});
-		expect(html).toContain("claude.ai");
-		expect(html).toContain("localhost:9999");
-	});
-
 	it("warns instead of going quiet when no destination is known", () => {
-		const html = renderConsentHtml({ ...BASE_PROPS, redirectHosts: [] });
+		const html = renderConsentHtml({ ...BASE_PROPS, destinationHost: null });
 		expect(html).toContain("did not register a recognizable destination");
 	});
 
@@ -65,7 +56,7 @@ describe("renderConsentHtml", () => {
 	it("escapes a malicious redirect host", () => {
 		const html = renderConsentHtml({
 			...BASE_PROPS,
-			redirectHosts: ["<img src=x onerror=alert(1)>"],
+			destinationHost: "<img src=x onerror=alert(1)>",
 		});
 		expect(html).not.toContain("<img src=x");
 		expect(html).toContain("&lt;img src=x");

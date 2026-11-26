@@ -17,10 +17,10 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { buildAuthOptions } from "./auth-options";
 import {
+	destinationHostFrom,
 	forceConsentPrompt,
 	isAuthorizePath,
 	parseConsentPageQuery,
-	redirectHostsFrom,
 } from "./oauth-consent";
 import {
 	exceedsRedirectUriLimit,
@@ -39,6 +39,7 @@ interface Env {
 	GOOGLE_CLIENT_ID?: string;
 	GOOGLE_CLIENT_SECRET?: string;
 	GOOGLE_MAPS_API_KEY?: string;
+	NODE_ENV?: string;
 	OPENAI_API_KEY?: string;
 }
 
@@ -169,7 +170,7 @@ app.get("/oauth/consent", async (c) => {
 		return c.text("Missing consent request parameters", 400);
 	}
 	let clientName = "";
-	let redirectHosts: string[] = [];
+	let destinationHost: string | null = null;
 	try {
 		const db = createDb(c.env.DB);
 		const rows = await db
@@ -181,10 +182,13 @@ app.get("/oauth/consent", async (c) => {
 			.where(eq(oauthClient.clientId, query.clientId))
 			.limit(1);
 		clientName = rows[0]?.name ?? "";
-		redirectHosts = redirectHostsFrom(rows[0]?.redirectUris);
+		destinationHost = destinationHostFrom(
+			rows[0]?.redirectUris,
+			query.redirectUri
+		);
 	} catch {
 		clientName = "";
-		redirectHosts = [];
+		destinationHost = null;
 	}
 	const nonce = btoa(
 		String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))
@@ -198,9 +202,9 @@ app.get("/oauth/consent", async (c) => {
 	return c.html(
 		renderConsentHtml({
 			clientName,
+			destinationHost,
 			nonce,
 			oauthQuery: query.oauthQuery,
-			redirectHosts,
 		})
 	);
 });
