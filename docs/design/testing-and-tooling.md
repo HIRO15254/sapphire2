@@ -118,9 +118,14 @@ Each pattern is tested against the whole file first — so multiline patterns ca
 
 ### The D1 trigger-stash check (delta beyond db-migrations.md)
 
-- **It matches on the restore itself** (`--file=dump.sql`), not on a workflow allowlist — the seed step is a hand-copied sibling across `preview-deploy.yml` / `dev-deploy.yml`, and a copy is precisely what prose cannot keep in sync, so matching the restore marker catches the *next* copy of the step too.
+- **It matches on the restore itself** (`--file=seed.sql`), not on a workflow allowlist — the seed step is a hand-copied sibling across `preview-deploy.yml` / `dev-deploy.yml`, and a copy is precisely what prose cannot keep in sync, so matching the restore marker catches the *next* copy of the step too.
 - **The three stash markers are asserted separately** because each is a distinct half of the fix; in particular a workflow that dropped without re-arming would leave the DB permanently trigger-less, so a missing re-arm must fail on its own.
 - Implementation trap: `dot: true` on the Glob scan is load-bearing — Bun's `Glob` skips dot-directories by default, so without it the scan of `.github/` yields an empty set and the check reports green forever.
+
+### The seed-scrub check (delta beyond db-migrations.md)
+
+- It keys on `d1 export` lines, not on file names. Each export must write a file with `--output=` and send wrangler's own output to a file (`> export.log 2>&1`), because wrangler prints a presigned download URL for the raw export and the Actions logs are public. The export file must be some `scripts/scrub-seed.ts --input=`. In a workflow that exports, every `--file=` import must be a scrub `--output=` or one of the non-data helpers (`drop-triggers.sql`, `rearm-triggers.sql`, `fk-on.sql`). A renamed or copied raw export therefore still fails.
+- It stays static. Whether the policy covers the schema is a runtime question, which the scrub itself and [`scrub-seed.test.ts`](../../scripts/__tests__/scrub-seed.test.ts) answer.
 
 ### Regex-design deltas
 

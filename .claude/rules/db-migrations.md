@@ -169,9 +169,13 @@ The preview and dev workflows apply migrations and replay a `--no-schema` produc
 [`preview-seed-restore.test.ts`](../../packages/db/src/__tests__/preview-seed-restore.test.ts) checks that the current dump replays without a trigger deriving rows.
 
 **Both seed steps are hand-copied siblings, so `check:rules` also asserts the stash itself**: any
-`.github/workflows/*.yml` containing the restore (`--file=dump.sql`) must carry all three halves —
+`.github/workflows/*.yml` containing the restore (`--file=seed.sql`) must carry all three halves —
 the `sqlite_master` read-back, `DROP TRIGGER IF EXISTS`, and the drops-then-creates
 `rearm-triggers.sql`. Prose alone did not keep the copies in sync; that is what the guard is for.
+
+## Every table and column needs a scrub decision before it reaches a seed
+
+The seed is not the raw production export: [`scripts/scrub-seed.ts`](../../scripts/scrub-seed.ts) replays it through `SCRUB_POLICY` first and writes `seed.sql` (SA2-458). Raw dumps had copied every user's session tokens, password hashes and provider tokens into each PR preview. A migration that adds a table adds its `SCRUB_POLICY` entry in the same change. Use `"drop"` for credentials and other per-environment auth state, and `"keep"` for domain data. A migration that adds a column to a table with a column policy (`user`, `account`) classifies that column too. A migration that drops a table keeps its entry: production can lag behind `dev` and still have the table, and the first preview seed of PR #768 failed closed on exactly those legacy tables. [`scrub-seed.test.ts`](../../scripts/__tests__/scrub-seed.test.ts) checks the policy against every prefix of the migration history and fails on a missing or stale entry, and the scrub refuses to run with one. `check:rules` rejects a workflow that logs `d1 export` output, since wrangler prints a presigned download URL for the raw export, and one that imports the export without the script. The deploy-side description is in [`docs/deploy.md`](../../docs/deploy.md#preview-and-dev-database-seeding).
 
 ## The seed must leave foreign keys on
 
