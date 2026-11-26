@@ -323,20 +323,20 @@ Every level writes the context fields `buttonSeat,tableSize,levelOrdinal,stakes,
 
 ## 8. `asset`
 
-`Asset = {id,name,unit,description,kind:currency|item,decimals,archivedAt,isFavorite,balance,createdAt,updatedAt}`. Balance is signed native quantity per [data model](data-model.md) §12.4, including real entry and wallet lines; for an item the same field is holdings. A buy-in reduces it immediately even while the entry is open. Virtual lines never change balance.
+`Asset = {id,name,unit,description,kind:currency|item,decimals,archivedAt,isFavorite,isReferenced,balance,createdAt,updatedAt}`. `isReferenced` is the same reference test that blocks `delete` and kind/decimals changes, so a screen can disable those actions before the user tries them. Balance is signed native quantity per [data model](data-model.md) §12.4, including real entry and wallet lines; for an item the same field is holdings. A buy-in reduces it immediately even while the entry is open. Virtual lines never change balance.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | `{includeArchived?:boolean}` | Asset[] ordered favorite first, then createdAt and id ascending | — | `asset_list` |
 | `getById` Q | IdInput | Asset | — | Excluded: duplicate read |
-| `create` M | `{name:trimmed string 1..100,unit?:string<=20,description?:string<=50000,kind:currency|item,decimals?:integer 0..4=0}` | Asset | Case-insensitive trimmed name collision: CONFLICT | Excluded: wallet |
+| `create` M | `{name:trimmed string 1..100,unit?:string<=20,description?:string<=50000,kind:currency|item,decimals?:integer 0..4=0,initialRates?:{quoteAssetId,rateNum,rateDen}[]<=50}` | Asset | Case-insensitive trimmed name collision: CONFLICT; foreign quote: FORBIDDEN; archived quote or a quote listed twice: BAD_REQUEST | Excluded: wallet |
 | `update` M | `{id,name?,unit?:string<=20|null,description?:string<=50000|null,kind?,decimals?}` | Asset | Name collision: CONFLICT; kind or decimals change when referenced anywhere: CONFLICT | Excluded: wallet |
 | `archive` M | IdInput | Asset | — | Excluded: wallet |
 | `restore` M | IdInput | Asset | — | Excluded: wallet |
 | `delete` M | IdInput | Ack | Any ledger/rate/entry/master-default/price/setting reference: CONFLICT, message "Asset is in use; archive it instead" | Excluded: destructive |
 | `toggleFavorite` M | IdInput | Asset | — | Excluded: toggle |
 
-Archived assets retain references, rates and balances. New selections must be active; unchanged historical references remain readable. For manual payment replacement, archived asset references may be retained up to their existing count in the entry. For live event edits the limit is the existing count in that event; new events cannot select an archived asset.
+`initialRates` stores one rate per quote asset with the new asset as base, effective from the epoch, in the same batch as the asset, so a failure leaves neither. Archived assets retain references, rates and balances. New selections must be active; unchanged historical references remain readable. For manual payment replacement, archived asset references may be retained up to their existing count in the entry. For live event edits the limit is the existing count in that event; new events cannot select an archived asset.
 
 ## 9. `assetRate`
 
@@ -363,7 +363,7 @@ Without effectiveAt, list returns matching history. With it, returns only latest
 
 All procedures are **Excluded: wallet** (delete additionally destructive). Wallet writes cannot mutate projected or manual entry lines: `FORBIDDEN`, regardless of the line's owner. Entry money is changed only through entry/live.
 
-`WalletLine = {id,assetId,role:adjustment|exchange,quantity,effect:real,categoryId:null|Id,entryId:null,transferId:null|Id,occurredAt,memo:string|null}`. History items are `{kind:wallet,line:WalletLine}` or `{kind:entry,id,entryId,title:string|null,assetId,quantity,occurredAt}`; the latter sums real lines for that entry/asset and uses their earliest timestamp, and `id` equals `entryId`. Virtual entry lines do not masquerade as wallet balance movements. The cursor carries the asset id and the boundary `(occurredAt,id)`; another asset's cursor is FORBIDDEN.
+`WalletLine = {id,assetId,role:adjustment|exchange,quantity,effect:real,categoryId:null|Id,entryId:null,transferId:null|Id,occurredAt,memo:string|null}`. History items are `{kind:wallet,line:WalletLine,counterpart:{assetId,quantity}|null}` or `{kind:entry,id,entryId,entryKind:cash|tournament,isOpen:boolean,title:string|null,assetId,quantity,occurredAt}`. `counterpart` is the other leg of an exchange (null for an adjustment); `isOpen` is true while the entry is not settled. The entry item sums real lines for that entry/asset and uses their earliest timestamp, and `id` equals `entryId`. Virtual entry lines do not masquerade as wallet balance movements. The cursor carries the asset id and the boundary `(occurredAt,id)`; another asset's cursor is FORBIDDEN.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
@@ -377,7 +377,7 @@ Exchange atomically writes negative from and positive to with one transferId. Ed
 
 ## 12. `ledgerCategory`
 
-`Category = {id,name,icon,archivedAt,createdAt,updatedAt}`. Names are trimmed, case-insensitively unique per user including archived rows. `icon` is a Tabler icon name or null (no icon); the API checks only its shape (`IconName` = `^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64 characters) and keeps no allowlist, so the web treats a name its icon font lacks the same as null.
+`Category = {id,name,icon,lineCount,archivedAt,createdAt,updatedAt}`. `lineCount` counts the wallet records using the category, an exchange once. Names are trimmed, case-insensitively unique per user including archived rows. `icon` is a Tabler icon name or null (no icon); the API checks only its shape (`IconName` = `^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64 characters) and keeps no allowlist, so the web treats a name its icon font lacks the same as null.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
@@ -459,11 +459,11 @@ Breakdown groups sort weekday numerically, length by the bucket order above, and
 
 ## 16. `gameGroup`
 
-`GameGroup = {id,userId,label,blind1Label,blind2Label,blind3Label,blind1Required:boolean,blind2Required:boolean,blind3Required:boolean,fixedAnteType:'none'|'all'|'bb'|null,builtinKey,archivedAt,createdAt,updatedAt}`. Label trimmed 1–30 characters; blind labels nullable, trimmed 1–20. Case-insensitive trimmed label uniqueness is within this master kind. Archived rows keep their label reservation.
+`GameGroup = {id,userId,label,blind1Label,blind2Label,blind3Label,blind1Required:boolean,blind2Required:boolean,blind3Required:boolean,fixedAnteType:'none'|'all'|'bb'|null,builtinKey,archivedAt,createdAt,updatedAt}`. Label trimmed 1–30 characters; blind labels nullable, trimmed 1–20. Case-insensitive trimmed label uniqueness is within this master kind. Archived rows keep their label reservation. In all three game-master lists, `isReferenced` is the reference test that blocks `delete`, so the Games screen can offer "archive instead" before the user tries to delete.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `list` Q | `{includeArchived?:boolean}` | GameGroup[] | — | `game_group_list` |
+| `list` Q | `{includeArchived?:boolean}` | (GameGroup & {isReferenced:boolean})[] | — | `game_group_list` |
 | `create` M | `{label,blind1Label?,blind2Label?,blind3Label?,blind1Required?:boolean=false,blind2Required?:boolean=false,blind3Required?:boolean=false,fixedAnteType?:'none'|'all'|'bb'|null=null}` | GameGroup | Duplicate: CONFLICT; Required field without a label: BAD_REQUEST | `game_group_create` |
 | `update` M | `{id,label?,blind1Label?:string|null,blind2Label?:string|null,blind3Label?:string|null,blind1Required?:boolean,blind2Required?:boolean,blind3Required?:boolean,fixedAnteType?:'none'|'all'|'bb'|null}` | GameGroup | Duplicate or clearing a label with stored stake values: CONFLICT; Required field without a label: BAD_REQUEST | `game_group_update` |
 | `archive` M | IdInput | GameGroup | Active variants using group: CONFLICT | `game_group_archive` |
@@ -480,7 +480,7 @@ Builtin defaults: Limit requires Small Bet and Big Bet; Stud requires Small Bet 
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `list` Q | `{includeArchived?:boolean}` | GameVariant[] | — | `game_variant_list` |
+| `list` Q | `{includeArchived?:boolean}` | (GameVariant & {isReferenced:boolean})[] | — | `game_variant_list` |
 | `create` M | `{label,shortLabel?,groupId}` | GameVariant | Duplicate within variant namespace: CONFLICT; archived group: BAD_REQUEST; a mix may share the label | `game_variant_create` |
 | `update` M | `{id,label?,shortLabel?:string|null,groupId?,sortOrder?:nonnegative integer}` | GameVariant | Duplicate: CONFLICT; archived new group: BAD_REQUEST | `game_variant_update` |
 | `archive` M | IdInput | GameVariant | Used by active mix: CONFLICT | `game_variant_archive` |
@@ -493,7 +493,7 @@ Builtin defaults: Limit requires Small Bet and Big Bet; Stud requires Small Bet 
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `list` Q | `{includeArchived?:boolean}` | GameMix[] | — | `game_mix_list` |
+| `list` Q | `{includeArchived?:boolean}` | (GameMix & {isReferenced:boolean})[] | — | `game_mix_list` |
 | `create` M | `{label,games:Id[]}` | GameMix | Duplicate label or same set of games: CONFLICT; archived/duplicate members: BAD_REQUEST | `game_mix_create` |
 | `update` M | `{id,label?,games?:Id[]}` | GameMix | Same; supplied games replaces the complete set | `game_mix_update` |
 | `archive` M | IdInput | GameMix | — | `game_mix_archive` |

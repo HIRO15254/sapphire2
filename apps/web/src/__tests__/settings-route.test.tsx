@@ -32,6 +32,10 @@ vi.mock("@/features/settings/pages/settings-page/mcp-connections", () => ({
 	McpConnections: () => <div>MCP Clients Content</div>,
 }));
 
+vi.mock("@/features/settings/pages/settings-page/wallet-settings", () => ({
+	WalletSettings: () => <div>Asset Settings Content</div>,
+}));
+
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
 		signOut: mocks.signOut,

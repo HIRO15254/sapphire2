@@ -62,21 +62,35 @@ function showFeedback(
 	});
 }
 
-type UndoOptions<TData, TVariables, TContext> =
-	| { destructive: true; message: string }
-	| {
-			destructive?: false;
-			message: string;
-			inverse: (
-				variables: TVariables,
-				data: TData,
-				context: TContext | undefined
-			) => Promise<unknown>;
-	  };
+interface FeedbackText<TData, TError, TVariables> {
+	describe?: (variables: TVariables, data: TData) => string | undefined;
+	failure?: (
+		error: TError,
+		variables: TVariables
+	) => { description?: string; title: string } | undefined;
+	message: string;
+}
+
+type UndoOptions<TData, TError, TVariables, TContext> = FeedbackText<
+	TData,
+	TError,
+	TVariables
+> &
+	(
+		| { destructive: true }
+		| {
+				destructive?: false;
+				inverse: (
+					variables: TVariables,
+					data: TData,
+					context: TContext | undefined
+				) => Promise<unknown>;
+		  }
+	);
 
 export function useUndoableMutation<TData, TError, TVariables, TContext>(
 	options: UseMutationOptions<TData, TError, TVariables, TContext>,
-	feedback: UndoOptions<TData, TVariables, TContext>
+	feedback: UndoOptions<TData, TError, TVariables, TContext>
 ) {
 	const failure = feedback.destructive ? DELETE_FAILED : SAVE_FAILED;
 	const mutation = useMutation<
@@ -88,7 +102,14 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 		...options,
 		onError: async (error, variables, context, mutationContext) => {
 			if (context) {
-				if (isConcurrentChange(error)) {
+				const specific = feedback.failure?.(error, variables);
+				if (specific) {
+					showFeedback(
+						context.id,
+						{ ...specific, variant: "destructive" },
+						FEEDBACK_DURATION_MS
+					);
+				} else if (isConcurrentChange(error)) {
 					toast.dismiss(context.id);
 				} else {
 					showFeedback(context.id, failure, FEEDBACK_DURATION_MS);
@@ -130,10 +151,12 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 			if (!context) {
 				return;
 			}
+			const description = feedback.describe?.(variables, data);
 			if (feedback.destructive) {
 				showFeedback(
 					context.id,
 					{
+						description,
 						icon: createElement(IconTrash, { className: NEUTRAL_ICON_CLASS }),
 						title: feedback.message,
 						variant: "neutral",
@@ -186,7 +209,7 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 			};
 			showFeedback(
 				context.id,
-				{ onUndo, title: feedback.message, variant: "success" },
+				{ description, onUndo, title: feedback.message, variant: "success" },
 				Number.POSITIVE_INFINITY
 			);
 		},

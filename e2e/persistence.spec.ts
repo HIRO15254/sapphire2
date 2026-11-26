@@ -1,6 +1,8 @@
 import type { Page } from "@playwright/test";
 import { API_URL, expect, registerAccount, signIn, test } from "./fixtures";
 
+const NLH_ROW = /^NL Hold'em/u;
+
 async function persistedCache(page: Page) {
 	return await page.evaluate(async () => {
 		if (
@@ -157,4 +159,36 @@ test("serves the installed app shell offline with the persisted account cache", 
 	).toBeVisible();
 	await expect.poll(() => persistedCache(page)).toContain(persistedRecord);
 	await context.setOffline(false);
+});
+
+test("lists the persisted games offline and keeps them after reconnecting", async ({
+	page,
+	context,
+	account,
+}) => {
+	await signIn(page, account);
+	await page.evaluate(async () => {
+		await navigator.serviceWorker.ready;
+	});
+	await page.goto("/games");
+	const row = page.getByRole("button", { name: NLH_ROW });
+	await expect(row).toBeVisible();
+	await expect.poll(() => persistedCache(page)).toContain("NL Hold'em");
+	await page.reload();
+	await expect
+		.poll(() =>
+			page.evaluate(() => navigator.serviceWorker.controller?.scriptURL)
+		)
+		.toContain("/sw.js");
+
+	await context.setOffline(true);
+	await page.reload();
+	await expect(row).toBeVisible();
+
+	const refetch = page.waitForResponse((response) =>
+		response.url().includes("gameVariant.list")
+	);
+	await context.setOffline(false);
+	await refetch;
+	await expect(row).toBeVisible();
 });

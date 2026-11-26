@@ -3,7 +3,6 @@ import {
 	DEFAULT_GAME_MIXES,
 } from "@sapphire2/db/constants/game-variants";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
-import { gameLineup } from "@sapphire2/db/schema/game-lineup";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { MAX_MIX_GROUPS } from "@sapphire2/db/schemas/game";
@@ -22,6 +21,7 @@ import {
 	gameMixColumns,
 	hydrateOwnedGameMixes,
 	listOwnedGameMixes,
+	mixLineupReference,
 } from "../services/game-mix";
 import { seedDefaultGameData } from "../services/seed-game-data";
 import {
@@ -317,17 +317,7 @@ export const gameMixRouter = router({
 					and(
 						eq(gameMix.id, input.id),
 						eq(gameMix.userId, userId),
-						notExists(
-							ctx.db
-								.select({ id: gameLineup.id })
-								.from(gameLineup)
-								.where(
-									and(
-										eq(gameLineup.gameMixId, gameMix.id),
-										eq(gameLineup.userId, gameMix.userId)
-									)
-								)
-						)
+						notExists(mixLineupReference(ctx.db))
 					)
 				)
 				.returning({ id: gameMix.id });

@@ -6,7 +6,17 @@ import { hand } from "@sapphire2/db/schema/hand";
 import { MAX_MIX_GROUPS } from "@sapphire2/db/schemas/game";
 import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, exists, isNull, max, notExists, sql } from "drizzle-orm";
+import {
+	and,
+	asc,
+	eq,
+	exists,
+	getTableColumns,
+	isNull,
+	max,
+	notExists,
+	sql,
+} from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { activeReferenceGuard } from "../lib/active-reference-guard";
@@ -44,9 +54,48 @@ async function selectVariant(db: Db, userId: string, id: string) {
 	return found;
 }
 
+function variantReferences(db: Db) {
+	return [
+		db
+			.select({ variantId: gameMixVariant.variantId })
+			.from(gameMixVariant)
+			.where(
+				and(
+					eq(gameMixVariant.variantId, gameVariant.id),
+					eq(gameMixVariant.userId, gameVariant.userId)
+				)
+			),
+		db
+			.select({ variantId: gameLineupVariant.variantId })
+			.from(gameLineupVariant)
+			.where(
+				and(
+					eq(gameLineupVariant.variantId, gameVariant.id),
+					eq(gameLineupVariant.userId, gameVariant.userId)
+				)
+			),
+		db
+			.select({ id: hand.id })
+			.from(hand)
+			.where(
+				and(
+					eq(hand.variantId, gameVariant.id),
+					eq(hand.userId, gameVariant.userId)
+				)
+			),
+	] as const;
+}
+
 function selectOwnedVariants(db: Db, userId: string) {
+	const [mixes, lineupVariants, hands] = variantReferences(db);
 	return db
-		.select()
+		.select({
+			...getTableColumns(gameVariant),
+			isReferenced:
+				sql<boolean>`(${exists(mixes)} OR ${exists(lineupVariants)} OR ${exists(hands)})`.mapWith(
+					Boolean
+				),
+		})
 		.from(gameVariant)
 		.where(eq(gameVariant.userId, userId))
 		.orderBy(asc(gameVariant.sortOrder), asc(gameVariant.label));
@@ -167,38 +216,8 @@ export const gameVariantRouter = router({
 					and(
 						eq(gameVariant.id, input.id),
 						eq(gameVariant.userId, userId),
-						notExists(
-							ctx.db
-								.select({ variantId: gameMixVariant.variantId })
-								.from(gameMixVariant)
-								.where(
-									and(
-										eq(gameMixVariant.variantId, gameVariant.id),
-										eq(gameMixVariant.userId, gameVariant.userId)
-									)
-								)
-						),
-						notExists(
-							ctx.db
-								.select({ variantId: gameLineupVariant.variantId })
-								.from(gameLineupVariant)
-								.where(
-									and(
-										eq(gameLineupVariant.variantId, gameVariant.id),
-										eq(gameLineupVariant.userId, gameVariant.userId)
-									)
-								)
-						),
-						notExists(
-							ctx.db
-								.select({ id: hand.id })
-								.from(hand)
-								.where(
-									and(
-										eq(hand.variantId, gameVariant.id),
-										eq(hand.userId, gameVariant.userId)
-									)
-								)
+						...variantReferences(ctx.db).map((reference) =>
+							notExists(reference)
 						)
 					)
 				)

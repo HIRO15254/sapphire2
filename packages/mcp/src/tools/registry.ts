@@ -123,7 +123,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	},
 	{
 		description:
-			"List the user's assets: currencies and items (for example tournament tickets), with kind, decimals, unit and balance. balance is the signed sum of every real ledger line of the asset, as an integer in its smallest unit (decimals is the number of digits after the point); for an item it is the number held. It already includes the buy-ins of entries still in play, and virtual lines never count. Archived assets are left out unless includeArchived is true, which returns active and archived ones together. Use the returned ids wherever a tool asks for an assetId.",
+			"List the user's assets: currencies and items (for example tournament tickets), with kind, decimals, unit, balance and isReferenced (true while any record, rate, setting or master default uses the asset). balance is the signed sum of every real ledger line of the asset, as an integer in its smallest unit (decimals is the number of digits after the point); for an item it is the number held. It already includes the buy-ins of entries still in play, and virtual lines never count. Archived assets are left out unless includeArchived is true, which returns active and archived ones together. Use the returned ids wherever a tool asks for an assetId.",
 		inputSchema: assetListInputSchema,
 		name: "asset_list",
 		procedurePath: "asset.list",

@@ -21,7 +21,12 @@ import { instantSchema } from "../lib/instant";
 import { validateEntityOwnership } from "../lib/ownership";
 import { guardStatement, withWriteGuardConflict } from "../lib/write-guard";
 
-const rateTerm = z.number().int().min(1).max(ASSET_RATE_MAX_TERM);
+export const assetRateTermSchema = z
+	.number()
+	.int()
+	.min(1)
+	.max(ASSET_RATE_MAX_TERM);
+const rateTerm = assetRateTermSchema;
 
 const rateColumns = {
 	baseAssetId: assetRate.baseAssetId,

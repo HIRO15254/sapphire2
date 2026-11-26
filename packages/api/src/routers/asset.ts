@@ -1,12 +1,17 @@
 import { ASSET_KINDS, ASSET_MAX_DECIMALS } from "@sapphire2/db/constants/asset";
 import { asset } from "@sapphire2/db/schema/asset";
+import { assetRate } from "@sapphire2/db/schema/ledger";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, isNull, not, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, not, or, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { activeReferencesGuard } from "../lib/active-reference-guard";
+import { insertChunks } from "../lib/batch";
 import { isAssetNameConflictError } from "../lib/db-errors";
-import { validateEntityOwnership } from "../lib/ownership";
+import { validateEntityOwnership, validateOwnedIds } from "../lib/ownership";
+import { runGuardedBatch } from "../lib/write-guard";
 import { assetBalance } from "../services/ledger-reads";
+import { assetRateTermSchema } from "./asset-rate";
 
 type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -28,6 +33,7 @@ const assetColumns = {
 	description: asset.description,
 	id: asset.id,
 	isFavorite: asset.isFavorite,
+	isReferenced: sql<boolean>`${assetIsReferenced}`.mapWith(Boolean),
 	kind: asset.kind,
 	name: asset.name,
 	unit: asset.unit,
@@ -76,9 +82,26 @@ export const assetListInputSchema = z
 	.object({ includeArchived: z.boolean().optional() })
 	.optional();
 
+const ASSET_MAX_INITIAL_RATES = 50;
+
+const initialRate = z.object({
+	quoteAssetId: z.string().min(1),
+	rateDen: assetRateTermSchema,
+	rateNum: assetRateTermSchema,
+});
+
 export const assetCreateInputSchema = z.object({
 	decimals: assetDecimals.default(0),
 	description: assetDescription.optional(),
+	initialRates: z
+		.array(initialRate)
+		.max(ASSET_MAX_INITIAL_RATES)
+		.refine(
+			(rates) =>
+				new Set(rates.map((rate) => rate.quoteAssetId)).size === rates.length,
+			{ message: "Each currency can have only one initial rate" }
+		)
+		.optional(),
 	kind: assetKind,
 	name: assetName,
 	unit: assetUnit.optional(),
@@ -112,18 +135,62 @@ export const assetRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const id = crypto.randomUUID();
-			await runAssetNameWrite(() =>
-				ctx.db.insert(asset).values({
-					decimals: input.decimals,
-					description: input.description ?? null,
-					id,
-					kind: input.kind,
-					name: input.name,
-					unit: input.unit ?? null,
-					updatedAt: new Date(),
+			const now = new Date();
+			const rates = input.initialRates ?? [];
+			const quoteIds = rates.map((rate) => rate.quoteAssetId);
+			if (quoteIds.length > 0) {
+				await validateOwnedIds(ctx.db, asset, quoteIds, userId);
+				const archived = await ctx.db
+					.select({ id: asset.id })
+					.from(asset)
+					.where(
+						and(
+							eq(asset.userId, userId),
+							inArray(asset.id, quoteIds),
+							not(isNull(asset.archivedAt))
+						)
+					);
+				if (archived.length > 0) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "An archived asset cannot be newly selected for a rate",
+					});
+				}
+			}
+			const insertAsset = ctx.db.insert(asset).values({
+				decimals: input.decimals,
+				description: input.description ?? null,
+				id,
+				kind: input.kind,
+				name: input.name,
+				unit: input.unit ?? null,
+				updatedAt: now,
+				userId,
+			});
+			const insertRates = insertChunks(
+				rates.map((rate) => ({
+					baseAssetId: id,
+					createdAt: now,
+					effectiveFrom: new Date(0),
+					id: crypto.randomUUID(),
+					quoteAssetId: rate.quoteAssetId,
+					rateDen: rate.rateDen,
+					rateNum: rate.rateNum,
 					userId,
-				})
+				})),
+				(chunk) => ctx.db.insert(assetRate).values(chunk)
 			);
+			await runAssetNameWrite(async () => {
+				if (insertRates.length === 0) {
+					await insertAsset;
+					return;
+				}
+				await runGuardedBatch(ctx.db, [
+					activeReferencesGuard(ctx.db, asset, quoteIds, userId),
+					insertAsset,
+					...insertRates,
+				]);
+			});
 			return await selectAsset(ctx.db, userId, id);
 		}),
 
