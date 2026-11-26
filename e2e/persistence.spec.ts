@@ -120,7 +120,7 @@ test("clears A's persisted records before reload and B's sign in in the same bro
 	await page.goto("/settings");
 	await page.getByRole("button", { exact: true, name: "Sign out" }).click();
 	await expect(page).toHaveURL((url) => url.pathname === "/login");
-	await expect.poll(() => persistedCache(page)).not.toContain(privateRecord);
+	expect(await persistedCache(page)).not.toContain(privateRecord);
 	await page.reload();
 	await expect.poll(() => persistedCache(page)).not.toContain(privateRecord);
 	await signIn(page, accountB);

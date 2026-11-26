@@ -15,7 +15,7 @@ import {
 import { useSettingsPage } from "./use-settings-page";
 
 export function SettingsPage() {
-	const { onSignOut } = useSettingsPage();
+	const { isSignOutPending, onSignOut } = useSettingsPage();
 
 	return (
 		<div className="bg-background text-foreground min-h-full">
@@ -29,7 +29,12 @@ export function SettingsPage() {
 				<AboutSection />
 				<ItemGroup size="xl" variant="inset">
 					<Item asChild variant="destructive">
-						<button onClick={onSignOut} type="button">
+						<button
+							aria-busy={isSignOutPending}
+							disabled={isSignOutPending}
+							onClick={onSignOut}
+							type="button"
+						>
 							<ItemMedia>
 								<IconLogout aria-hidden />
 							</ItemMedia>

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentType } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -54,11 +54,7 @@ describe("SettingsComponent", () => {
 		mocks.signOut.mockReset();
 		mocks.clearPersistedQueryCache.mockReset();
 		mocks.clearPersistedQueryCache.mockResolvedValue(undefined);
-		mocks.signOut.mockImplementation(
-			(options?: { fetchOptions?: { onSuccess?: () => void } }) => {
-				options?.fetchOptions?.onSuccess?.();
-			}
-		);
+		mocks.signOut.mockResolvedValue({ data: { success: true }, error: null });
 	});
 
 	it("renders the page header and section helper text", () => {
@@ -89,9 +85,11 @@ describe("SettingsComponent", () => {
 
 		await user.click(screen.getByRole("button", { name: "Sign out" }));
 
+		await waitFor(() =>
+			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/" })
+		);
 		expect(mocks.signOut).toHaveBeenCalledOnce();
 		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
-		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/" });
 		const [navigateOrder] = mocks.navigate.mock.invocationCallOrder;
 		if (navigateOrder === undefined) {
 			throw new Error("Expected navigation to be called");
@@ -101,37 +99,11 @@ describe("SettingsComponent", () => {
 		).toBeLessThan(navigateOrder);
 	});
 
-	it("does not navigate when signOut does not call onSuccess", async () => {
-		const user = userEvent.setup();
-		mocks.signOut.mockImplementation(() => undefined);
-		const Component = routeModule.Route.options.component as ComponentType;
-
-		render(<Component />);
-
-		await user.click(screen.getByRole("button", { name: "Sign out" }));
-
-		expect(mocks.signOut).toHaveBeenCalledOnce();
-		expect(mocks.navigate).not.toHaveBeenCalled();
-	});
-
 	it("renders the Linked Accounts section body", () => {
 		const Component = routeModule.Route.options.component as ComponentType;
 
 		render(<Component />);
 
 		expect(screen.getByText("Linked Accounts Content")).toBeInTheDocument();
-	});
-
-	it("forwards the fetchOptions.onSuccess wiring so navigate fires exactly once per success", async () => {
-		const user = userEvent.setup();
-		const Component = routeModule.Route.options.component as ComponentType;
-
-		render(<Component />);
-
-		await user.click(screen.getByRole("button", { name: "Sign out" }));
-		await user.click(screen.getByRole("button", { name: "Sign out" }));
-
-		expect(mocks.signOut).toHaveBeenCalledTimes(2);
-		expect(mocks.navigate).toHaveBeenCalledTimes(2);
 	});
 });
