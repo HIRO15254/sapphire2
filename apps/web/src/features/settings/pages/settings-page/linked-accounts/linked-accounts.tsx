@@ -1,3 +1,4 @@
+import { PASSWORD_MIN_LENGTH } from "@sapphire2/api/set-password";
 import { IconLink, IconMail, IconUnlink } from "@tabler/icons-react";
 import { SectionLoadError } from "@/features/settings/pages/settings-page/section-load-error";
 import { SettingsSection } from "@/features/settings/pages/settings-page/settings-section";
@@ -17,11 +18,8 @@ import {
 	ItemTitle,
 } from "@/shared/components/ui/item";
 import { Spinner } from "@/shared/components/ui/spinner";
-import {
-	SOCIAL_PROVIDERS,
-	useLinkedAccounts,
-	useLinkedPasswordForm,
-} from "./use-linked-accounts";
+import { useSetPasswordForm } from "@/shared/hooks/use-set-password-form";
+import { SOCIAL_PROVIDERS, useLinkedAccounts } from "./use-linked-accounts";
 
 const SET_PASSWORD_FORM_ID = "set-password-form";
 
@@ -31,21 +29,22 @@ const PROVIDER_ICONS = {
 };
 
 function SetPasswordForm({
+	form,
 	formId,
 	intro,
-	onOpenChange,
-	onSuccess,
+	newPasswordServerError,
+	onFieldChange,
+	onSubmit,
 }: {
+	form: ReturnType<typeof useSetPasswordForm>["form"];
 	formId: string;
 	intro: string;
-	onOpenChange: (open: boolean) => void;
-	onSuccess: () => void;
+	newPasswordServerError: (value: string) => string | undefined;
+	onFieldChange: (field: {
+		handleChange: (value: string) => void;
+	}) => (event: React.ChangeEvent<HTMLInputElement>) => void;
+	onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
-	const { form, onSubmit, onFieldChange } = useLinkedPasswordForm({
-		onOpenChange,
-		onSuccess,
-	});
-
 	return (
 		<form
 			className="flex flex-col gap-4 pt-1 pb-2"
@@ -58,8 +57,11 @@ function SetPasswordForm({
 			<form.Field name="newPassword">
 				{(field) => (
 					<Field
-						description="At least 8 characters."
-						error={field.state.meta.errors[0]?.message}
+						description={`At least ${PASSWORD_MIN_LENGTH} characters.`}
+						error={
+							field.state.meta.errors[0]?.message ??
+							newPasswordServerError(field.state.value)
+						}
 						htmlFor={field.name}
 						label="New password"
 						required
@@ -129,6 +131,17 @@ export function LinkedAccounts() {
 		onOpenSetPassword,
 		totalLinked,
 	} = useLinkedAccounts();
+	const {
+		form: setPasswordForm,
+		isSubmitting: isSetPasswordSubmitting,
+		newPasswordServerError,
+		onFieldChange: onSetPasswordFieldChange,
+		onSheetOpenChange: onSetPasswordSheetOpenChange,
+		onSubmit: onSetPasswordSubmit,
+	} = useSetPasswordForm({
+		onOpenChange: onSetPasswordOpenChange,
+		onSuccess: fetchAccounts,
+	});
 
 	if (loading) {
 		return (
@@ -223,15 +236,19 @@ export function LinkedAccounts() {
 
 			<FormSheet
 				formId={SET_PASSWORD_FORM_ID}
-				onOpenChange={onSetPasswordOpenChange}
+				isLoading={isSetPasswordSubmitting}
+				isSaveDisabled={isSetPasswordSubmitting}
+				onOpenChange={onSetPasswordSheetOpenChange}
 				open={isSetPasswordOpen}
 				title="Set a password"
 			>
 				<SetPasswordForm
+					form={setPasswordForm}
 					formId={SET_PASSWORD_FORM_ID}
 					intro={setPasswordIntro(email, linkedSocialLabels)}
-					onOpenChange={onSetPasswordOpenChange}
-					onSuccess={fetchAccounts}
+					newPasswordServerError={newPasswordServerError}
+					onFieldChange={onSetPasswordFieldChange}
+					onSubmit={onSetPasswordSubmit}
 				/>
 			</FormSheet>
 		</SettingsSection>

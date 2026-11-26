@@ -28,6 +28,11 @@ import {
 	REGISTRATION_MAX_BODY_BYTES,
 	REGISTRATION_MAX_REDIRECT_URIS,
 } from "./oauth-registration";
+import {
+	parseSetPasswordRequest,
+	SET_PASSWORD_SUCCESS,
+	setPasswordFailureFrom,
+} from "./set-password";
 
 interface Env {
 	BETTER_AUTH_SECRET: string;
@@ -97,13 +102,25 @@ app.post("/api/auth/set-password", async (c) => {
 	) {
 		return c.text("Forbidden", 403);
 	}
-	const db = createDb(c.env.DB);
-	const auth = createAuth(db, buildAuthOptions(c.env, db));
-	const result = await auth.api.setPassword({
-		body: await c.req.json(),
-		headers: c.req.raw.headers,
-	});
-	return c.json(result);
+	try {
+		const request = parseSetPasswordRequest(await c.req.text());
+		if (!request.success) {
+			return c.json(request.failure.body, request.failure.status);
+		}
+		const db = createDb(c.env.DB);
+		const auth = createAuth(db, buildAuthOptions(c.env, db));
+		await auth.api.setPassword({
+			body: request.data,
+			headers: c.req.raw.headers,
+		});
+		return c.json(SET_PASSWORD_SUCCESS, 200);
+	} catch (error) {
+		const failure = setPasswordFailureFrom(error);
+		if (failure.status === 500) {
+			console.error("[set-password] request failed", error);
+		}
+		return c.json(failure.body, failure.status);
+	}
 });
 
 app.use("/api/auth/*", (c, next) => {

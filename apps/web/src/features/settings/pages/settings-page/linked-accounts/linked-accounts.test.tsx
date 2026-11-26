@@ -1,10 +1,15 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { SET_PASSWORD_MESSAGES } from "@sapphire2/api/set-password";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LinkedAccounts } from "./linked-accounts";
 
 const NEW_PASSWORD_RE = /New password/u;
 const CONFIRM_PASSWORD_RE = /Confirm password/u;
+
+function setPasswordSheet() {
+	return screen.getByRole("dialog", { hidden: true, name: "Set a password" });
+}
 
 const mocks = vi.hoisted(() => ({
 	fetchSetPassword: vi.fn(),
@@ -126,6 +131,85 @@ describe("LinkedAccounts", () => {
 		await waitFor(() => {
 			expect(mocks.listAccounts).toHaveBeenCalledTimes(2);
 		});
+		await waitFor(() => {
+			expect(setPasswordSheet()).toHaveAttribute("data-state", "closed");
+		});
+	});
+
+	it("keeps the sheet and the typed password when the server rejects the password", async () => {
+		const user = userEvent.setup();
+
+		mocks.listAccounts.mockResolvedValue({
+			data: [{ accountId: "google-1", id: "1", providerId: "google" }],
+		});
+		mocks.fetchSetPassword.mockResolvedValue({
+			data: null,
+			error: {
+				code: "INVALID_INPUT",
+				field: "newPassword",
+				message: SET_PASSWORD_MESSAGES.rejectedTooLong,
+				status: 400,
+				statusText: "Bad Request",
+			},
+		});
+
+		render(<LinkedAccounts />);
+
+		await screen.findByText("Email and password");
+		await user.click(screen.getByRole("button", { name: "Set password" }));
+		await user.type(screen.getByLabelText(NEW_PASSWORD_RE), "supersecret1");
+		await user.type(screen.getByLabelText(CONFIRM_PASSWORD_RE), "supersecret1");
+		await user.click(screen.getByLabelText("Save"));
+
+		expect(
+			await screen.findByText(SET_PASSWORD_MESSAGES.rejectedTooLong)
+		).toBeVisible();
+		expect(screen.getByLabelText(NEW_PASSWORD_RE)).toHaveValue("supersecret1");
+		expect(screen.getByLabelText(NEW_PASSWORD_RE)).toHaveAttribute(
+			"aria-invalid",
+			"true"
+		);
+		expect(mocks.toastError).not.toHaveBeenCalled();
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+		expect(mocks.listAccounts).toHaveBeenCalledTimes(1);
+	});
+
+	it("disables Save while the password request is pending so it is sent once", async () => {
+		const user = userEvent.setup();
+		let respond: (value: unknown) => void = () => undefined;
+
+		mocks.listAccounts.mockResolvedValue({
+			data: [{ accountId: "google-1", id: "1", providerId: "google" }],
+		});
+		mocks.fetchSetPassword.mockReturnValue(
+			new Promise((resolve) => {
+				respond = resolve;
+			})
+		);
+
+		render(<LinkedAccounts />);
+
+		await screen.findByText("Email and password");
+		await user.click(screen.getByRole("button", { name: "Set password" }));
+		await user.type(screen.getByLabelText(NEW_PASSWORD_RE), "supersecret1");
+		await user.type(screen.getByLabelText(CONFIRM_PASSWORD_RE), "supersecret1");
+		await user.click(screen.getByLabelText("Save"));
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("Save")).toBeDisabled();
+		});
+		expect(screen.getByLabelText("Save")).toHaveAttribute("aria-busy", "true");
+		expect(mocks.fetchSetPassword).toHaveBeenCalledTimes(1);
+
+		act(() => {
+			respond({ data: { status: true }, error: null });
+		});
+
+		await waitFor(() => {
+			expect(setPasswordSheet()).toHaveAttribute("data-state", "closed");
+		});
+		expect(mocks.fetchSetPassword).toHaveBeenCalledTimes(1);
+		expect(mocks.toastSuccess).toHaveBeenCalledTimes(1);
 	});
 
 	it("allows unlinking a provider when another login method is available", async () => {
