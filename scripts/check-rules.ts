@@ -3,6 +3,14 @@ import { dirname, posix } from "node:path";
 import { Glob } from "bun";
 
 import { normalizeRulePath } from "./check-rules-path";
+import {
+	contractCitations,
+	contractDeclarations,
+	contractProblems,
+	describeContractProblem,
+	type SourceFile,
+	UNTESTED_CONTRACTS,
+} from "./contract-ids";
 
 interface Check {
 	cwd?: string;
@@ -415,6 +423,38 @@ if (commentHits.length > 0) {
 	);
 	console.error(`  rule: ${COMMENT_POLICY_RULE}`);
 	for (const hit of commentHits) {
+		console.error(`  ${hit}`);
+	}
+}
+
+async function readSources(glob: string): Promise<SourceFile[]> {
+	const files: SourceFile[] = [];
+	for await (const scannedPath of new Glob(glob).scan(".")) {
+		const path = normalizeRulePath(scannedPath);
+		if (!IGNORED_DIRS.test(path)) {
+			files.push({ path, text: await readFile(path, "utf8") });
+		}
+	}
+	return files;
+}
+
+const contractHits = contractProblems(
+	contractDeclarations(await readSources("docs/design/**/*.md")),
+	contractCitations(
+		await readSources(
+			"{apps,packages,scripts,testing,e2e}/**/*.{test,spec}.{ts,tsx}"
+		)
+	),
+	UNTESTED_CONTRACTS
+).map(describeContractProblem);
+
+if (contractHits.length > 0) {
+	failed = true;
+	console.error(
+		"\ncheck-rules FAIL: documented contract ID without a test that cites it"
+	);
+	console.error("  rule: .claude/rules/testing.md (Contract IDs, SA2-602)");
+	for (const hit of contractHits) {
 		console.error(`  ${hit}`);
 	}
 }

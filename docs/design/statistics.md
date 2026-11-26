@@ -27,7 +27,7 @@ Exactly one mode is required; combining them is `BAD_REQUEST`.
 
 ## Units
 
-- **1 bb** exists only for a cash entry whose rule lineup has exactly one game group and a positive `blind2`, and whose real currency lines are all in `entry.asset_id`; the P/L in that asset is divided by `blind2`. Anything else is counted in `unavailableNormalizationEntryCount`.
+- **1 bb** exists only for a cash entry whose rule lineup has exactly one game group and a positive `blind2`, and whose real currency lines are all in `entry.asset_id`; the P/L in that asset is divided by `blind2`. Anything else is counted in `unavailableNormalizationEntryCount`. `C-STATS-BB-UNIT`
 - **1 bi** is the tournament's **first** `buy_in` line (by `occurredAt`, then id) plus the fee paired with it: the fee with the same event, else the same price on the same play session without a different event, else the earliest unpaired fee on the same play session. Re-entries, their fees and add-ons are not part of the unit — they are still money paid, so they stay in ROI. When the unit and the real currency lines share one currency asset the bi is native; otherwise both are converted with the base (the valuation base, else the user's base). An item-only initial payment requires conversion to a currency base. Conversion failure or a non-positive unit makes the entry unavailable.
 - **ROI** = Σ tournament P/L ÷ Σ tournament buy-in × 100, over tournaments only; `null` when the denominator is 0 and in normalized mode.
 - **ITM** is a tournament with a `prize` line; a bounty alone is not ITM. `winRate` and `itmRate` are percentages on a 0–100 scale, or `null` when their denominator is zero.
@@ -36,7 +36,7 @@ Exactly one mode is required; combining them is `BAD_REQUEST`.
 
 Time is summed per `play_session`: `(ended_at − started_at − 60 × break_minutes) / 3600` for each day that has both endpoints. `playMinutes` can be fractional because timestamps have second resolution. A day missing either endpoint adds nothing, and time between days is never counted. An entry with no timed day has `playMinutes = null` and lands in the `unknown` length bucket.
 
-`bbPerHour` divides the bb of cash entries whose days are all timed by those entries' hours, so an untimed entry's result is never spread over other entries' hours. It uses all eligible cash entries, including those excluded from valuation.
+`bbPerHour` divides the bb of cash entries whose days are all timed by those entries' hours, so an untimed entry's result is never spread over other entries' hours. `C-STATS-BB-PER-HOUR` It uses all eligible cash entries, including those excluded from valuation.
 
 ## Hands
 
@@ -55,7 +55,7 @@ A hand is one `hand` row whatever its detail (`count`, `summary` or `full`); `ha
 
 ## EV
 
-The EV figures come from `entry.ev_diff` on cash entries. They are `null` until an entry in scope recorded an EV difference whose asset fits the mode (native: the entry's table asset is the selected asset; valuation: the difference converts at the entry's last line time; normalized: the entry has a bb). Live cash projection records 0 when there are no all-in events; a manual entry without an EV difference stores `null`. Once a difference qualifies, `evProfitLoss` spans every counted cash entry, an unrecorded one counting at its actual result, so it stays comparable with the cash P/L.
+The EV figures come from `entry.ev_diff` on cash entries. They are `null` until an entry in scope recorded an EV difference whose asset fits the mode (native: the entry's table asset is the selected asset; valuation: the difference converts at the entry's last line time; normalized: the entry has a bb). `C-STATS-EV-MODES` Live cash projection records 0 when there are no all-in events; a manual entry without an EV difference stores `null`. Once a difference qualifies, `evProfitLoss` spans every counted cash entry, an unrecorded one counting at its actual result, so it stays comparable with the cash P/L.
 
 ## Breakdown and series
 
@@ -64,11 +64,11 @@ The EV figures come from `entry.ev_diff` on cash entries. They are `null` until 
 | `groupBy` | Key |
 |---|---|
 | `room` | room id, or `none` |
-| `stakes` | `<gameGroupId>:<blind1>/<blind2>/<blind3>/<ante>/<anteType>`; a multi-group lineup is `multi-group`, every tournament is `tournament` |
+| `stakes` | `<gameGroupId>:<blind1>/<blind2>/<blind3>/<ante>/<anteType>`; a multi-group lineup is `multi-group`, every tournament is `tournament`. `C-STATS-STAKES-KEY` |
 | `kind` | `cash` / `tournament` |
 | `dayOfWeek` | `0`–`6` (Sunday = 0) from `played_on` |
 | `length` | `<1h`, `1-2h`, `2-4h`, `4-8h`, `8h+`, `unknown` |
 | `month` / `year` | `YYYY-MM` / `YYYY` from `played_on` |
-| `variant` | `mix:<gameMixId>`, `variant:<gameVariantId>`, or `custom` (rules follow [game-lineups.md](game-lineups.md)) |
+| `variant` | `mix:<gameMixId>`, `variant:<gameVariantId>`, or `custom` (rules follow [game-lineups.md](game-lineups.md)). `C-STATS-VARIANT-KEY` |
 
 `stats.profitLossSeries` returns one per-entry delta per settled entry ordered by `played_on`, then id. A point's `profitLoss` is in the mode's unit (`asset`, or `bb` / `bi` per kind in normalized mode) and is `null` when the entry was excluded. Both procedures return the same `coverage` as the summary.

@@ -16,7 +16,7 @@ Enforcement is deliberately split across three mechanisms, which is why [`models
 - That call sites never hard-code `gpt-*` literals is guaranteed by [`scripts/check-rules.ts`](../../scripts/check-rules.ts) — the OpenAI SDK's model type is a loose union including `string & {}`, so the type checker alone catches neither typos nor stale model IDs.
 - The one plain runtime value left, `EXTRACTION_MAX_OUTPUT_TOKENS` (currently 8192), is covered by the test.
 
-`EXTRACTION_MAX_OUTPUT_TOKENS` is the output cap for both extraction requests. It is sized well above the realistic output size because `max_output_tokens` bounds reasoning **plus** response text, and only generated tokens are billed — headroom is free, while a tight cap turns into the truncation failure below.
+`EXTRACTION_MAX_OUTPUT_TOKENS` is the output cap for both extraction requests. `C-AI-OUTPUT-BUDGET` It is sized well above the realistic output size because `max_output_tokens` bounds reasoning **plus** response text, and only generated tokens are billed — headroom is free, while a tight cap turns into the truncation failure below.
 
 `LATEST_MODEL` pins `gpt-5.6-luna` rather than resolving a model alias at runtime. Both extraction procedures use that pin.
 

@@ -4,6 +4,8 @@ This directory describes the current implementation: domain invariants, constrai
 
 Division of labor with [`.claude/rules/`](../../.claude/rules/): rule files hold **imperatives** agents and reviewers must follow (short, path-scoped, auto-loaded); design docs hold the **reasoning and mechanics** behind them. When a doc states a constraint that is mechanically enforceable, the enforcement lives in [`scripts/check-rules.ts`](../../scripts/check-rules.ts) and the imperative in a rule file — the doc links both.
 
+**Contract IDs.** A code span of the form `C-<AREA>-<NAME>` after a sentence, bullet or table cell marks that calculation, rejection or branching rule as a contract: `bun run check:rules` requires a running test whose title cites the ID. Give a rule you add or change an ID, and keep the ID when you reword the rule. The rule is in [testing.md](../../.claude/rules/testing.md#contract-ids) and the mechanics in [testing and tooling](testing-and-tooling.md#contract-ids).
+
 | Doc | Domain |
 |---|---|
 | [`data-model.md`](data-model.md) | Schema, invariants, calculations and projection |
