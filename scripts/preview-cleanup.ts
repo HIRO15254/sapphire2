@@ -4,11 +4,15 @@ import { setTimeout as wait } from "node:timers/promises";
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const GITHUB_API = "https://api.github.com";
 const GITHUB_PAGE_SIZE = 100;
+const D1_PAGE_SIZE = 1000;
+const MAX_PAGES = 1000;
 const MAX_ATTEMPTS = 4;
 const BASE_DELAY_MS = 1000;
 const MAX_CELL_LENGTH = 200;
+const MAX_TABLE_ROWS = 30;
 const TABLE_BREAKING = /[\r\n|]+/gu;
 const DIGITS = /^\d+$/u;
+const PAGES_BRANCH_PREFIX = "pr-";
 
 export interface CleanupConfig {
 	accountId: string;
@@ -16,7 +20,7 @@ export interface CleanupConfig {
 	d1Prefix: string;
 	githubToken: string;
 	pagesProject: string;
-	prNumber: number;
+	prNumber: number | null;
 	repository: string;
 	workerPrefix: string;
 }
@@ -27,7 +31,13 @@ export interface CleanupDeps {
 	sleep: (ms: number) => Promise<void>;
 }
 
-export type ResourceKind = "d1" | "orphan-worker" | "pages" | "worker";
+export type ResourceKind =
+	| "d1"
+	| "orphan-d1"
+	| "orphan-pages"
+	| "orphan-worker"
+	| "pages"
+	| "worker";
 
 export interface ResourceResult {
 	detail: string;
@@ -41,17 +51,43 @@ interface Context {
 	deps: CleanupDeps;
 }
 
+interface ResultInfo {
+	per_page?: number;
+	total_count?: number;
+	total_pages?: number;
+}
+
 type ApiResult<T> =
-	| { ok: true; result: T | undefined }
+	| { info: ResultInfo | undefined; ok: true; result: T | undefined }
 	| { error: string; ok: false; status: number };
+
+type Listing<T> = { items: T[]; ok: true } | { error: string; ok: false };
 
 interface PagesDeployment {
 	deployment_trigger?: { metadata?: { branch?: string } };
 	id: string;
 }
 
+interface D1Database {
+	name: string;
+	uuid: string;
+}
+
+interface Inventory {
+	databases: Listing<D1Database>;
+	deployments: Listing<PagesDeployment>;
+	workers: Listing<{ id: string }>;
+}
+
+interface Target {
+	name: string;
+	path: string;
+}
+
 const KIND_LABELS: Record<ResourceKind, string> = {
 	d1: "D1 database",
+	"orphan-d1": "D1 database of a closed PR",
+	"orphan-pages": "Pages deployment of a closed PR",
 	"orphan-worker": "Worker of a closed PR",
 	pages: "Pages deployment",
 	worker: "Worker",
@@ -112,9 +148,10 @@ async function cloudflare<T>(
 	const body = (await response.json().catch(() => null)) as {
 		errors?: { code?: number; message?: string }[];
 		result?: T;
+		result_info?: ResultInfo;
 	} | null;
 	if (response.ok) {
-		return { ok: true, result: body?.result };
+		return { info: body?.result_info, ok: true, result: body?.result };
 	}
 	const messages = (body?.errors ?? [])
 		.map((error) => `${error.code ?? "?"} ${error.message ?? ""}`.trim())
@@ -128,11 +165,60 @@ async function cloudflare<T>(
 	};
 }
 
+function hasMorePages(
+	info: ResultInfo | undefined,
+	page: number,
+	received: number
+): boolean {
+	if (info?.total_pages !== undefined) {
+		return page < info.total_pages;
+	}
+	if (info?.total_count !== undefined && info.per_page) {
+		return page * info.per_page < info.total_count;
+	}
+	return info?.per_page !== undefined && received >= info.per_page;
+}
+
+async function listAll<T>(
+	ctx: Context,
+	path: string,
+	query: string,
+	key: (item: T) => string,
+	page = 1,
+	found = new Map<string, T>()
+): Promise<Listing<T>> {
+	const params = [query, page > 1 ? `page=${page}` : ""]
+		.filter(Boolean)
+		.join("&");
+	const listed = await cloudflare<T[]>(
+		ctx,
+		"GET",
+		params ? `${path}?${params}` : path
+	);
+	if (!listed.ok) {
+		return { error: listed.error, ok: false };
+	}
+	const items = listed.result ?? [];
+	let added = 0;
+	for (const item of items) {
+		if (!found.has(key(item))) {
+			found.set(key(item), item);
+			added += 1;
+		}
+	}
+	if (added === 0 || !hasMorePages(listed.info, page, items.length)) {
+		return { items: [...found.values()], ok: true };
+	}
+	if (page >= MAX_PAGES) {
+		return { error: `stopped after ${MAX_PAGES} pages`, ok: false };
+	}
+	return listAll(ctx, path, query, key, page + 1, found);
+}
+
 async function deleteResource(
 	ctx: Context,
 	kind: ResourceKind,
-	name: string,
-	path: string
+	{ name, path }: Target
 ): Promise<ResourceResult> {
 	const outcome = await cloudflare<unknown>(ctx, "DELETE", path);
 	if (outcome.ok) {
@@ -147,14 +233,16 @@ async function deleteResource(
 async function deleteEach(
 	ctx: Context,
 	kind: ResourceKind,
-	targets: { name: string; path: string }[]
+	targets: Target[],
+	label: string
 ): Promise<ResourceResult[]> {
+	if (targets.length === 0) {
+		return [{ detail: "none found", kind, name: label, status: "absent" }];
+	}
 	const results: ResourceResult[] = [];
 	for (const target of targets) {
-		results.push(
-			// biome-ignore lint/performance/noAwaitInLoops: Delete one at a time so a burst does not trip the Cloudflare rate limit.
-			await deleteResource(ctx, kind, target.name, target.path)
-		);
+		// biome-ignore lint/performance/noAwaitInLoops: Delete one at a time so a burst does not trip the Cloudflare rate limit.
+		results.push(await deleteResource(ctx, kind, target));
 	}
 	return results;
 }
@@ -189,130 +277,195 @@ async function listOpenPullRequests(
 	return listOpenPullRequests({ config, deps }, page + 1, found);
 }
 
-function prNumberOf(name: string, prefix: string): number | null {
-	const suffix = name.startsWith(prefix) ? name.slice(prefix.length) : "";
+function prNumberOf(name: string | undefined, prefix: string): number | null {
+	const suffix = name?.startsWith(prefix) ? name.slice(prefix.length) : "";
 	return DIGITS.test(suffix) ? Number(suffix) : null;
 }
 
-function deletePreviewWorker(ctx: Context): Promise<ResourceResult> {
-	const name = `${ctx.config.workerPrefix}${ctx.config.prNumber}`;
-	return deleteResource(
-		ctx,
-		"worker",
-		name,
-		`/workers/scripts/${name}?force=true`
-	);
+function pagesTarget(
+	{ pagesProject }: CleanupConfig,
+	deployment: PagesDeployment
+): Target {
+	return {
+		name: `${pagesProject} branch ${deployment.deployment_trigger?.metadata?.branch} (${deployment.id})`,
+		path: `/pages/projects/${pagesProject}/deployments/${deployment.id}?force=true`,
+	};
 }
 
-async function deleteOrphanWorkers(ctx: Context): Promise<ResourceResult[]> {
-	const { prNumber, workerPrefix } = ctx.config;
-	const name = `${workerPrefix}*`;
-	let open: Set<number>;
-	try {
-		open = await listOpenPullRequests(ctx);
-	} catch (error) {
-		return [
-			{
-				detail: `could not list open PRs, so no Worker was swept: ${errorMessage(error)}`,
-				kind: "orphan-worker",
-				name,
-				status: "failed",
-			},
-		];
-	}
-	const listed = await cloudflare<{ id: string }[]>(
-		ctx,
-		"GET",
-		"/workers/scripts"
-	);
-	if (!listed.ok) {
-		return [
-			{
-				detail: `could not list Workers: ${listed.error}`,
-				kind: "orphan-worker",
-				name,
-				status: "failed",
-			},
-		];
-	}
-	const orphans = (listed.result ?? [])
-		.map((script) => script.id)
-		.filter((id) => {
-			const pr = prNumberOf(id, workerPrefix);
-			return pr !== null && pr !== prNumber && !open.has(pr);
+async function takeInventory(ctx: Context): Promise<Inventory> {
+	const { pagesProject } = ctx.config;
+	return {
+		databases: await listAll<D1Database>(
+			ctx,
+			"/d1/database",
+			`per_page=${D1_PAGE_SIZE}`,
+			(db) => db.uuid
+		),
+		deployments: await listAll<PagesDeployment>(
+			ctx,
+			`/pages/projects/${pagesProject}/deployments`,
+			"",
+			(deployment) => deployment.id
+		),
+		workers: await listAll<{ id: string }>(
+			ctx,
+			"/workers/scripts",
+			"",
+			(script) => script.id
+		),
+	};
+}
+
+async function deletePreview(
+	ctx: Context,
+	prNumber: number,
+	{ deployments }: Inventory
+): Promise<ResourceResult[]> {
+	const { d1Prefix, pagesProject, workerPrefix } = ctx.config;
+	const workerName = `${workerPrefix}${prNumber}`;
+	const pagesLabel = `${pagesProject} branch ${PAGES_BRANCH_PREFIX}${prNumber}`;
+	const databaseName = `${d1Prefix}${prNumber}`;
+	const results = [
+		await deleteResource(ctx, "worker", {
+			name: workerName,
+			path: `/workers/scripts/${workerName}?force=true`,
+		}),
+	];
+	if (deployments.ok) {
+		const own = deployments.items.filter(
+			(deployment) =>
+				prNumberOf(
+					deployment.deployment_trigger?.metadata?.branch,
+					PAGES_BRANCH_PREFIX
+				) === prNumber
+		);
+		results.push(
+			...(await deleteEach(
+				ctx,
+				"pages",
+				own.map((deployment) => pagesTarget(ctx.config, deployment)),
+				pagesLabel
+			))
+		);
+	} else {
+		results.push({
+			detail: `could not list deployments: ${deployments.error}`,
+			kind: "pages",
+			name: pagesLabel,
+			status: "failed",
 		});
-	if (orphans.length === 0) {
-		return [
-			{ detail: "none found", kind: "orphan-worker", name, status: "absent" },
-		];
 	}
-	return deleteEach(
+	const named = await listAll<D1Database>(
 		ctx,
-		"orphan-worker",
-		orphans.map((id) => ({
-			name: id,
-			path: `/workers/scripts/${id}?force=true`,
-		}))
+		"/d1/database",
+		`name=${encodeURIComponent(databaseName)}&per_page=${D1_PAGE_SIZE}`,
+		(db) => db.uuid
 	);
+	if (named.ok) {
+		const database = named.items.find((db) => db.name === databaseName);
+		results.push(
+			...(await deleteEach(
+				ctx,
+				"d1",
+				database
+					? [{ name: databaseName, path: `/d1/database/${database.uuid}` }]
+					: [],
+				databaseName
+			))
+		);
+	} else {
+		results.push({
+			detail: `could not list databases: ${named.error}`,
+			kind: "d1",
+			name: databaseName,
+			status: "failed",
+		});
+	}
+	return results;
 }
 
-async function deletePagesDeployments(ctx: Context): Promise<ResourceResult[]> {
-	const { pagesProject, prNumber } = ctx.config;
-	const branch = `pr-${prNumber}`;
-	const name = `${pagesProject} branch ${branch}`;
-	const listed = await cloudflare<PagesDeployment[]>(
-		ctx,
-		"GET",
-		`/pages/projects/${pagesProject}/deployments`
-	);
-	if (!listed.ok) {
-		return [
+function sweepKind<T>(
+	ctx: Context,
+	kind: ResourceKind,
+	label: string,
+	listing: Listing<T>,
+	prOf: (item: T) => number | null,
+	isKept: (pr: number) => boolean,
+	target: (item: T) => Target
+): Promise<ResourceResult[]> {
+	if (!listing.ok) {
+		return Promise.resolve([
 			{
-				detail: `could not list deployments: ${listed.error}`,
-				kind: "pages",
-				name,
+				detail: `could not list them: ${listing.error}`,
+				kind,
+				name: label,
 				status: "failed",
 			},
-		];
+		]);
 	}
-	const ids = (listed.result ?? [])
-		.filter(
-			(deployment) => deployment.deployment_trigger?.metadata?.branch === branch
-		)
-		.map((deployment) => deployment.id);
-	if (ids.length === 0) {
-		return [{ detail: "none found", kind: "pages", name, status: "absent" }];
-	}
-	return deleteEach(
-		ctx,
-		"pages",
-		ids.map((id) => ({
-			name: `${name} (${id})`,
-			path: `/pages/projects/${pagesProject}/deployments/${id}?force=true`,
-		}))
-	);
+	const orphans = listing.items.filter((item) => {
+		const pr = prOf(item);
+		return pr !== null && !isKept(pr);
+	});
+	return deleteEach(ctx, kind, orphans.map(target), label);
 }
 
-async function deleteD1Database(ctx: Context): Promise<ResourceResult> {
-	const name = `${ctx.config.d1Prefix}${ctx.config.prNumber}`;
-	const listed = await cloudflare<{ name: string; uuid: string }[]>(
-		ctx,
-		"GET",
-		"/d1/database"
-	);
-	if (!listed.ok) {
-		return {
-			detail: `could not list databases: ${listed.error}`,
-			kind: "d1",
+async function sweepOrphans(
+	ctx: Context,
+	inventory: Inventory,
+	open: Set<number> | Error
+): Promise<ResourceResult[]> {
+	const { d1Prefix, pagesProject, prNumber, workerPrefix } = ctx.config;
+	const labels: [ResourceKind, string][] = [
+		["orphan-worker", `${workerPrefix}*`],
+		["orphan-pages", `${pagesProject} branches ${PAGES_BRANCH_PREFIX}*`],
+		["orphan-d1", `${d1Prefix}*`],
+	];
+	if (open instanceof Error) {
+		return labels.map(([kind, name]) => ({
+			detail: `could not list open PRs, so none was deleted: ${open.message}`,
+			kind,
 			name,
 			status: "failed",
-		};
+		}));
 	}
-	const database = (listed.result ?? []).find((db) => db.name === name);
-	if (!database) {
-		return { detail: "none found", kind: "d1", name, status: "absent" };
-	}
-	return deleteResource(ctx, "d1", name, `/d1/database/${database.uuid}`);
+	const isKept = (pr: number) => pr === prNumber || open.has(pr);
+	return [
+		...(await sweepKind(
+			ctx,
+			"orphan-worker",
+			`${workerPrefix}*`,
+			inventory.workers,
+			(script) => prNumberOf(script.id, workerPrefix),
+			isKept,
+			(script) => ({
+				name: script.id,
+				path: `/workers/scripts/${script.id}?force=true`,
+			})
+		)),
+		...(await sweepKind(
+			ctx,
+			"orphan-pages",
+			`${pagesProject} branches ${PAGES_BRANCH_PREFIX}*`,
+			inventory.deployments,
+			(deployment) =>
+				prNumberOf(
+					deployment.deployment_trigger?.metadata?.branch,
+					PAGES_BRANCH_PREFIX
+				),
+			isKept,
+			(deployment) => pagesTarget(ctx.config, deployment)
+		)),
+		...(await sweepKind(
+			ctx,
+			"orphan-d1",
+			`${d1Prefix}*`,
+			inventory.databases,
+			(db) => prNumberOf(db.name, d1Prefix),
+			isKept,
+			(db) => ({ name: db.name, path: `/d1/database/${db.uuid}` })
+		)),
+	];
 }
 
 export async function runCleanup(
@@ -320,11 +473,15 @@ export async function runCleanup(
 	deps: CleanupDeps
 ): Promise<ResourceResult[]> {
 	const ctx = { config, deps };
+	const inventory = await takeInventory(ctx);
+	const open = await listOpenPullRequests(ctx).catch(
+		(error: unknown) => new Error(errorMessage(error))
+	);
 	const results = [
-		await deletePreviewWorker(ctx),
-		...(await deleteOrphanWorkers(ctx)),
-		...(await deletePagesDeployments(ctx)),
-		await deleteD1Database(ctx),
+		...(config.prNumber === null
+			? []
+			: await deletePreview(ctx, config.prNumber, inventory)),
+		...(await sweepOrphans(ctx, inventory, open)),
 	];
 	for (const result of results) {
 		deps.log(
@@ -343,11 +500,22 @@ function tableCell(text: string): string {
 
 export function renderComment(
 	results: ResourceResult[],
-	{ closedAt, runUrl }: { closedAt: string; runUrl: string }
+	{
+		closedAt,
+		prNumber,
+		runUrl,
+	}: { closedAt: string; prNumber: number | null; runUrl: string }
 ): string {
+	const heading =
+		prNumber === null ? "## Preview Orphan Sweep" : "## Preview Environment";
 	const failed = results.filter((result) => result.status === "failed");
 	if (failed.length === 0) {
-		return `## Preview Environment
+		return prNumber === null
+			? `${heading}
+
+No preview resource of a PR that is not open is left.
+`
+			: `${heading}
 
 ~Preview environment has been cleaned up.~
 
@@ -355,19 +523,24 @@ _Cleaned up at: ${closedAt}_
 `;
 	}
 	const rows = failed
+		.slice(0, MAX_TABLE_ROWS)
 		.map(
 			(result) =>
 				`| ${KIND_LABELS[result.kind]} | \`${tableCell(result.name)}\` | ${tableCell(result.detail)} |`
-		)
-		.join("\n");
-	return `## Preview Environment
+		);
+	if (failed.length > MAX_TABLE_ROWS) {
+		rows.push(
+			`| … | ${failed.length - MAX_TABLE_ROWS} more | see the run log |`
+		);
+	}
+	return `${heading}
 
 > [!WARNING]
 > Preview cleanup failed. These preview resources may still exist.
 
 | Resource | Name | Error |
 |---|---|---|
-${rows}
+${rows.join("\n")}
 
 To retry, fix the cause, open [the cleanup run](${runUrl}) and choose **Re-run failed jobs**; this comment is updated when nothing is left. To delete the resources by hand instead, follow "Preview Cleanup Failure" in \`docs/deploy.md\`.
 `;
@@ -379,7 +552,6 @@ export function readConfig(env: NodeJS.ProcessEnv): CleanupConfig {
 		"CLOUDFLARE_API_TOKEN",
 		"D1_PREFIX",
 		"GH_TOKEN",
-		"PR_NUMBER",
 		"PROJECT_NAME",
 		"REPO",
 		"WORKER_PREFIX",
@@ -389,9 +561,9 @@ export function readConfig(env: NodeJS.ProcessEnv): CleanupConfig {
 		throw new Error(`missing environment variables: ${missing.join(", ")}`);
 	}
 	const value = (key: (typeof names)[number]) => env[key] ?? "";
-	const prNumber = Number(value("PR_NUMBER"));
-	if (!Number.isInteger(prNumber) || prNumber <= 0) {
-		throw new Error(`PR_NUMBER is not a PR number: ${value("PR_NUMBER")}`);
+	const rawPr = env.PR_NUMBER ?? "";
+	if (rawPr !== "" && !DIGITS.test(rawPr)) {
+		throw new Error(`PR_NUMBER is not a PR number: ${rawPr}`);
 	}
 	return {
 		accountId: value("CLOUDFLARE_ACCOUNT_ID"),
@@ -399,7 +571,7 @@ export function readConfig(env: NodeJS.ProcessEnv): CleanupConfig {
 		d1Prefix: value("D1_PREFIX"),
 		githubToken: value("GH_TOKEN"),
 		pagesProject: value("PROJECT_NAME"),
-		prNumber,
+		prNumber: rawPr === "" ? null : Number(rawPr),
 		repository: value("REPO"),
 		workerPrefix: value("WORKER_PREFIX"),
 	};
@@ -411,7 +583,8 @@ async function main(): Promise<number> {
 		console.error("preview-cleanup: REPORT_PATH is not set");
 		return 2;
 	}
-	const results = await runCleanup(readConfig(process.env), {
+	const config = readConfig(process.env);
+	const results = await runCleanup(config, {
 		fetch: (url, init) => fetch(url, init),
 		log: (line) => console.log(line),
 		sleep: async (ms) => {
@@ -421,14 +594,15 @@ async function main(): Promise<number> {
 	writeFileSync(
 		reportPath,
 		renderComment(results, {
-			closedAt: process.env.CLOSED_AT ?? "",
+			closedAt: process.env.CLOSED_AT || new Date().toISOString(),
+			prNumber: config.prNumber,
 			runUrl: process.env.RUN_URL ?? "",
 		})
 	);
 	const failed = results.filter((result) => result.status === "failed");
 	if (failed.length > 0) {
 		console.log(
-			`::error::Preview cleanup could not delete ${failed.length} resource(s); they may still exist. See the PR comment and the log above.`
+			`::error::Preview cleanup could not delete ${failed.length} resource(s); they may still exist. See the report and the log above.`
 		);
 		return 1;
 	}

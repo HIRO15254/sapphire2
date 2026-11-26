@@ -17,7 +17,7 @@ The Worker also serves the MCP endpoint (`/mcp`) and its OAuth discovery routes 
 | Environment | Trigger | Description |
 |-------------|---------|-------------|
 | **Local** | `bun run dev` | `wrangler dev` (local Workers simulation) |
-| **Preview** | PR opened, synchronized, or reopened | Isolated Worker and D1 per PR; PR branch deployment in the shared Pages project |
+| **Preview** | PR opened, synchronized, or reopened, except fork PRs, `release/*` PRs, and PRs that change only Markdown or `docs/` | Isolated Worker and D1 per PR; PR branch deployment in the shared Pages project |
 | **Dev** | Push to `dev` or workflow dispatch | Stable Worker and Pages URLs; D1 is recreated and seeded on each deploy |
 | **Production** | GitHub Release published or workflow dispatch | Deploy Worker + Pages after CI passes |
 
@@ -239,7 +239,7 @@ Before a release that requires restore-based migration recovery, freeze data ent
 1. Create a test branch and open a PR (new commits and reopened PRs redeploy the same preview environment)
 2. Check "Preview Deploy" in the Actions tab
 3. Preview URLs will be posted as a PR comment
-4. Auto-cleanup on PR close
+4. Auto-cleanup on PR close; an auto-merged PR is cleaned by the dispatch from the review `outcome` job, and a daily sweep deletes the preview of any PR that is not open
 
 ### Production
 
@@ -284,7 +284,7 @@ Create the project first: `bunx wrangler pages project create sapphire2-web --pr
 
 ### Preview Cleanup Failure
 
-When a deletion fails, the Preview Cleanup job fails and the PR's "Preview Environment" comment lists every resource that may still exist with the Cloudflare error, instead of saying the preview was cleaned up. Every deletion is attempted even after an earlier one fails, and 429, 5xx and network errors are retried three times with a 1 s, 2 s, then 4 s wait. A resource that is already gone (404, or missing from the list) counts as cleaned up; the Cloudflare lists are read only to their first page, so a resource beyond it is not found. If open PRs cannot be listed, no other PR's Worker is deleted.
+When a deletion fails, the Preview Cleanup job fails and the PR's "Preview Environment" comment lists every resource that may still exist with the Cloudflare error, instead of saying the preview was cleaned up. Every deletion is attempted even after an earlier one fails, and 429, 5xx and network errors are retried three times with a 1 s, 2 s, then 4 s wait. A resource that is already gone (404, or missing from the list) counts as cleaned up. Every page of the Cloudflare lists is read, and a resource seen on two pages is deleted once. The Workers, Pages deployments and D1 databases of every PR that is not open are deleted too; they are listed before the open PRs, so a PR opened during the run keeps its preview. If open PRs cannot be listed, nothing of another PR is deleted. The daily scheduled run does only that sweep and fails when something is left.
 
 1. Fix the cause shown in the comment, such as the [token permissions](#cloudflare_api_token-permission-error).
 2. Open the cleanup run linked from the comment and choose **Re-run failed jobs**. The rerun repeats every deletion and rewrites the comment.
@@ -317,16 +317,22 @@ PR open/synchronize
   |                       +-> Post preview URLs as PR comment
 ```
 
-### Cleanup (on PR close)
+### Cleanup (on PR close, auto-merge dispatch, manual dispatch, or daily schedule)
 
 ```
-PR close/merge
+PR close/merge, dispatch with pr_number, or schedule
   |
-  +-> Delete Worker -> Delete Workers of closed PRs -> Delete Pages branch deployments -> Delete D1 database
+  +-> Wait for a running Preview Deploy of the PR (shared concurrency group); refuse an open PR
+  |
+  +-> List every page of Workers, Pages deployments and D1 databases -> list open PRs
+  |
+  +-> Delete this PR's Worker, Pages branch deployments and D1 database (skipped without a PR)
+  +-> Delete the Workers, Pages deployments and D1 databases of every PR that is not open
   |     (each deletion runs even if an earlier one failed; 429/5xx/network errors are retried)
   |
   +-> Everything deleted or already gone -> mark the PR comment as cleaned up
   +-> Any deletion failed -> list what may remain in the PR comment and fail the job
+  +-> Scheduled sweep -> write the result to the job summary; fail the job if something is left
 ```
 
 ### Dev Deploy (on push to `dev`)

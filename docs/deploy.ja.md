@@ -17,7 +17,7 @@ Worker は MCP エンドポイント（`/mcp`）と OAuth ディスカバリル�
 | 環境 | トリガー | 内容 |
 |------|---------|------|
 | **ローカル** | `bun run dev` | `wrangler dev`（Workers ローカルシミュレーション） |
-| **プレビュー** | PR 作成・同期・再オープン | PR ごとに独立した Worker と D1、共有 Pages プロジェクトの PR ブランチへデプロイ |
+| **プレビュー** | PR 作成・同期・再オープン（fork の PR、`release/*` の PR、Markdown と `docs/` だけを変える PR を除く） | PR ごとに独立した Worker と D1、共有 Pages プロジェクトの PR ブランチへデプロイ |
 | **dev** | `dev` への push または workflow dispatch | Worker と Pages の URL は固定。D1 はデプロイごとに再作成してシード |
 | **本番** | GitHub Release 公開または workflow dispatch | CI 通過後に Worker + Pages をデプロイ |
 
@@ -239,7 +239,7 @@ dev の D1 はデプロイごとに再作成し、プレビューの D1 は初�
 1. テストブランチを作成して PR を出す（新しい commit の push と PR の再オープンでも同じプレビュー環境を再デプロイ）
 2. Actions タブで「Preview Deploy」を確認
 3. PR コメントにプレビュー URL が投稿される
-4. PR クローズで自動クリーンアップ
+4. PR クローズで自動クリーンアップ。自動マージされた PR はレビューの `outcome` ジョブからの dispatch で削除し、毎日の定期スイープが open でない PR のプレビューを削除する
 
 ### 本番
 
@@ -284,7 +284,7 @@ Error: A project with this name does not exist
 
 ### プレビューのクリーンアップ失敗
 
-削除が 1 件でも失敗すると Preview Cleanup ジョブは失敗し、PR の「Preview Environment」コメントは cleaned up と書かず、残っている可能性のあるリソースを Cloudflare のエラーとともに一覧します。前の削除が失敗しても後の削除はすべて試し、429・5xx・ネットワークエラーは 1 秒、2 秒、4 秒待って最大 3 回再試行します。既に無いリソース（404、または一覧に無い）は削除済みとして扱います。Cloudflare の一覧は先頭ページしか読まないため、それより後ろにあるリソースは見つかりません。open な PR を一覧できなかったときは、他の PR の Worker を削除しません。
+削除が 1 件でも失敗すると Preview Cleanup ジョブは失敗し、PR の「Preview Environment」コメントは cleaned up と書かず、残っている可能性のあるリソースを Cloudflare のエラーとともに一覧します。前の削除が失敗しても後の削除はすべて試し、429・5xx・ネットワークエラーは 1 秒、2 秒、4 秒待って最大 3 回再試行します。既に無いリソース（404、または一覧に無い）は削除済みとして扱います。Cloudflare の一覧はすべてのページを読み、2 つのページに現れたリソースも 1 回だけ削除します。open でない PR の Worker・Pages デプロイ・D1 データベースもあわせて削除します。これらは open な PR より先に一覧するため、実行中に開かれた PR のプレビューは残ります。open な PR を一覧できなかったときは、他の PR のものを削除しません。毎日の定期実行はこのスイープだけを行い、何か残ればジョブを失敗させます。
 
 1. コメントに出た原因を直す（例: [トークンの権限](#cloudflare_api_token-権限不足)）。
 2. コメントのリンクからクリーンアップの実行を開き、**Re-run failed jobs** を選ぶ。再実行はすべての削除をやり直し、コメントを書き換える。
@@ -317,16 +317,22 @@ PR open/synchronize
   |                       +-> PR にプレビュー URL をコメント
 ```
 
-### クリーンアップ（PR クローズ時）
+### クリーンアップ（PR クローズ時、自動マージ後の dispatch、手動 dispatch、毎日の定期実行）
 
 ```
-PR close/merge
+PR close/merge、pr_number 付き dispatch、または schedule
   |
-  +-> Worker 削除 -> クローズ済み PR の Worker 削除 -> Pages ブランチデプロイ削除 -> D1 データベース削除
+  +-> その PR の実行中の Preview Deploy を待つ（concurrency group を共有）。open な PR は拒否
+  |
+  +-> Worker・Pages デプロイ・D1 データベースを全ページ一覧 -> open な PR を一覧
+  |
+  +-> この PR の Worker・Pages ブランチデプロイ・D1 データベースを削除（PR 指定が無ければ飛ばす）
+  +-> open でない PR の Worker・Pages デプロイ・D1 データベースを削除
   |     （前の削除が失敗しても後の削除を試す。429/5xx/ネットワークエラーは再試行）
   |
   +-> すべて削除済みまたは既に無い -> PR コメントを cleaned up に更新
   +-> 1 件でも失敗 -> 残っている可能性のあるものを PR コメントに一覧し、ジョブを失敗させる
+  +-> 定期スイープ -> 結果をジョブのサマリーに書き、何か残ればジョブを失敗させる
 ```
 
 ### dev デプロイ（`dev` への push 時）

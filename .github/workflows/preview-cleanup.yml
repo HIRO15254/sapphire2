@@ -3,6 +3,18 @@ name: Preview Cleanup
 on:
   pull_request:
     types: [ closed ]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Closed PR whose preview to delete. Leave empty to only sweep the previews of PRs that are not open.
+        required: false
+        type: string
+  schedule:
+    - cron: "17 18 * * *"
+
+concurrency:
+  group: preview-deploy-${{ github.event.pull_request.number || inputs.pr_number || 'sweep' }}
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -12,15 +24,37 @@ env:
 
 jobs:
   cleanup:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
     steps:
+      - name: Resolve the closed PR
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          if [ -z "$PR" ]; then
+            echo "No PR given; only sweeping the previews of PRs that are not open."
+            exit 0
+          fi
+          if ! [[ "$PR" =~ ^[0-9]+$ ]]; then
+            echo "::error::pr_number is not a PR number: ${PR}"
+            exit 1
+          fi
+          STATE=$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)
+          if [ "$STATE" = "OPEN" ]; then
+            echo "::error::PR #${PR} is open, so its preview is kept. Close it first."
+            exit 1
+          fi
+          echo "number=${PR}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.pull_request.base.ref }}
+          ref: ${{ github.event.pull_request.base.ref || github.ref }}
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -33,16 +67,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ steps.target.outputs.number }}
           CLOSED_AT: ${{ github.event.pull_request.closed_at }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPORT_PATH: ${{ runner.temp }}/preview-cleanup.md
         run: bun scripts/preview-cleanup.ts
 
       - name: Write a report for a cleanup that did not finish
-        if: always() && steps.cleanup.outcome != 'success'
+        if: always() && steps.target.outputs.number != '' && steps.cleanup.outcome != 'success'
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ steps.target.outputs.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPORT_PATH: ${{ runner.temp }}/preview-cleanup.md
         run: |
@@ -58,20 +92,29 @@ jobs:
           Read [the cleanup run](${RUN_URL}) to find the cause, fix it, and choose **Re-run failed jobs**. To delete the resources by hand instead, follow "Preview Cleanup Failure" in \`docs/deploy.md\`.
           EOF
 
-      - name: Find preview comment
+      - name: Summarize
         if: always()
+        env:
+          REPORT_PATH: ${{ runner.temp }}/preview-cleanup.md
+        run: |
+          if [ -s "$REPORT_PATH" ]; then
+            cat "$REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Find preview comment
+        if: always() && steps.target.outputs.number != ''
         uses: peter-evans/find-comment@v3
         id: find
         with:
-          issue-number: ${{ github.event.pull_request.number }}
+          issue-number: ${{ steps.target.outputs.number }}
           comment-author: github-actions[bot]
           body-includes: "Preview Environment"
 
       - name: Update preview comment
-        if: always() && (steps.cleanup.outcome != 'success' || steps.find.outputs.comment-id != '')
+        if: always() && steps.target.outputs.number != '' && (steps.cleanup.outcome != 'success' || steps.find.outputs.comment-id != '')
         uses: peter-evans/create-or-update-comment@v4
         with:
           comment-id: ${{ steps.find.outputs.comment-id }}
-          issue-number: ${{ github.event.pull_request.number }}
+          issue-number: ${{ steps.target.outputs.number }}
           edit-mode: replace
           body-path: ${{ runner.temp }}/preview-cleanup.md
