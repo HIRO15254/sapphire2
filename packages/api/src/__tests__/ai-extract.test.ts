@@ -5,7 +5,7 @@ import {
 	TABLE_PLAYERS_OUTPUT_SCHEMA,
 	TOURNAMENT_OUTPUT_SCHEMA,
 } from "../routers/ai-extract";
-import { expectAccepts, expectRejects } from "./test-utils";
+import { expectAccepts, expectRejects, getInputSchema } from "./test-utils";
 
 describe("aiExtract.extractTournamentData input validation", () => {
 	const urlSource = { kind: "url", url: "https://example.com/tournament" };
@@ -93,6 +93,33 @@ describe("aiExtract.extractTournamentData input validation", () => {
 		expectRejects(appRouter.aiExtract.extractTournamentData, {
 			sources: [{ url: "https://example.com" }],
 		});
+	});
+});
+
+describe("aiExtract image size limits", () => {
+	const PER_IMAGE_LIMIT = 10_000_000;
+	const TOTAL_LIMIT = 25_000_000;
+
+	function imageOfLength(length: number) {
+		return { data: "A".repeat(length), kind: "image", mediaType: "image/png" };
+	}
+
+	function accepts(sources: ReturnType<typeof imageOfLength>[]): boolean {
+		return getInputSchema(appRouter.aiExtract.extractTournamentData).safeParse({
+			sources,
+		}).success;
+	}
+
+	it("accepts an image at the per-image limit and rejects one just over it", () => {
+		expect(accepts([imageOfLength(PER_IMAGE_LIMIT)])).toBe(true);
+		expect(accepts([imageOfLength(PER_IMAGE_LIMIT + 4)])).toBe(false);
+	});
+
+	it("rejects images that each fit but together exceed the per-request total", () => {
+		const fullImage = imageOfLength(PER_IMAGE_LIMIT);
+		const rest = imageOfLength(TOTAL_LIMIT - 2 * PER_IMAGE_LIMIT);
+		expect(accepts([fullImage, fullImage, rest])).toBe(true);
+		expect(accepts([fullImage, fullImage, rest, imageOfLength(4)])).toBe(false);
 	});
 });
 

@@ -2,9 +2,18 @@
 
 Historical context is preserved in the [archive](../archive/ai-extraction-history.md).
 
-This document covers the protected `aiExtractRouter` procedures in [`packages/api/src/routers/ai-extract.ts`](../../packages/api/src/routers/ai-extract.ts): `extractTournamentData` extracts tournament details, and `extractTablePlayers` extracts seated players. Both accept one to five base64-encoded JPEG, PNG, GIF, or WebP images; URL sources are rejected. Both require `OPENAI_API_KEY` in the request context.
+This document covers the protected `aiExtractRouter` procedures in [`packages/api/src/routers/ai-extract.ts`](../../packages/api/src/routers/ai-extract.ts): `extractTournamentData` extracts tournament details, and `extractTablePlayers` extracts seated players. Both accept one to five base64-encoded JPEG, PNG, GIF, or WebP images within the [input size limits](#input-size-limits); URL sources are rejected. Both require `OPENAI_API_KEY` in the request context.
 
 Both procedures build the OpenAI client through `createExtractionClient`: a 180-second timeout per attempt and one automatic retry. The SDK default (600 seconds, two retries) could hold one request and its paid provider calls for about 30 minutes. 180 seconds is sized to leave room for a full `EXTRACTION_MAX_OUTPUT_TOKENS` generation including reasoning, and the single retry absorbs a transient 429/5xx; a timeout surfaces as an error the user may retry.
+
+## Input size limits
+
+SA2-520; the values were decided in SA2-203. A request holds each image several times at once — the request text, the parsed JSON string, the `data:` URL that `buildInput` builds and the serialized provider request — inside a Worker isolate of 128 MB. Without a cap, a few tens of megabytes of base64 could exhaust the isolate, or reach the provider only to be refused there after the full upload.
+
+- **Per image and per call.** `SourceSchema.data` accepts at most 10,000,000 base64 characters (`MAX_IMAGE_SOURCE_LENGTH`), and the `sources` of one call at most 25,000,000 together (`MAX_IMAGE_SOURCES_TOTAL_LENGTH`, a `refine` on the shared `SourcesSchema`). Both count base64 characters, not decoded bytes: 10,000,000 characters decode to 7.5 MB. The values fit both the OpenAI and the Claude request limits, so a change of provider does not need new values. A violation is `BAD_REQUEST` with an English message naming the limit, before any provider call.
+- **Every tRPC request body.** Hono's `bodyLimit` on `/trpc/*` in [`apps/server/src/worker.ts`](../../apps/server/src/worker.ts) refuses a body above `TRPC_MAX_BODY_BYTES` before tRPC parses it — by `Content-Length` when present, otherwise while streaming. It answers `413` with a tRPC error envelope (`PAYLOAD_TOO_LARGE`, `Request body exceeds … bytes`), and `httpBatchLink` hands that error to every call of the batch. The limit is the image total plus 1,000,000 bytes for the JSON envelope and calls batched alongside, so the largest call the schema accepts always fits through. It covers every procedure, including ones added later; the procedure schemas still bound their own fields. `/mcp` is outside `/trpc/*`, and `aiExtract` is excluded from MCP.
+- **One home.** The three values live in [`packages/api/src/lib/request-limits.ts`](../../packages/api/src/lib/request-limits.ts), which imports nothing, so the body limit stays derived from the image total and a future upload screen can reuse the values for its pre-send check.
+- **Client side (not built yet).** No screen uploads images yet, so today the API limits above are the only check. The rebuilt rule-extraction (SA2-414) and seat-scan (SA2-412) screens will shrink each image to a 2048 px long edge before encoding it, as decided in SA2-203, and check the encoded result against the values in `request-limits.ts` before sending. The check runs after resizing because a 2048 px PNG can still exceed the per-image limit.
 
 ## Model registry (`AI_MODELS`)
 

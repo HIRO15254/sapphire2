@@ -18,6 +18,10 @@ import {
 } from "../ai/models";
 import { protectedProcedure, router } from "../index";
 import {
+	MAX_IMAGE_SOURCE_LENGTH,
+	MAX_IMAGE_SOURCES_TOTAL_LENGTH,
+} from "../lib/request-limits";
+import {
 	TABLE_PLAYER_SOURCE_APP_IDS,
 	TABLE_PLAYER_SOURCE_APPS,
 } from "./ai-extract-sources";
@@ -30,12 +34,30 @@ const MEDIA_TYPES = [
 ] as const;
 
 const SourceSchema = z.object({
-	data: z.string().min(1).base64(),
+	data: z
+		.string()
+		.min(1)
+		.max(
+			MAX_IMAGE_SOURCE_LENGTH,
+			`Each image must be at most ${MAX_IMAGE_SOURCE_LENGTH} base64 characters`
+		)
+		.base64(),
 	kind: z.literal("image"),
 	mediaType: z.enum(MEDIA_TYPES),
 });
 
 type Source = z.infer<typeof SourceSchema>;
+
+const SourcesSchema = z
+	.array(SourceSchema)
+	.min(1)
+	.max(5)
+	.refine(
+		(sources) =>
+			sources.reduce((total, source) => total + source.data.length, 0) <=
+			MAX_IMAGE_SOURCES_TOTAL_LENGTH,
+		`Images must total at most ${MAX_IMAGE_SOURCES_TOTAL_LENGTH} base64 characters`
+	);
 
 const nonNegativeIntegerSchema = z.number().int().min(0);
 const tableSizeSchema = z
@@ -252,7 +274,7 @@ export const aiExtractRouter = router({
 		.input(
 			z.object({
 				sourceApp: z.enum(TABLE_PLAYER_SOURCE_APP_IDS),
-				sources: z.array(SourceSchema).min(1).max(5),
+				sources: SourcesSchema,
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -298,7 +320,7 @@ export const aiExtractRouter = router({
 	extractTournamentData: protectedProcedure
 		.input(
 			z.object({
-				sources: z.array(SourceSchema).min(1).max(5),
+				sources: SourcesSchema,
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
