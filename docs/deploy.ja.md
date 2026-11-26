@@ -222,7 +222,9 @@ Pages のデプロイまたはクリーンアップを行う全 workflow を更�
 
 ### プレビューと dev のデータベースシード
 
-dev の D1 はデプロイごとに再作成し、プレビューの D1 は初回以降再利用します。新規 DB は本番 DB の最新適用済みマイグレーションまで適用し、本番のデータのみをエクスポートしてシードした後、残りのマイグレーションを適用します。ダンプの `d1_migrations` 行は除外します。既存プレビュー DB は再シードせずマイグレーションを適用します。その後 dev では `bun scripts/audit-data-model.ts --remote --database sapphire2-db-dev --config apps/server/wrangler.toml` を実行します。クエリ失敗または違反があれば job は失敗し、Worker デプロイを停止します。監査はデータを修正せずステータスと行数を報告します。ローカルとリモートでの使い方は[監査一覧](design/data-audits.md)を参照してください。
+dev の D1 はデプロイごとに再作成し、プレビューの D1 は初回以降再利用します。新規 DB は本番 DB の最新適用済みマイグレーションまで適用し、本番のデータのみのエクスポートをスクラブしてシードした後、残りのマイグレーションを適用します。既存プレビュー DB は再シードせずマイグレーションを適用します。その後 dev では `bun scripts/audit-data-model.ts --remote --database sapphire2-db-dev --config apps/server/wrangler.toml` を実行します。クエリ失敗または違反があれば job は失敗し、Worker デプロイを停止します。監査はデータを修正せずステータスと行数を報告します。ローカルとリモートでの使い方は[監査一覧](design/data-audits.md)を参照してください。
+
+生のエクスポートは非本番の DB に入りません。[`scripts/scrub-seed.ts`](../scripts/scrub-seed.ts) が、同じマイグレーションから作ったメモリ上の SQLite にエクスポートを流し込み、`SCRUB_POLICY` を適用して `seed.sql` を書き出します。ワークフローが取り込むデータファイルはこれだけです。ポリシーは `session`、`verification`、`passkey`、`oauth_*` の行と `d1_migrations` の行を除き、`account` のパスワードとプロバイダのトークンを NULL にし、`user.email` を `user-<id>@scrubbed.invalid` に、`user.image` を NULL に置き換えます。それ以外の行はそのまま複製するので、各ユーザーのデータと `account` の紐付けは残ります。シードしたアカウントへのパスワードやパスキーでのサインインは、プレビューと dev では使えません。スクラブの判断がないテーブルや列があると、複製せずにスクラブが失敗し、シードも失敗します。マイグレーションがそうしたテーブルや列を足したときは、先に `scripts/__tests__/scrub-seed.test.ts` が失敗します。`bun run check:rules` は、`d1 export` の出力をこのスクリプトに通さずに取り込むワークフローを拒否します。スクリプトはチェックアウトしたブランチのものが動きます。防ぐのは誤った複製であり、スクリプトやワークフローを書き換える同一リポジトリの PR は防ぎません。
 
 インポート時は派生行の重複を防ぐため `sqlite_master` から取得した trigger を一時削除します。終了時の trap は失敗時も trigger を復元し、復元失敗も job の失敗とします。SQLite は保存済み trigger 定義から `IF NOT EXISTS` を除去するため、復元ファイルは CREATE の前に DROP を付けます。外部キーはダンプ中だけ無効にし、別のインポートで有効化してから確認し、残りのマイグレーションを実行します。
 

@@ -167,11 +167,11 @@ jobs:
 
           echo "Exporting data from: $SOURCE_DB"
           git checkout wrangler.toml
-          bunx wrangler d1 export "$SOURCE_DB" --remote --no-schema --output=dump.sql
+          bunx wrangler d1 export "$SOURCE_DB" --remote --no-schema --output=prod-export.sql
+          bun ../../scripts/scrub-seed.ts --input=prod-export.sql --output=seed.sql
+          rm prod-export.sql
 
-          sed -i '/INSERT INTO.*d1_migrations/d' dump.sql
-
-          sed -i '1i PRAGMA foreign_keys = OFF;' dump.sql
+          sed -i '1i PRAGMA foreign_keys = OFF;' seed.sql
           echo 'PRAGMA foreign_keys = ON;' > fk-on.sql
 
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
@@ -201,7 +201,7 @@ jobs:
             bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=drop-triggers.sql
           fi
 
-          bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
+          bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=seed.sql
 
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=fk-on.sql
           FOREIGN_KEYS=$(bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --json \
@@ -304,6 +304,6 @@ jobs:
             | Frontend | ${{ needs.setup.outputs.preview_web_url }} |
             | API | ${{ needs.setup.outputs.preview_api_url }} |
 
-            **Database:** D1 database `${{ needs.setup.outputs.d1_db_name }}` (初回: 親ブランチDBコピー / 2回目以降: データ持ち越し+マイグレーション適用)
+            **Database:** D1 database `${{ needs.setup.outputs.d1_db_name }}` (初回: 本番 DB から認証情報とメールを除いたコピー / 2回目以降: データ持ち越し+マイグレーション適用)
 
             _Last deployed: ${{ github.sha }}_

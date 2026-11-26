@@ -312,7 +312,7 @@ if (unguardedEntries.length > 0) {
 	}
 }
 
-const SEED_RESTORE_MARKER = "--file=dump.sql";
+const SEED_RESTORE_MARKER = "--file=seed.sql";
 const SEED_GUARD_MARKERS: { hint: string; marker: string }[] = [
 	{
 		hint: "read the live trigger DDL back out of sqlite_master",
@@ -357,6 +357,70 @@ if (unguardedSeeds.length > 0) {
 	);
 	console.error("  rule: .claude/rules/db-migrations.md");
 	for (const hit of unguardedSeeds) {
+		console.error(`  ${hit}`);
+	}
+}
+
+const D1_EXPORT_LINE = /\bd1\s+export\b.*$/gmu;
+const SCRUB_SEED_LINE = /\bscripts\/scrub-seed\.ts\b.*$/gmu;
+const IMPORTED_FILE = /--file[= ]["']?(?<file>[^\s"';]+)/gu;
+const NON_DATA_IMPORTS = new Set([
+	"drop-triggers.sql",
+	"fk-on.sql",
+	"rearm-triggers.sql",
+]);
+
+function flagValue(line: string, flag: string): string | undefined {
+	return new RegExp(`--${flag}[= ]["']?(?<value>[^\\s"';]+)`, "u").exec(line)
+		?.groups?.value;
+}
+
+const unscrubbedSeeds: string[] = [];
+for await (const scannedPath of new Glob("workflows/*.{yml,yaml}").scan({
+	cwd: ".github",
+	dot: true,
+})) {
+	const path = normalizeRulePath(`.github/${scannedPath}`);
+	const text = await readFile(path, "utf8");
+	const exports = [...text.matchAll(D1_EXPORT_LINE)].map(([line]) => line);
+	if (exports.length === 0) {
+		continue;
+	}
+	const scrubs = [...text.matchAll(SCRUB_SEED_LINE)].map(([line]) => ({
+		input: flagValue(line, "input"),
+		output: flagValue(line, "output"),
+	}));
+	for (const line of exports) {
+		const output = flagValue(line, "output");
+		if (output === undefined) {
+			unscrubbedSeeds.push(
+				`${path}: \`${line.trim()}\` — write the export to a file with --output=`
+			);
+		} else if (!scrubs.some((scrub) => scrub.input === output)) {
+			unscrubbedSeeds.push(
+				`${path}: export \`${output}\` is never passed to scripts/scrub-seed.ts --input=`
+			);
+		}
+	}
+	const scrubbed = new Set(scrubs.map((scrub) => scrub.output));
+	for (const match of text.matchAll(IMPORTED_FILE)) {
+		const file = match.groups?.file ?? "";
+		if (!(scrubbed.has(file) || NON_DATA_IMPORTS.has(file))) {
+			const line = text.slice(0, match.index).split("\n").length;
+			unscrubbedSeeds.push(
+				`${path}:${line}: imports \`${file}\`, which is not a scripts/scrub-seed.ts --output=`
+			);
+		}
+	}
+}
+
+if (unscrubbedSeeds.length > 0) {
+	failed = true;
+	console.error(
+		"\ncheck-rules FAIL: production D1 export imported without scripts/scrub-seed.ts"
+	);
+	console.error("  rule: .claude/rules/db-migrations.md (SA2-458)");
+	for (const hit of unscrubbedSeeds) {
 		console.error(`  ${hit}`);
 	}
 }
