@@ -455,7 +455,7 @@ describe("stats on D1", () => {
 		expect(summary.bbPerHour).toBe(400);
 	});
 
-	test("includes actual results without recorded EV in the cash EV total", async ({
+	test("qualifies EV per mode and includes actual results without recorded EV in the cash EV total (C-STATS-EV-MODES)", async ({
 		api,
 	}) => {
 		const asset = requireCreatedRow(
@@ -498,6 +498,23 @@ describe("stats on D1", () => {
 			evProfitLoss: null,
 			evRecordedEntryCount: 1,
 			normalized: { cash: { evProfitLoss: 1150 } },
+		});
+		const usd = requireCreatedRow(
+			await api.alice.asset.create({ kind: "currency", name: "USD" })
+		);
+		await api.alice.assetRate.create({
+			baseAssetId: asset.id,
+			effectiveFrom: 0,
+			quoteAssetId: usd.id,
+			rateDen: 1,
+			rateNum: 2,
+		});
+		expect(
+			await api.alice.stats.summary({ baseAssetId: usd.id, valuation: "real" })
+		).toMatchObject({
+			evDiff: -2400,
+			evProfitLoss: 4600,
+			evRecordedEntryCount: 1,
 		});
 	});
 

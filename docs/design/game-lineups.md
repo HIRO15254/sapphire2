@@ -160,7 +160,7 @@ Drift is **version id comparison**, not normalized field comparison: for a linke
 
 `restoreRule` only repoints to existing versions; it creates no version and therefore restores the original ids and drift. It reverses overrideRule/applyMasterRule/pushRuleToMaster/relink; reversing createAndAssign also deletes the created master afterward. `ringGame.restoreRule` and `tournament.restoreRule` similarly repoint the master's current selection to an existing version owned by that master, without creating a version. These screen-only Undo operations are excluded from MCP.
 
-The API rejects a live overrideRule/applyMasterRule/relink/restoreRule with BAD_REQUEST before any write if lowering tableSize would put an active table player or the self player outside the new seat range. Validate the resulting version and folded seats together, not only the supplied partial rule.
+The API rejects a live overrideRule/applyMasterRule/relink/restoreRule with BAD_REQUEST before any write if lowering tableSize would put an active table player or the self player outside the new seat range. `C-LINEUP-LIVE-SEATS` Validate the resulting version and folded seats together, not only the supplied partial rule.
 
 Live seat validation guards the event snapshot and entry rule selection in the write batch. Seat assignments also guard the rule version used to validate table size, so either ordering of a concurrent seat change and table-size reduction fails with CONFLICT rather than leaving a seat outside the table.
 

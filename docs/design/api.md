@@ -18,7 +18,7 @@ Every procedure except root `healthCheck` is authenticated (`UNAUTHORIZED` other
 
 An HTTP request body on `/trpc/*` above 26,000,000 bytes is refused with `413` `PAYLOAD_TOO_LARGE` before any procedure runs; a batch fails as a whole ([input size limits](ai-extraction.md#input-size-limits)).
 
-HTTP error responses omit stack traces. An `INTERNAL_SERVER_ERROR` with a non-tRPC cause is returned as `Internal server error`; deliberate tRPC error messages without such a cause remain visible. MCP maps internal errors to generic text.
+HTTP error responses omit stack traces. `C-API-NO-STACK` An `INTERNAL_SERVER_ERROR` with a non-tRPC cause is returned as `Internal server error`; deliberate tRPC error messages without such a cause remain visible. MCP maps internal errors to generic text.
 
 Omitted update fields mean unchanged; `null` clears only nullable fields. Supplied arrays replace the entire collection, unless explicitly described otherwise. Validation applies to the resulting merged object where cross-field constraints require it.
 
@@ -160,7 +160,7 @@ type EntryOutput = EntryMoney & {
 
 Kind-specific details are mutually exclusive. The tournament's `totalEntries` is field size; aggregate counts are always `entryCount`. `ruleDrift` is false without a linked master, otherwise `ruleVersionId !== currentMasterRuleId`, not a field comparison. Play sessions are seq ascending. `playMinutes` sums each timed Day's duration less breaks at second resolution, expressed as fractional minutes; Days without both endpoints contribute zero. Big blind, EV and settled status follow [data model](data-model.md) §12/§13.
 
-`ManualPlay` times must be ordered, break duration valid, and plays chronological/nonoverlapping. Earlier plays close held/bagged; the last closes in a settled end state valid for kind; held/bagged require endStack. Manual records may omit wall-clock times without fabricating duration. `playedOn` equals the minimum local date. Entry create accepts either one top-level `payments` array for a single play or payments inside `playSessions[]`; multi-play requests must use per-play payments, and simultaneous top-level/per-play money is `BAD_REQUEST`.
+`ManualPlay` times must be ordered, break duration valid, and plays chronological/nonoverlapping. Earlier plays close held/bagged; the last closes in a settled end state valid for kind; held/bagged require endStack. Manual records may omit wall-clock times without fabricating duration. `playedOn` equals the minimum local date. `C-ENTRY-PLAYED-ON` Entry create accepts either one top-level `payments` array for a single play or payments inside `playSessions[]`; multi-play requests must use per-play payments, and simultaneous top-level/per-play money is `BAD_REQUEST`.
 
 On manual update, a supplied `ManualPlay.id` identifies an existing Day of that entry; preserve its id and attached hands rather than delete/recreate it. Omit id for a new Day. An id on create is FORBIDDEN; duplicate ids are BAD_REQUEST. Ownership and parent-membership checks apply. Break minutes are integers from 0 to 100,000 and endStack is nonnegative.
 
@@ -333,7 +333,7 @@ Every level writes the context fields `buttonSeat,tableSize,levelOrdinal,stakes,
 | `update` M | `{id,name?,unit?:string<=20|null,description?:string<=50000|null,kind?,decimals?}` | Asset | Name collision: CONFLICT; kind or decimals change when referenced anywhere: CONFLICT | Excluded: wallet |
 | `archive` M | IdInput | Asset | — | Excluded: wallet |
 | `restore` M | IdInput | Asset | — | Excluded: wallet |
-| `delete` M | IdInput | Ack | Any ledger/rate/entry/master-default/price/setting reference: CONFLICT, message "Asset is in use; archive it instead" | Excluded: destructive |
+| `delete` M | IdInput | Ack | Any ledger/rate/entry/master-default/price/setting reference: CONFLICT, message "Asset is in use; archive it instead". `C-ASSET-IN-USE` | Excluded: destructive |
 | `toggleFavorite` M | IdInput | Asset | — | Excluded: toggle |
 
 Archived assets retain references, rates and balances. New selections must be active; unchanged historical references remain readable. For manual payment replacement, archived asset references may be retained up to their existing count in the entry. For live event edits the limit is the existing count in that event; new events cannot select an archived asset.
@@ -536,7 +536,7 @@ Same five procedures as §19, instantiated as `playerTag.list/create/update/dele
 
 `Player = {id,userId,name,memo,isTemporary,isSelf,createdAt,updatedAt,tags:{id,name,color}[]}`. Names are trimmed 1–100; memo <=50,000. isSelf/isTemporary cannot be supplied to ordinary create/update. At most one self player exists per user; `getSelf` creates it if absent. The self player cannot be deleted; tablePlayer.addTemporary owns temporary creation.
 
-Opponent name search uses SQLite `lower()`, which folds ASCII case only; it does not perform Unicode case folding.
+Opponent name search uses SQLite `lower()`, which folds ASCII case only; it does not perform Unicode case folding. `C-PLAYER-SEARCH-CASE`
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
@@ -581,7 +581,7 @@ Accepted links use HTTPS without credentials or nondefault ports and have a Goog
 
 All **Excluded: screen**. `Preset = {id,userId,screenKey:'sessions'|'statistics',name,payload,isDefault,createdAt,updatedAt}`. Name is trimmed to 1–50 characters; duplicate checks within user/screen use SQLite `NOCASE`, which folds ASCII case only, not Unicode case.
 
-Payload keys: `period?:string` (1–30 characters; client date-range shortcut), `dateFrom?:DateOnly,dateTo?:DateOnly,kind?:cash|tournament,roomId?:Id,assetId?:Id,valuation?:real|virtual,baseAssetId?:Id,normalized?:boolean,entryTagIds?:Id[],tournamentTagIds?:Id[]`. Unknown keys are rejected; tag arrays are unique and capped at 100. Date ranges must be ordered. Statistics requires exactly one stats mode; sessions may omit it. Updating payload replaces it in full and validates it against the preset's immutable screen key. Setting a default clears the previous default within that screen in one batch.
+Payload keys: `period?:string` (1–30 characters; client date-range shortcut), `dateFrom?:DateOnly,dateTo?:DateOnly,kind?:cash|tournament,roomId?:Id,assetId?:Id,valuation?:real|virtual,baseAssetId?:Id,normalized?:boolean,entryTagIds?:Id[],tournamentTagIds?:Id[]`. Unknown keys are rejected; tag arrays are unique and capped at 100. Date ranges must be ordered. Statistics requires exactly one stats mode; sessions may omit it. `C-PRESET-STATS-MODE` Updating payload replaces it in full and validates it against the preset's immutable screen key. Setting a default clears the previous default within that screen in one batch.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |

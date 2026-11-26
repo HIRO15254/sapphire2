@@ -118,6 +118,7 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 ## Testing
 
 - Tests protect the contracts being changed and address failure risks. Read [`.claude/rules/testing.md`](.claude/rules/testing.md) before changing designs, implementation, or tests. **Default to no new test**: add one only when you can name the plausible regression it catches and who loses what; the shapes not worth a test are listed under its "Admitting a New Test". The reviewer flags a new test of those shapes as a nit.
+- **A calculation, rejection, or branching rule in `docs/design/` carries a contract ID** (`C-<AREA>-<NAME>`), and the test that verifies it cites the ID in its title; `check:rules` rejects an ID no test title cites. See testing.md "Contract IDs".
 - Define expected outcomes before changing behavior. For bug fixes, normally confirm red → green with a reproducing test. For changes that preserve behavior, use existing tests and add only missing protection.
 - Derive expected values from requirements, contracts, invariants, or known failures. Do not treat implementation output or a copy of the implementation as the oracle. State the purpose of characterization tests that record current behavior.
 - Do not require blanket coverage of every branch, boundary value, or call count. Select meaningful success, failure, and boundary scenarios for authentication, authorization, money, persistence, concurrency, and calendar-date / timestamp boundaries. The rule to put logic in hooks does not require a unit test for every hook.

@@ -46,6 +46,17 @@ These shapes are not worth a permanent test, even for new code:
 - A second case on a code path an existing case already exercises, including an empty input that takes the same branch as a missing one.
 - Sort order, formatting, or truncation whose breakage only degrades diagnostics or agent context.
 
+## Contract IDs
+
+The November 2026 review found 29 calculation, rejection, and branching rules written in `docs/design/` that no test would catch breaking (SA2-602). Contract IDs tie such a rule to the test that verifies it, so the protection cannot be dropped silently.
+
+- When you add or change a calculation, rejection, or branching rule in `docs/design/`, give it a contract ID: an inline code span `C-<AREA>-<NAME>` in uppercase, such as `C-STATS-EV-MODES`, right after the sentence, bullet, or table cell it names. Declare each ID once and keep it when the wording changes.
+- Cite the ID in the title of the test that verifies the rule (`test`, `it`, or `describe`, including `.each` / `.for` tables). A title does not count when its test cannot run — skipped, todo or expected to fail by its own modifier, an enclosing `describe`, its options or a Playwright `test.skip(...)` annotation — and neither does an ID elsewhere in the file. An existing test that already verifies the rule only gains the ID in its title; the ID does not by itself admit a new test.
+- `bun run check:rules` rejects a declared ID that no title cites, a title that cites an undeclared ID, and an ID declared twice.
+- `UNTESTED_CONTRACTS` in [`scripts/contract-ids.ts`](../../scripts/contract-ids.ts) lists the review's contracts whose test is still missing or incomplete, each with the issue that adds it. The list only shrinks: never add an entry; a new ID arrives with its test. When a title starts citing a listed ID, delete the entry in the same change — check:rules fails until you do.
+
+Mechanics: [testing and tooling](../../docs/design/testing-and-tooling.md#contract-ids).
+
 ## Verification Layers and Mock Boundaries
 
 | Layer | Primary protection | Real implementations to exercise |

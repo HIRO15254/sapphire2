@@ -103,4 +103,4 @@ Formatter imperatives are mandated by [`.claude/rules/datetime-and-numbers.md`](
 
 ## Update-notes auto-open
 
-The update-notes sheet auto-opens when a latest release exists and the loaded full viewed set does not contain it ([`should-auto-open-update-notes.ts`](../../apps/web/src/features/update-notes/utils/should-auto-open-update-notes.ts)); an unresolved viewed set does not trigger it. Auto-open records the latest release as viewed so the sheet surfaces once per release.
+The update-notes sheet auto-opens when a latest release exists and the loaded full viewed set does not contain it ([`should-auto-open-update-notes.ts`](../../apps/web/src/features/update-notes/utils/should-auto-open-update-notes.ts)); an unresolved viewed set does not trigger it. `C-UPDATE-NOTES-AUTO-OPEN` Auto-open records the latest release as viewed so the sheet surfaces once per release.
