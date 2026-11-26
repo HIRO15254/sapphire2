@@ -3,7 +3,8 @@ import path from "node:path";
 import { DatabaseSync, type SQLOutputValue } from "node:sqlite";
 import { parseArgs } from "node:util";
 
-const USAGE = `usage: bun scripts/scrub-seed.ts --input <export.sql> --output <seed.sql> [--migrations <dir>]
+const USAGE = `usage: bun scripts/scrub-seed.ts --input <export.sql> --output <seed.sql>
+  [--keep-login-email <email>] [--migrations <dir>]
 
 Turns a data-only production D1 export into a seed for preview and dev databases (docs/deploy.md).
 Exit 0: seed written. Exit 1: a table or column has no scrub decision, or the export failed to replay. Exit 2: usage.`;
@@ -233,13 +234,56 @@ function insertStatements(db: DatabaseSync, table: string): string[] {
 }
 
 export interface ScrubbedSeed {
+	keptLogin: boolean;
 	rows: number;
 	sql: string;
 }
 
+export interface ScrubOptions {
+	keepLoginEmail?: string;
+	migrationsDir?: string;
+}
+
+interface PreservedLogin {
+	accountId: SQLOutputValue;
+	email: SQLOutputValue;
+	password: SQLOutputValue;
+	userId: SQLOutputValue;
+}
+
+// NOTE(ops): SA2-675 replaces this exemption with a preview-only user. When it lands, delete preservedLogin, --keep-login-email and the PREVIEW_LOGIN_EMAIL env of both seed steps.
+function preservedLogin(
+	db: DatabaseSync,
+	email: string
+): PreservedLogin | undefined {
+	const statement = db.prepare(
+		`SELECT u.id, u.email, a.id, a.password FROM "user" u LEFT JOIN "account" a ON a.user_id = u.id AND a.provider_id = 'credential' WHERE lower(u.email) = lower(?)`
+	);
+	statement.setReturnArrays(true);
+	const row = statement.get(email) as SQLOutputValue[] | undefined;
+	if (row === undefined) {
+		return;
+	}
+	const [userId = null, kept = null, accountId = null, password = null] = row;
+	return { accountId, email: kept, password, userId };
+}
+
+function restoreLogin(db: DatabaseSync, login: PreservedLogin): void {
+	db.prepare(`UPDATE "user" SET "email" = ? WHERE "id" = ?`).run(
+		login.email,
+		login.userId
+	);
+	if (login.accountId !== null) {
+		db.prepare(`UPDATE "account" SET "password" = ? WHERE "id" = ?`).run(
+			login.password,
+			login.accountId
+		);
+	}
+}
+
 export function scrubSeed(
 	exportSql: string,
-	migrationsDir = DEFAULT_MIGRATIONS
+	{ keepLoginEmail, migrationsDir = DEFAULT_MIGRATIONS }: ScrubOptions = {}
 ): ScrubbedSeed {
 	const db = openMigratedDatabase(migrationsDir);
 	try {
@@ -257,16 +301,23 @@ export function scrubSeed(
 		}
 		db.exec(WRANGLER_LEDGER_DDL);
 		db.exec(exportSql);
-		const statements: string[] = [];
-		for (const table of tableNames(db)) {
+		const login = keepLoginEmail
+			? preservedLogin(db, keepLoginEmail)
+			: undefined;
+		const tables = tableNames(db);
+		for (const table of tables) {
 			const rule = SCRUB_POLICY[table];
 			if (rule === undefined) {
 				throw new ScrubPolicyError(`No scrub decision for ${table}`);
 			}
 			applyPolicy(db, table, rule);
-			statements.push(...insertStatements(db, table));
 		}
+		if (login) {
+			restoreLogin(db, login);
+		}
+		const statements = tables.flatMap((table) => insertStatements(db, table));
 		return {
+			keptLogin: login !== undefined,
 			rows: statements.length,
 			sql: [DEFER_FOREIGN_KEYS, ...statements]
 				.map((statement) => `${statement}\n`)
@@ -282,6 +333,7 @@ function main(): void {
 		options: {
 			help: { type: "boolean" },
 			input: { type: "string" },
+			"keep-login-email": { type: "string" },
 			migrations: { type: "string" },
 			output: { type: "string" },
 		},
@@ -291,12 +343,22 @@ function main(): void {
 		process.exit(values.help ? 0 : 2);
 	}
 	try {
-		const seed = scrubSeed(
-			readFileSync(values.input, "utf8"),
-			values.migrations
-		);
+		const keepLoginEmail = values["keep-login-email"];
+		const seed = scrubSeed(readFileSync(values.input, "utf8"), {
+			keepLoginEmail,
+			migrationsDir: values.migrations,
+		});
 		writeFileSync(values.output, seed.sql);
 		console.log(`scrub-seed: wrote ${seed.rows} row(s) to ${values.output}`);
+		if (keepLoginEmail && !seed.keptLogin) {
+			console.log(
+				"::warning::scrub-seed: no user has the preview login email, so preview auto-login will fail"
+			);
+		} else if (seed.keptLogin) {
+			console.log(
+				"scrub-seed: kept the email and password of the preview login account"
+			);
+		}
 	} catch (error) {
 		console.error(
 			`scrub-seed: ${error instanceof Error ? error.message : String(error)}`

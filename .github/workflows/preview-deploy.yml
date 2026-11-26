@@ -162,13 +162,15 @@ jobs:
       - name: Seed data from master DB (first deploy only)
         if: needs.d1-setup.outputs.is_new_db == 'true'
         working-directory: apps/server
+        env:
+          PREVIEW_LOGIN_EMAIL: ${{ secrets.PREVIEW_LOGIN_EMAIL }}
         run: |
           SOURCE_DB="sapphire2-db"
 
           echo "Exporting data from: $SOURCE_DB"
           git checkout wrangler.toml
           bunx wrangler d1 export "$SOURCE_DB" --remote --no-schema --output=prod-export.sql
-          bun ../../scripts/scrub-seed.ts --input=prod-export.sql --output=seed.sql
+          bun ../../scripts/scrub-seed.ts --input=prod-export.sql --output=seed.sql --keep-login-email="$PREVIEW_LOGIN_EMAIL"
           rm prod-export.sql
 
           sed -i '1i PRAGMA foreign_keys = OFF;' seed.sql

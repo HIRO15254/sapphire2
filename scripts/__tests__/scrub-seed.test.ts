@@ -94,6 +94,34 @@ describe("scrub-seed", () => {
 		}
 	});
 
+	it("keeps only the preview login account's email and password, and no one else's credential", () => {
+		const seed = scrubSeed(PRODUCTION_EXPORT, {
+			keepLoginEmail: "Owner@Example.com",
+		});
+		const db = restore(seed.sql);
+		try {
+			expect(seed.keptLogin).toBe(true);
+			expect(
+				rowValues(
+					db,
+					"SELECT u.id, u.email, a.provider_id, a.password, a.access_token FROM user u LEFT JOIN account a ON a.user_id = u.id ORDER BY u.id, a.id"
+				)
+			).toEqual([
+				["u1", "owner@example.com", "credential", "scrypt-password-hash", null],
+				["u1", "owner@example.com", "google", null, null],
+				["u2", "user-u2@scrubbed.invalid", null, null, null],
+			]);
+			const kept = new Set(["owner@example.com", "scrypt-password-hash"]);
+			expect(
+				SECRETS.filter(
+					(secret) => !kept.has(secret) && seed.sql.includes(secret)
+				)
+			).toEqual([]);
+		} finally {
+			db.close();
+		}
+	});
+
 	it("has a scrub decision for every table and column the migrations create, and none for anything they do not", () => {
 		const db = openMigratedDatabase();
 		try {
