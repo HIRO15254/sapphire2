@@ -76,14 +76,29 @@ function mergeFetchedPage(previous: unknown, fetched: unknown): unknown {
 }
 
 function restoreQueryData(queryClient: QueryClient, snapshot: QuerySnapshot) {
-	if (snapshot.data === undefined) {
-		queryClient
-			.getQueryCache()
-			.find({ exact: true, queryKey: snapshot.queryKey })
-			?.setState({ data: undefined, dataUpdatedAt: 0, status: "pending" });
+	if (snapshot.data !== undefined) {
+		queryClient.setQueryData(snapshot.queryKey, snapshot.data);
 		return;
 	}
-	queryClient.setQueryData(snapshot.queryKey, snapshot.data);
+	const query = queryClient
+		.getQueryCache()
+		.find({ exact: true, queryKey: snapshot.queryKey });
+	if (!query) {
+		return;
+	}
+	const wasFetching = query.state.fetchStatus !== "idle";
+	if (wasFetching) {
+		query.cancel({ silent: true });
+	}
+	query.setState({
+		data: undefined,
+		dataUpdatedAt: 0,
+		fetchStatus: "idle",
+		status: "pending",
+	});
+	if (wasFetching) {
+		query.fetch().catch(() => undefined);
+	}
 }
 
 function replayQueryUpdates(queryClient: QueryClient, group: QueryUpdateGroup) {
@@ -105,6 +120,21 @@ function replayQueryUpdates(queryClient: QueryClient, group: QueryUpdateGroup) {
 	} finally {
 		group.writing = false;
 	}
+}
+
+function rebaseQueryUpdates(
+	queryClient: QueryClient,
+	group: QueryUpdateGroup,
+	fetched: unknown,
+	isFetchMore: boolean
+) {
+	group.previous = {
+		...group.previous,
+		data: isFetchMore
+			? mergeFetchedPage(group.previous.data, fetched)
+			: fetched,
+	};
+	replayQueryUpdates(queryClient, group);
 }
 
 function createQueryUpdateGroup(
@@ -131,21 +161,23 @@ function createQueryUpdateGroup(
 		if (event.type !== "updated") {
 			return;
 		}
+		const allSettled = group.updates.every((update) => update.settled);
 		if (event.action.type === "success") {
-			const fetched = event.query.state.data;
-			group.previous = {
-				...group.previous,
-				data:
-					!event.action.manual && event.query.state.fetchMeta?.fetchMore
-						? mergeFetchedPage(group.previous.data, fetched)
-						: fetched,
-			};
-			replayQueryUpdates(queryClient, group);
+			const { manual } = event.action;
+			const isFetchMore =
+				!manual && Boolean(event.query.state.fetchMeta?.fetchMore);
+			if (!(manual || isFetchMore) && allSettled) {
+				group.dispose();
+				return;
+			}
+			rebaseQueryUpdates(
+				queryClient,
+				group,
+				event.query.state.data,
+				isFetchMore
+			);
 		}
-		if (
-			event.query.state.fetchStatus === "idle" &&
-			group.updates.every((update) => update.settled)
-		) {
+		if (event.query.state.fetchStatus === "idle" && allSettled) {
 			group.dispose();
 		}
 	});
@@ -363,12 +395,12 @@ export function restoreSnapshots(
 		}
 
 		if (snapshot.kind === "query") {
-			queryClient.setQueryData(snapshot.queryKey, snapshot.data);
+			restoreQueryData(queryClient, snapshot);
 			continue;
 		}
 
 		for (const [queryKey, data] of snapshot.entries) {
-			queryClient.setQueryData(queryKey, data);
+			restoreQueryData(queryClient, { data, kind: "query", queryKey });
 		}
 	}
 }
