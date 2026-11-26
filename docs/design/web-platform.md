@@ -75,6 +75,10 @@ The bottom-sheet design contract and the `form={formId}` external-submit mechani
 
 [`field.tsx`](../../apps/web/src/shared/components/ui/field/field.tsx) injects `aria-invalid` onto its single input-like child when `error` is set. It deliberately uses `isValidElement` directly on `children` rather than `Children.toArray`: the latter **auto-assigns synthetic keys**, which makes the wrapped input unmount/remount whenever the error flips — dropping focus and DOM state mid-typing. Do not "simplify" this to `Children.toArray`/`Children.only`.
 
+### `Drawer` — vaul's keyboard handling is off
+
+[`drawer.tsx`](../../apps/web/src/shared/components/ui/drawer/drawer.tsx) defaults vaul's `repositionInputs` to `false`. With it on, vaul watches `visualViewport` resizes while an input is focused and writes an inline `height` and `bottom` onto the sheet, then restores them when it decides the keyboard has closed. On Android with Gboard that detection missed the close, and the sheet stayed shrunk after the keyboard went away. The app does not need vaul's handling: the viewport meta in `index.html` sets `interactive-widget=resizes-content`, so the keyboard shrinks the layout viewport itself and the `position: fixed` sheet follows it. [`drawer.test.tsx`](../../apps/web/src/shared/components/ui/drawer/drawer.test.tsx) renders the real vaul sheet, focuses an input and fires a keyboard-sized `visualViewport` resize, and expects no inline size on the sheet.
+
 ## List and mutation wiring
 
 Optimistic-update mechanics go through the helpers mandated by [`.claude/rules/web-data-fetching.md`](../../.claude/rules/web-data-fetching.md). Two cross-cutting traps beyond the rule:

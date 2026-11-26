@@ -157,7 +157,10 @@ lists, adds, renames and removes passkeys. The rename sheet reuses the shared
 which is why the add form's name bound is 50 characters too — two name fields that
 disagreed about what is accepted would be a bug waiting to happen. The sheet is keyed on
 the passkey id so opening it for a different entry remounts the form: `defaultName` seeds
-only the initial render, so a reused instance would keep showing the previous name.
+only the initial render, so a reused instance would keep showing the previous name. The key
+is a guard, not an observable behaviour: a closed sheet unmounts its form when the exit
+animation ends, and until then the modal blocks the page, so no path in the browser reopens
+the same instance for another passkey. No test pins the key for that reason (SA2-610).
 
 Removal goes through a confirmation `Dialog` (`[Cancel] [Remove]`), per the
 destructive-confirmation rule in [`web-theme.md`](../../.claude/rules/web-theme.md). It is

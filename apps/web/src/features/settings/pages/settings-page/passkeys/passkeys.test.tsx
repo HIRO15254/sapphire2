@@ -1,8 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { stubWebAuthnSupport } from "@/__tests__/test-utils";
+import { stubWebAuthnSupport, WithoutAnimations } from "@/__tests__/test-utils";
 import { Passkeys } from "./passkeys";
 
 const mocks = vi.hoisted(() => ({
@@ -14,23 +13,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({
 	toast: { error: vi.fn(), info: vi.fn(), success: vi.fn() },
-}));
-
-vi.mock("@/shared/components/ui/drawer", () => ({
-	Drawer: ({ children, open }: { children: ReactNode; open?: boolean }) =>
-		open ? <div data-testid="drawer">{children}</div> : null,
-	DrawerBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-	DrawerContent: ({ children }: { children: ReactNode }) => (
-		<div>{children}</div>
-	),
-	DrawerDescription: ({ children }: { children: ReactNode }) => (
-		<div>{children}</div>
-	),
-	DrawerGrab: () => null,
-	DrawerHeader: ({ children }: { children: ReactNode }) => (
-		<div>{children}</div>
-	),
-	DrawerTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -74,7 +56,7 @@ describe("Passkeys", () => {
 
 	it("offers adding a passkey when none are registered", async () => {
 		mocks.listUserPasskeys.mockResolvedValue({ data: [] });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 		expect(
 			await screen.findByRole("button", { name: "Add passkey" })
 		).toBeInTheDocument();
@@ -82,7 +64,7 @@ describe("Passkeys", () => {
 
 	it("lists registered passkeys with their name and added date", async () => {
 		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
@@ -96,7 +78,7 @@ describe("Passkeys", () => {
 	it("asks for confirmation before removing a passkey", async () => {
 		const user = userEvent.setup();
 		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
@@ -114,7 +96,7 @@ describe("Passkeys", () => {
 		const user = userEvent.setup();
 		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
 		mocks.deletePasskey.mockResolvedValue({ data: { status: true } });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
@@ -131,7 +113,7 @@ describe("Passkeys", () => {
 	it("leaves the passkey alone when the confirmation is cancelled", async () => {
 		const user = userEvent.setup();
 		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
@@ -152,7 +134,7 @@ describe("Passkeys", () => {
 		const user = userEvent.setup();
 		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
 		mocks.updatePasskey.mockResolvedValue({ data: { passkey: PASSKEY } });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
@@ -179,7 +161,7 @@ describe("Passkeys", () => {
 		const user = userEvent.setup();
 		const other = { ...PASSKEY, id: "pk2", name: "Pixel 9" };
 		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY, other] });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
@@ -201,7 +183,7 @@ describe("Passkeys", () => {
 	it("resets the add form when the sheet is cancelled and reopened", async () => {
 		const user = userEvent.setup();
 		mocks.listUserPasskeys.mockResolvedValue({ data: [] });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await waitFor(() =>
 			expect(
@@ -232,7 +214,7 @@ describe("Passkeys", () => {
 					release = resolve;
 				})
 			);
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		expect(screen.getByRole("button", { name: "Retry" })).toBeDisabled();
@@ -253,7 +235,7 @@ describe("Passkeys", () => {
 		mocks.addPasskey.mockResolvedValue({
 			error: { message: "Registration failed" },
 		});
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 		await user.click(
 			await screen.findByRole("button", { name: "Add passkey" })
 		);
@@ -271,7 +253,7 @@ describe("Passkeys", () => {
 		const user = userEvent.setup();
 		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
 		mocks.updatePasskey.mockResolvedValue({ error: { message: "offline" } });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 		await user.click(await screen.findByRole("button", { name: MACBOOK_ROW }));
 		await user.click(screen.getByRole("button", { name: "Rename" }));
 		const name = screen.getByLabelText(PASSKEY_NAME_LABEL);
@@ -287,7 +269,7 @@ describe("Passkeys", () => {
 		const user = userEvent.setup();
 		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
 		mocks.deletePasskey.mockResolvedValue({ error: { message: "offline" } });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 		await user.click(await screen.findByRole("button", { name: MACBOOK_ROW }));
 		await user.click(screen.getByRole("button", { name: "Remove" }));
 		await user.click(await screen.findByRole("button", { name: "Remove" }));
@@ -299,7 +281,7 @@ describe("Passkeys", () => {
 
 	it("reports the fetch failure instead of an empty list", async () => {
 		mocks.listUserPasskeys.mockRejectedValue(new Error("offline"));
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await waitFor(() =>
 			expect(screen.getByRole("alert")).toHaveTextContent(
@@ -313,7 +295,7 @@ describe("Passkeys", () => {
 		mocks.listUserPasskeys
 			.mockRejectedValueOnce(new Error("offline"))
 			.mockResolvedValueOnce({ data: [PASSKEY] });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
 		await user.click(screen.getByRole("button", { name: "Retry" }));
@@ -327,7 +309,7 @@ describe("Passkeys", () => {
 	it("replaces the add button with a notice where WebAuthn is missing", async () => {
 		stubWebAuthnSupport(false);
 		mocks.listUserPasskeys.mockResolvedValue({ data: [] });
-		render(<Passkeys />);
+		render(<Passkeys />, { wrapper: WithoutAnimations });
 
 		await waitFor(() =>
 			expect(screen.getByText(UNSUPPORTED_NOTE)).toBeInTheDocument()
