@@ -1,4 +1,5 @@
 import { IconTrash } from "@tabler/icons-react";
+import type { ReactNode } from "react";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Dialog,
@@ -11,18 +12,22 @@ import {
 import { useConfirmDialog } from "./use-confirm-dialog";
 
 interface ConfirmDialogProps {
+	confirmIcon?: ReactNode;
 	confirmLabel?: string;
 	description: string;
+	destructive?: boolean;
 	isPending?: boolean;
-	onConfirm: () => void;
+	onConfirm?: () => void;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	title: string;
 }
 
 export function ConfirmDialog({
+	confirmIcon = <IconTrash aria-hidden />,
 	confirmLabel = "Delete",
 	description,
+	destructive = true,
 	isPending = false,
 	onConfirm,
 	onOpenChange,
@@ -41,16 +46,18 @@ export function ConfirmDialog({
 					<Button onClick={onCancel} type="button" variant="outline">
 						Cancel
 					</Button>
-					<Button
-						aria-busy={isPending}
-						disabled={isPending}
-						onClick={onConfirm}
-						type="button"
-						variant="destructive"
-					>
-						<IconTrash aria-hidden />
-						{confirmLabel}
-					</Button>
+					{onConfirm ? (
+						<Button
+							aria-busy={isPending}
+							disabled={isPending}
+							onClick={onConfirm}
+							type="button"
+							variant={destructive ? "destructive" : "default"}
+						>
+							{confirmIcon}
+							{confirmLabel}
+						</Button>
+					) : null}
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

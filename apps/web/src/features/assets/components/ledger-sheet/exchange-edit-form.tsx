@@ -8,7 +8,7 @@ import type {
 	WalletAsset,
 	WalletCategory,
 } from "@/features/assets/hooks/use-wallet-data";
-import { firstError } from "@/features/assets/utils/form";
+import { firstError } from "@/shared/lib/form-errors";
 import type {
 	ExchangeEditSubmit,
 	WalletHistoryItem,

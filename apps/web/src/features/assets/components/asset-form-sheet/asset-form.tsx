@@ -1,7 +1,6 @@
 import { IconPlus, IconX } from "@tabler/icons-react";
 import { GroupLabel } from "@/features/assets/components/form-fields";
 import type { WalletAsset } from "@/features/assets/hooks/use-wallet-data";
-import { firstError } from "@/features/assets/utils/form";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { IconButton } from "@/shared/components/ui/icon-button";
@@ -18,6 +17,7 @@ import {
 	ToggleGroup,
 	ToggleGroupItem,
 } from "@/shared/components/ui/toggle-group";
+import { firstError } from "@/shared/lib/form-errors";
 import {
 	type AssetFormSubmit,
 	DECIMAL_OPTIONS,

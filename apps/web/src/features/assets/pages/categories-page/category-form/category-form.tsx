@@ -1,9 +1,9 @@
 import type { WalletCategory } from "@/features/assets/hooks/use-wallet-data";
-import { firstError } from "@/features/assets/utils/form";
 import { IconPicker } from "@/shared/components/icon-picker";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { firstError } from "@/shared/lib/form-errors";
 import { type CategoryFormSubmit, useCategoryForm } from "./use-category-form";
 
 interface CategoryFormProps {

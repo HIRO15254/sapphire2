@@ -8,7 +8,6 @@ import type {
 	WalletAsset,
 	WalletRate,
 } from "@/features/assets/hooks/use-wallet-data";
-import { firstError } from "@/features/assets/utils/form";
 import {
 	Alert,
 	AlertDescription,
@@ -20,6 +19,7 @@ import {
 	ToggleGroup,
 	ToggleGroupItem,
 } from "@/shared/components/ui/toggle-group";
+import { firstError } from "@/shared/lib/form-errors";
 import {
 	type Effective,
 	type RateFormSubmit,

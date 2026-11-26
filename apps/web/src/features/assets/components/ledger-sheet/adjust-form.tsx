@@ -8,11 +8,11 @@ import type {
 	WalletAsset,
 	WalletCategory,
 } from "@/features/assets/hooks/use-wallet-data";
-import { firstError } from "@/features/assets/utils/form";
 import {
 	ToggleGroup,
 	ToggleGroupItem,
 } from "@/shared/components/ui/toggle-group";
+import { firstError } from "@/shared/lib/form-errors";
 import type { AdjustSubmit, WalletLine } from "./ledger-target";
 import { useAdjustForm } from "./use-adjust-form";
 
