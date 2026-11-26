@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { onTestFinished, vi } from "vitest";
 
 export const OAUTH_AUTHORIZE_SEARCH =
@@ -34,6 +35,15 @@ export function createTestQueryClient(): QueryClient {
 			},
 		},
 	});
+}
+
+export function WithoutAnimations({ children }: { children: ReactNode }) {
+	return (
+		<>
+			<style>{"* { animation-name: none !important; }"}</style>
+			{children}
+		</>
+	);
 }
 
 export function stubWebAuthnSupport(supported: boolean): () => void {

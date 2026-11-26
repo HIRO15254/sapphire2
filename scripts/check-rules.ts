@@ -273,6 +273,61 @@ if (featureHits.length > 0) {
 	}
 }
 
+const MOCK_BOUNDARY_GLOB = "apps/web/src/**/*.{ts,tsx}";
+const MOCK_BOUNDARY_TEST_PATH = /__tests__\/|\.test\.tsx?$/u;
+const MOCK_BOUNDARY_PATTERN =
+	/vi\.(?:mock|doMock)\(\s*["'`](?:[^"'`]*\/ui\/|vaul["'`]|@tanstack\/(?:react-)?query[\w-]*["'`])|as\s+unknown\s+as\s+QueryClient\b/gu;
+const MOCK_BOUNDARY_ALLOWLIST = new Set([
+	"apps/web/src/__tests__/authenticated-shell.test.tsx",
+	"apps/web/src/__tests__/home-route.test.tsx",
+	"apps/web/src/features/update-notes/components/update-notes-sheet/update-notes-sheet.test.tsx",
+	"apps/web/src/shared/components/authenticated-shell/online-status-bar/__tests__/use-online-status-bar.test.ts",
+	"apps/web/src/utils/__tests__/optimistic-update.test.ts",
+]);
+
+const mockBoundaryHits: string[] = [];
+const allowlistedViolations = new Set<string>();
+for await (const scannedPath of new Glob(MOCK_BOUNDARY_GLOB).scan(".")) {
+	const path = normalizeRulePath(scannedPath);
+	if (IGNORED_DIRS.test(path) || !MOCK_BOUNDARY_TEST_PATH.test(path)) {
+		continue;
+	}
+	const text = await readFile(path, "utf8");
+	const matches = [...text.matchAll(MOCK_BOUNDARY_PATTERN)];
+	if (matches.length === 0) {
+		continue;
+	}
+	if (MOCK_BOUNDARY_ALLOWLIST.has(path)) {
+		allowlistedViolations.add(path);
+		continue;
+	}
+	const lines = text.split("\n");
+	for (const match of matches) {
+		const line = text.slice(0, match.index).split("\n").length;
+		mockBoundaryHits.push(`${path}:${line}: ${lines[line - 1]?.trim()}`);
+	}
+}
+for (const path of MOCK_BOUNDARY_ALLOWLIST) {
+	if (!allowlistedViolations.has(path)) {
+		mockBoundaryHits.push(
+			`${path}: no longer fakes a primitive or the QueryClient — remove it from MOCK_BOUNDARY_ALLOWLIST`
+		);
+	}
+}
+
+if (mockBoundaryHits.length > 0) {
+	failed = true;
+	console.error(
+		"\ncheck-rules FAIL: test fakes a Cryst primitive, vaul, or the QueryClient — render the real component and use createTestQueryClient()"
+	);
+	console.error(
+		"  rule: .claude/rules/testing.md (Verification Layers and Mock Boundaries)"
+	);
+	for (const hit of mockBoundaryHits) {
+		console.error(`  ${hit}`);
+	}
+}
+
 const SESSION_ENTRY_GLOB = "apps/web/src/**/*.{ts,tsx}";
 const SESSION_ENTRY_CALL = /authClient\s*\.\s*(?:signIn|signUp)\b/u;
 const LOGIN_CONTINUATION_IMPORT = /features\/auth\/utils\/login-continuation/u;

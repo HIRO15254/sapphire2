@@ -12,6 +12,7 @@ import type { AnyTRPCRouter } from "@trpc/server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { http } from "msw";
 import type { ReactElement } from "react";
+import { WithoutAnimations } from "@/__tests__/test-utils";
 
 export function trpcHttpHandler(baseUrl: string, router: AnyTRPCRouter) {
 	return http.all(`${baseUrl}/trpc/*`, ({ request }) =>
@@ -44,8 +45,9 @@ export function renderIntegrationPage(
 
 	return render(
 		<QueryClientProvider client={options.queryClient}>
-			<style>{"* { animation-name: none !important; }"}</style>
-			<RouterProvider router={router} />
+			<WithoutAnimations>
+				<RouterProvider router={router} />
+			</WithoutAnimations>
 		</QueryClientProvider>
 	);
 }

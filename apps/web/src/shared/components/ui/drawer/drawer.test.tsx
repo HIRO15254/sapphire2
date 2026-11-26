@@ -1,35 +1,48 @@
-import { render } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { Drawer } from "./drawer";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerTitle,
+} from "./drawer";
 
-const rootSpy = vi.hoisted(() => vi.fn());
-
-vi.mock("vaul", () => ({
-	Drawer: {
-		Close: ({ children }: { children?: ReactNode }) => children ?? null,
-		Content: ({ children }: { children?: ReactNode }) => children ?? null,
-		Description: ({ children }: { children?: ReactNode }) => children ?? null,
-		Overlay: () => null,
-		Portal: ({ children }: { children?: ReactNode }) => children ?? null,
-		Root: (props: { children?: ReactNode }) => {
-			rootSpy(props);
-			return props.children ?? null;
-		},
-		Title: ({ children }: { children?: ReactNode }) => children ?? null,
-		Trigger: ({ children }: { children?: ReactNode }) => children ?? null,
-	},
-}));
+function stubVisualViewport(height: number) {
+	const viewport = Object.assign(new EventTarget(), { height });
+	const original = Object.getOwnPropertyDescriptor(window, "visualViewport");
+	Object.defineProperty(window, "visualViewport", {
+		configurable: true,
+		value: viewport,
+	});
+	onTestFinished(() => {
+		if (original) {
+			Object.defineProperty(window, "visualViewport", original);
+		} else {
+			Reflect.deleteProperty(window, "visualViewport");
+		}
+	});
+	return viewport;
+}
 
 describe("Drawer", () => {
-	it("disables vaul's repositionInputs by default", () => {
-		rootSpy.mockClear();
+	it("leaves the sheet's size to the browser when the on-screen keyboard opens", () => {
+		const viewport = stubVisualViewport(window.innerHeight);
 		render(
 			<Drawer onOpenChange={vi.fn()} open>
-				<div>content</div>
+				<DrawerContent>
+					<DrawerTitle>Sheet</DrawerTitle>
+					<DrawerDescription>Sheet</DrawerDescription>
+					<input aria-label="Name" />
+				</DrawerContent>
 			</Drawer>
 		);
-		const props = rootSpy.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-		expect(props.repositionInputs).toBe(false);
+
+		screen.getByRole("textbox", { name: "Name" }).focus();
+		viewport.height = window.innerHeight - 300;
+		viewport.dispatchEvent(new Event("resize"));
+
+		const sheet = screen.getByRole("dialog");
+		expect(sheet.style.height).toBe("");
+		expect(sheet.style.bottom).toBe("");
 	});
 });

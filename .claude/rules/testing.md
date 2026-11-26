@@ -65,6 +65,8 @@ When testing tRPC cache invalidation across query types, obtain keys from the re
 
 For UI tests, prioritize roles, labels, visible outcomes, and user interactions. Do not merely lock down CSS classes, decorative element counts, internal state, or props passed to mocked children. Exceptions apply only when these details are themselves product contracts. Assert side-effect counts and ordering when they are part of the contract, such as preventing duplicate saves or clearing the cache on logout.
 
+Render the real Cryst primitives (`shared/components/ui/`) and vaul, and use `createTestQueryClient()` instead of a hand-made QueryClient. Fakes of these let suites stay green on props and call arguments while the real Drawer or TanStack Query behaved differently: a restore TanStack ignores, a dismissal the sheet never blocked (SA2-610). `scripts/check-rules.ts` rejects `vi.mock` of those modules or of `@tanstack/react-query`, and `as unknown as QueryClient`, in any test outside `MOCK_BOUNDARY_ALLOWLIST`. That list holds only files that predate the check: it fails on an entry that no longer fakes them, so remove the entry when you fix the file and never add one. In jsdom, wrap a sheet in `WithoutAnimations` from [`test-utils.tsx`](../../apps/web/src/__tests__/test-utils.tsx) so closed content unmounts as it does after the browser's exit animation.
+
 ## Asynchronous Behavior, State, and External Dependencies
 
 - For concurrent updates, use deferred Promises or similar controls to keep multiple requests genuinely pending and produce the required success, failure, and response ordering. Do not call sequentially awaited requests a concurrency test.

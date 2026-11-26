@@ -3,20 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { FormSheet } from "./form-sheet";
 
-const drawerSpy = vi.hoisted(() => vi.fn());
-vi.mock("@/shared/components/ui/drawer", async () => {
-	const actual = await vi.importActual<
-		typeof import("@/shared/components/ui/drawer")
-	>("@/shared/components/ui/drawer");
-	return {
-		...actual,
-		Drawer: (props: Record<string, unknown>) => {
-			drawerSpy(props);
-			return <actual.Drawer {...props} />;
-		},
-	};
-});
-
 describe("FormSheet", () => {
 	it("renders the title in an sr-only DrawerTitle plus a visible header label", () => {
 		render(
@@ -104,18 +90,25 @@ describe("FormSheet", () => {
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
 
-	it("passes dismissible={false} to the underlying Drawer (no swipe-down, no overlay tap)", () => {
-		drawerSpy.mockClear();
+	it("stays open when the user presses Escape or taps outside the sheet", async () => {
+		const user = userEvent.setup();
+		const onOpenChange = vi.fn();
 		render(
-			<FormSheet formId="x" onOpenChange={vi.fn()} open title="t">
+			<FormSheet formId="x" onOpenChange={onOpenChange} open title="t">
 				<div>body</div>
 			</FormSheet>
 		);
-		expect(drawerSpy).toHaveBeenCalled();
-		const lastCallProps = drawerSpy.mock.calls.at(-1)?.[0] as
-			| Record<string, unknown>
-			| undefined;
-		expect(lastCallProps?.dismissible).toBe(false);
+
+		const overlay = document.querySelector("[data-vaul-overlay]");
+		if (!overlay) {
+			throw new Error("FormSheet rendered no overlay");
+		}
+
+		await user.keyboard("{Escape}");
+		await user.pointer({ keys: "[MouseLeft]", target: overlay });
+
+		expect(onOpenChange).not.toHaveBeenCalled();
+		expect(screen.getByText("body")).toBeVisible();
 	});
 
 	it("does not render a drag handle (handle would mislead given dismissible=false)", () => {
