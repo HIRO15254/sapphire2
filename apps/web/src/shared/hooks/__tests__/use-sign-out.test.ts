@@ -1,129 +1,161 @@
-import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useSignOut } from "@/shared/hooks/use-sign-out";
+import type { QueryClient } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
+import { setupServer } from "msw/node";
+import { toast } from "sonner";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
+
+const SERVER_URL = "http://localhost:8787";
+const SIGN_OUT_URL = `${SERVER_URL}/api/auth/sign-out`;
+const PERSISTED_CLIENT_KEY = "sapphire2-query-cache";
 
 const mocks = vi.hoisted(() => ({
-	clearPersistedQueryCache: vi.fn(),
+	failDelete: false,
 	navigate: vi.fn(),
-	signOut: vi.fn(),
+	store: new Map<string, unknown>(),
+}));
+
+vi.mock("@sapphire2/env/web", () => ({
+	env: { VITE_SERVER_URL: "http://localhost:8787" },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => mocks.navigate,
 }));
 
-vi.mock("@/lib/auth-client", () => ({
-	authClient: {
-		signOut: mocks.signOut,
+vi.mock("idb-keyval", () => ({
+	del: (key: string) => {
+		if (mocks.failDelete) {
+			return Promise.reject(new Error("IndexedDB unavailable"));
+		}
+		mocks.store.delete(key);
+		return Promise.resolve();
+	},
+	get: (key: string) => Promise.resolve(mocks.store.get(key)),
+	set: (key: string, value: unknown) => {
+		mocks.store.set(key, value);
+		return Promise.resolve();
 	},
 }));
 
-vi.mock("@/utils/trpc", () => ({
-	clearPersistedQueryCache: mocks.clearPersistedQueryCache,
-}));
+const server = setupServer();
+let useSignOut: typeof import("@/shared/hooks/use-sign-out").useSignOut;
+let queryClient: QueryClient;
 
-interface FetchOptions {
-	onError: () => void;
-	onSuccess: () => void;
-}
-
-function getFetchOptions(): FetchOptions {
-	const [call] = mocks.signOut.mock.calls;
-	if (!call) {
-		throw new Error("Expected a sign-out request");
-	}
-	return call[0].fetchOptions as FetchOptions;
+function signedInAs(data: string) {
+	queryClient.setQueryData(["account"], data);
+	mocks.store.set(PERSISTED_CLIENT_KEY, JSON.stringify({ data }));
 }
 
 describe("useSignOut", () => {
+	beforeAll(async () => {
+		server.listen({ onUnhandledFrame: "error" });
+		({ useSignOut } = await import("@/shared/hooks/use-sign-out"));
+		({ queryClient } = await import("@/utils/trpc"));
+	});
+
 	beforeEach(() => {
+		mocks.failDelete = false;
 		mocks.navigate.mockReset();
-		mocks.signOut.mockReset();
-		mocks.clearPersistedQueryCache.mockReset();
+		vi.spyOn(toast, "error");
 	});
 
-	it("onSignOut calls authClient.signOut exactly once", () => {
-		const { result } = renderHook(() => useSignOut());
-		result.current.onSignOut();
-		expect(mocks.signOut).toHaveBeenCalledTimes(1);
+	afterEach(() => {
+		vi.restoreAllMocks();
+		server.resetHandlers();
+		queryClient.clear();
+		mocks.store.clear();
 	});
 
-	it("does not clear the cache or navigate before sign-out resolves", () => {
-		const { result } = renderHook(() => useSignOut());
-		result.current.onSignOut();
-		expect(mocks.clearPersistedQueryCache).not.toHaveBeenCalled();
-		expect(mocks.navigate).not.toHaveBeenCalled();
+	afterAll(() => {
+		server.close();
 	});
 
-	it("on success clears the persisted cache before navigating home", async () => {
-		mocks.clearPersistedQueryCache.mockResolvedValue(undefined);
-		const { result } = renderHook(() => useSignOut());
-		result.current.onSignOut();
-
-		await getFetchOptions().onSuccess();
-
-		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
-		expect(mocks.navigate).toHaveBeenCalledTimes(1);
-		expect(mocks.navigate).toHaveBeenNthCalledWith(1, { to: "/" });
-		const [navigateOrder] = mocks.navigate.mock.invocationCallOrder;
-		if (navigateOrder === undefined) {
-			throw new Error("Expected navigation to be called");
-		}
-		expect(
-			mocks.clearPersistedQueryCache.mock.invocationCallOrder[0]
-		).toBeLessThan(navigateOrder);
-	});
-
-	it("does not navigate until the persisted cache clear resolves", async () => {
-		let resolveClear: () => void = () => undefined;
-		mocks.clearPersistedQueryCache.mockReturnValue(
-			new Promise<void>((resolve) => {
-				resolveClear = resolve;
+	it("wipes the signed-out user's cache before leaving for home", async () => {
+		const { promise: released, resolve: release } =
+			Promise.withResolvers<void>();
+		server.use(
+			http.post(SIGN_OUT_URL, async () => {
+				await released;
+				return HttpResponse.json({ success: true });
 			})
 		);
+		signedInAs("A-PRIVATE");
+		let cacheAtNavigation: unknown[] = [];
+		mocks.navigate.mockImplementation(() => {
+			cacheAtNavigation = [
+				queryClient.getQueryData(["account"]),
+				mocks.store.get(PERSISTED_CLIENT_KEY),
+			];
+		});
 		const { result } = renderHook(() => useSignOut());
-		result.current.onSignOut();
 
-		const pendingSuccess = getFetchOptions().onSuccess();
-		await Promise.resolve();
-		expect(mocks.navigate).not.toHaveBeenCalled();
+		let signingOut: Promise<void> = Promise.resolve();
+		act(() => {
+			signingOut = result.current.onSignOut();
+		});
+		expect(result.current.isSignOutPending).toBe(true);
+		expect(queryClient.getQueryData(["account"])).toBe("A-PRIVATE");
 
-		resolveClear();
-		await pendingSuccess;
+		release();
+		await act(() => signingOut);
 
-		expect(mocks.navigate).toHaveBeenCalledTimes(1);
+		expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({ to: "/" });
+		expect(cacheAtNavigation).toEqual([undefined, undefined]);
+		expect(toast.error).not.toHaveBeenCalled();
 	});
 
-	it("still navigates home when the persisted cache clear rejects on success", async () => {
-		mocks.clearPersistedQueryCache.mockRejectedValue(new Error("idb error"));
+	it("still leaves for home when the persisted store cannot be deleted", async () => {
+		server.use(
+			http.post(SIGN_OUT_URL, () => HttpResponse.json({ success: true }))
+		);
+		signedInAs("A-PRIVATE");
+		mocks.failDelete = true;
 		const { result } = renderHook(() => useSignOut());
-		result.current.onSignOut();
 
-		await expect(getFetchOptions().onSuccess()).resolves.toBeUndefined();
+		await act(() => result.current.onSignOut());
 
-		expect(mocks.navigate).toHaveBeenCalledTimes(1);
+		expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({ to: "/" });
+		expect(queryClient.getQueryData(["account"])).toBeUndefined();
 	});
 
-	it("on error still clears the persisted cache and does not navigate", () => {
-		mocks.clearPersistedQueryCache.mockResolvedValue(undefined);
+	it("wipes the cache and reports the failure when the server rejects the sign-out", async () => {
+		server.use(
+			http.post(SIGN_OUT_URL, () =>
+				HttpResponse.json({ message: "Server error" }, { status: 500 })
+			)
+		);
+		signedInAs("A-PRIVATE");
 		const { result } = renderHook(() => useSignOut());
-		result.current.onSignOut();
 
-		getFetchOptions().onError();
+		await act(() => result.current.onSignOut());
 
-		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
+		expect(queryClient.getQueryData(["account"])).toBeUndefined();
+		expect(mocks.store.has(PERSISTED_CLIENT_KEY)).toBe(false);
 		expect(mocks.navigate).not.toHaveBeenCalled();
+		expect(toast.error).toHaveBeenCalledOnce();
+		expect(result.current.isSignOutPending).toBe(false);
 	});
 
-	it("does not throw when the persisted cache clear rejects on error", async () => {
-		mocks.clearPersistedQueryCache.mockRejectedValue(new Error("idb error"));
+	it("keeps the session's cache and reports the failure when the request never reaches the server", async () => {
+		server.use(http.post(SIGN_OUT_URL, () => HttpResponse.error()));
+		signedInAs("A-PRIVATE");
 		const { result } = renderHook(() => useSignOut());
-		result.current.onSignOut();
 
-		expect(() => getFetchOptions().onError()).not.toThrow();
-		await Promise.resolve();
-		await Promise.resolve();
+		await act(() => result.current.onSignOut());
 
+		expect(queryClient.getQueryData(["account"])).toBe("A-PRIVATE");
 		expect(mocks.navigate).not.toHaveBeenCalled();
+		expect(toast.error).toHaveBeenCalledOnce();
+		expect(result.current.isSignOutPending).toBe(false);
 	});
 });

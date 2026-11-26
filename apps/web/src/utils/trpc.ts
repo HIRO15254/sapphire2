@@ -10,6 +10,7 @@ import { createElement } from "react";
 import { toast } from "sonner";
 import { Toast } from "@/shared/components/ui/sonner";
 import { isConcurrentChange } from "@/shared/lib/query-failure";
+import { withPersistenceSuspended } from "@/utils/query-persistence";
 
 export const queryClient = new QueryClient({
 	defaultOptions: {
@@ -57,8 +58,10 @@ export const persister = createAsyncStoragePersister({
 });
 
 export function clearPersistedQueryCache(): Promise<void> {
-	queryClient.clear();
-	return Promise.resolve(persister.removeClient());
+	return withPersistenceSuspended(async () => {
+		queryClient.clear();
+		await persister.removeClient();
+	});
 }
 
 export const trpcClient = createTRPCClient<AppRouter>({

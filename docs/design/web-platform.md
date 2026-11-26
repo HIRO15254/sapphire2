@@ -16,7 +16,12 @@ Not every output change needs a bump: a *gained* field whose absence fails safe 
 
 ### Sign-out data wipe
 
-The persisted cache is keyed only by procedure name, **not per-user**. Two-part wipe in [`apps/web/src/utils/trpc.ts`](../../apps/web/src/utils/trpc.ts): `queryClient.clear()` removes what is currently in memory, and `persister.removeClient()` deletes the persisted store so nothing rehydrates on the next load. Every sign-out entry point routes through the shared [`useSignOut`](../../apps/web/src/shared/hooks/use-sign-out.ts) hook, which runs the wipe after Better Auth's `signOut` — **on `onError` too**, so a failed request never leaves stale data behind. The wipe is deliberately best-effort: a failed IndexedDB delete must not block navigating the user away.
+The persisted cache is keyed only by procedure name, **not per-user**. Two-part wipe in [`apps/web/src/utils/trpc.ts`](../../apps/web/src/utils/trpc.ts) (`clearPersistedQueryCache`): `queryClient.clear()` removes what is currently in memory, and `persister.removeClient()` deletes the persisted store so nothing rehydrates on the next load.
+
+- **No snapshot taken during the wipe carries queries.** `clear()` removes queries one at a time and each removal triggers a persist save; its IndexedDB write can land after the delete, carrying the queries not yet removed. The wipe therefore runs inside `withPersistenceSuspended` ([`query-persistence.ts`](../../apps/web/src/utils/query-persistence.ts)): while it is active `shouldPersistQuery` admits nothing, so every save taken during the wipe — the throttled trailing one included — is empty. Persistence resumes when the delete settles.
+- **Every sign-out entry point routes through the shared [`useSignOut`](../../apps/web/src/shared/hooks/use-sign-out.ts) hook**, which awaits Better Auth's `signOut` with the button disabled while it is pending. On success it wipes, then navigates home. When the server answers with an error it still wipes, stays, and shows "Couldn't sign out". When the request never reaches the server (offline) it shows the same toast and keeps the cache: the session is still valid, so the user is still signed in.
+- The wipe is deliberately best-effort: a failed IndexedDB delete must not block navigating the user away.
+- Only the Sign out button wipes today; a session that ends another way (expiry, revocation, another tab) leaves the cache until SA2-684 ties it to its owner.
 
 ## Routing shell and MCP OAuth login continuation
 
