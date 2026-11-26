@@ -54,13 +54,43 @@ export interface ContractProblem {
 const CONTRACT_ID = "C-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+";
 const DECLARATION = new RegExp(`\`(${CONTRACT_ID})\``, "gu");
 const CITATION = new RegExp(String.raw`\b${CONTRACT_ID}\b`, "gu");
-const TEST_CALL =
-	/(?<![\w$.'"`])(?:describe|it|test)(?<modifiers>(?:\s*\.\s*(?:concurrent|describe|each|for|parallel|sequential|serial)\b)*)\s*\(/gu;
-const TABLE_MODIFIER = /\b(?:each|for)\b/u;
+const CALL_HEAD = /(?<![\w$.])(?:describe|it|test)\b/gu;
+const LEADING_NAME = /^\s*(?<name>[A-Za-z]+)/u;
+const RUNNING_MODIFIERS = new Set([
+	"concurrent",
+	"describe",
+	"each",
+	"for",
+	"parallel",
+	"sequential",
+	"serial",
+	"shuffle",
+]);
+const DISABLING_MODIFIERS = new Set([
+	"fails",
+	"fixme",
+	"runIf",
+	"skip",
+	"skipIf",
+	"todo",
+]);
+const ARGUMENT_MODIFIERS = new Set(["each", "for", "runIf", "skipIf"]);
+const DISABLING_OPTION = /\b(?:fails|skip|todo)\b/u;
+const REGEX_PRECEDER = /(?:^|[!%&(*+,:;<=>?[^{|}~-])$/u;
+const REGEX_KEYWORD =
+	/\b(?:await|case|delete|do|else|in|instanceof|new|of|return|throw|typeof|void|yield)$/u;
+const REGEX_FLAG = /[a-z]/u;
 const WHITESPACE = /\s/u;
 const QUOTES = new Set(['"', "'", "`"]);
 const OPENERS = new Set(["(", "[", "{"]);
 const CLOSERS = new Set([")", "]", "}"]);
+
+interface TestCall {
+	close: number;
+	disabling: boolean;
+	open: number;
+	titleStart?: number;
+}
 
 function lineAt(text: string, index: number): number {
 	return text.slice(0, index).split("\n").length;
@@ -70,29 +100,126 @@ function stringEnd(text: string, start: number): number {
 	const quote = text[start];
 	let index = start + 1;
 	while (index < text.length && text[index] !== quote) {
+		if (text[index] === "\n" && quote !== "`") {
+			return index;
+		}
 		index += text[index] === "\\" ? 2 : 1;
 	}
 	return index + 1;
 }
 
-function closingBracket(text: string, open: number): number {
+function templateChunkEnd(
+	text: string,
+	from: number
+): { end: number; expression: boolean } {
+	let index = from;
+	while (index < text.length) {
+		if (text[index] === "`") {
+			return { end: index + 1, expression: false };
+		}
+		if (text.startsWith("${", index)) {
+			return { end: index + 2, expression: true };
+		}
+		index += text[index] === "\\" ? 2 : 1;
+	}
+	return { end: text.length, expression: false };
+}
+
+function commentEnd(text: string, index: number): number {
+	const lineComment = text.startsWith("//", index);
+	if (!(lineComment || text.startsWith("/*", index))) {
+		return -1;
+	}
+	const end = text.indexOf(lineComment ? "\n" : "*/", index + 2);
+	if (end === -1) {
+		return text.length;
+	}
+	return lineComment ? end : end + 2;
+}
+
+function regexEnd(text: string, index: number): number {
+	const before = text.slice(Math.max(0, index - 64), index).trimEnd();
+	if (!(REGEX_PRECEDER.test(before) || REGEX_KEYWORD.test(before))) {
+		return -1;
+	}
+	let inClass = false;
+	let next = index + 1;
+	while (next < text.length && text[next] !== "\n") {
+		const char = text[next];
+		if (char === "/" && !inClass) {
+			next += 1;
+			while (REGEX_FLAG.test(text[next] ?? "")) {
+				next += 1;
+			}
+			return next;
+		}
+		if (char === "[" || char === "]") {
+			inClass = char === "[";
+		}
+		next += char === "\\" ? 2 : 1;
+	}
+	return -1;
+}
+
+function nonCodeEnd(text: string, index: number): number {
+	const char = text[index] ?? "";
+	if (char === '"' || char === "'") {
+		return stringEnd(text, index);
+	}
+	if (char !== "/") {
+		return -1;
+	}
+	const comment = commentEnd(text, index);
+	return comment === -1 ? regexEnd(text, index) : comment;
+}
+
+function codeMask(text: string): Uint8Array {
+	const code = new Uint8Array(text.length);
+	const templates: number[] = [];
 	let depth = 0;
-	let index = open;
+	let index = 0;
 	while (index < text.length) {
 		const char = text[index] ?? "";
-		if (QUOTES.has(char)) {
-			index = stringEnd(text, index);
+		const resumesTemplate = char === "}" && templates.at(-1) === depth;
+		if (char === "`" || resumesTemplate) {
+			if (resumesTemplate) {
+				templates.pop();
+			}
+			const chunk = templateChunkEnd(text, index + 1);
+			if (chunk.expression) {
+				templates.push(depth);
+			}
+			index = chunk.end;
 			continue;
 		}
-		if (OPENERS.has(char)) {
+		const end = nonCodeEnd(text, index);
+		if (end > index) {
+			index = end;
+			continue;
+		}
+		code[index] = 1;
+		if (char === "{") {
 			depth += 1;
-		} else if (CLOSERS.has(char)) {
+		} else if (char === "}") {
+			depth -= 1;
+		}
+		index += 1;
+	}
+	return code;
+}
+
+function closingBracket(text: string, code: Uint8Array, open: number): number {
+	let depth = 0;
+	for (let index = open; index < text.length; index += 1) {
+		const char = text[index] ?? "";
+		if (code[index] === 1 && OPENERS.has(char)) {
+			depth += 1;
+		} else if (code[index] === 1 && CLOSERS.has(char)) {
 			depth -= 1;
 			if (depth === 0) {
 				return index;
 			}
 		}
-		index += 1;
 	}
 	return -1;
 }
@@ -105,35 +232,125 @@ function skipSpace(text: string, index: number): number {
 	return next;
 }
 
-function titleStart(text: string, match: RegExpExecArray): number {
-	const afterCall = match.index + match[0].length;
-	if (!TABLE_MODIFIER.test(match.groups?.modifiers ?? "")) {
-		return skipSpace(text, afterCall);
+function callOpen(
+	text: string,
+	code: Uint8Array,
+	from: number
+): { modifiers: string[]; open: number } | undefined {
+	const modifiers: string[] = [];
+	let awaitsArguments = false;
+	let index = skipSpace(text, from);
+	while (text[index] === "." || (text[index] === "(" && awaitsArguments)) {
+		if (text[index] === "(") {
+			const close = closingBracket(text, code, index);
+			if (close === -1) {
+				return;
+			}
+			awaitsArguments = false;
+			index = skipSpace(text, close + 1);
+			continue;
+		}
+		const match = LEADING_NAME.exec(text.slice(index + 1, index + 64));
+		const name = match?.groups?.name;
+		if (!(match && name)) {
+			return;
+		}
+		modifiers.push(name);
+		awaitsArguments = ARGUMENT_MODIFIERS.has(name);
+		index = skipSpace(text, index + 1 + match[0].length);
 	}
-	const close = closingBracket(text, afterCall - 1);
-	if (close === -1) {
-		return -1;
+	return text[index] === "(" ? { modifiers, open: index } : undefined;
+}
+
+function testCalls(text: string, code: Uint8Array): TestCall[] {
+	const calls: TestCall[] = [];
+	for (const match of text.matchAll(CALL_HEAD)) {
+		const call =
+			code[match.index] === 1
+				? callOpen(text, code, match.index + match[0].length)
+				: undefined;
+		const known = call?.modifiers.every(
+			(name) => RUNNING_MODIFIERS.has(name) || DISABLING_MODIFIERS.has(name)
+		);
+		if (!(call && known)) {
+			continue;
+		}
+		const start = skipSpace(text, call.open + 1);
+		const close = closingBracket(text, code, call.open);
+		calls.push({
+			close: close === -1 ? text.length : close,
+			disabling: call.modifiers.some((name) => DISABLING_MODIFIERS.has(name)),
+			open: call.open,
+			titleStart: QUOTES.has(text[start] ?? "") ? start : undefined,
+		});
 	}
-	const call = skipSpace(text, close + 1);
-	return text[call] === "(" ? skipSpace(text, call + 1) : -1;
+	return calls;
+}
+
+function disabledByOptions(
+	text: string,
+	code: Uint8Array,
+	titleStart: number
+): boolean {
+	const comma = skipSpace(text, stringEnd(text, titleStart));
+	const open = skipSpace(text, comma + 1);
+	if (text[comma] !== "," || text[open] !== "{") {
+		return false;
+	}
+	const close = closingBracket(text, code, open);
+	const keys = [...text.slice(open, close === -1 ? text.length : close)]
+		.map((char, offset) => (code[open + offset] === 1 ? char : " "))
+		.join("");
+	return DISABLING_OPTION.test(keys);
+}
+
+function disabledRanges(
+	text: string,
+	code: Uint8Array,
+	calls: TestCall[]
+): [number, number][] {
+	return calls.flatMap((call): [number, number][] => {
+		if (call.titleStart === undefined) {
+			if (!call.disabling) {
+				return [];
+			}
+			const enclosing = calls
+				.filter(({ close, open }) => open < call.open && call.open < close)
+				.at(-1);
+			return [
+				[call.open, call.close],
+				enclosing ? [enclosing.open, enclosing.close] : [0, text.length],
+			];
+		}
+		return call.disabling || disabledByOptions(text, code, call.titleStart)
+			? [[call.open, call.close]]
+			: [];
+	});
 }
 
 export function testTitles(
 	file: SourceFile
 ): { line: number; title: string }[] {
-	const titles: { line: number; title: string }[] = [];
-	for (const match of file.text.matchAll(TEST_CALL)) {
-		const start = titleStart(file.text, match);
-		if (start === -1 || !QUOTES.has(file.text[start] ?? "")) {
-			continue;
+	const code = codeMask(file.text);
+	const calls = testCalls(file.text, code);
+	const disabled = disabledRanges(file.text, code, calls);
+	return calls.flatMap(({ open, titleStart }) => {
+		if (
+			titleStart === undefined ||
+			disabled.some(([from, to]) => from <= open && open <= to)
+		) {
+			return [];
 		}
-		const end = stringEnd(file.text, start);
-		titles.push({
-			line: lineAt(file.text, start),
-			title: file.text.slice(start + 1, end - 1),
-		});
-	}
-	return titles;
+		return [
+			{
+				line: lineAt(file.text, titleStart),
+				title: file.text.slice(
+					titleStart + 1,
+					stringEnd(file.text, titleStart) - 1
+				),
+			},
+		];
+	});
 }
 
 export function contractDeclarations(docs: SourceFile[]): ContractLocation[] {
