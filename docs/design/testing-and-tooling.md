@@ -26,6 +26,8 @@ Playwright's [configuration](../../playwright.config.ts) partitions the E2E spec
 
 Vitest is the sole unit, migration and API-integration runner. Root [configuration](../../vitest.config.ts) registers workspace and infrastructure projects; [scripts](../../package.json) exclude only `api-integration` from `test:unit`, so new registered projects are not silently omitted by a fixed allowlist. [Discovery checking](../../testing/check-discovery.ts) compares specs under `apps/`, `packages/`, `scripts/` and `testing/` with Vitest discovery, and E2E specs with their Playwright assignments.
 
+The root `check-types` runs every workspace's `check-types` through `bun run --filter '*'`, which silently skips a workspace without that script, and each `tsc` project sees only the files its `include` lists. [Type coverage checking](../../testing/check-type-coverage.ts) therefore fails when a workspace containing TypeScript has no `tsc`-based `check-types`, when the root script stops filtering `'*'`, or when a Git-tracked or new unignored TypeScript file belongs to none of the projects `check-types` runs (it lists them with `tsc --listFilesOnly`, so files type-checked only through imports also count).
+
 The reusable [checks.yml](../../.github/workflows/checks.yml) separates static checks, unit coverage, D1 integration and browser jobs. The caller workflows own aggregate deployment gating. Unit coverage includes unimported application sources but not the separate workerd process; it is not Worker-wide coverage. CI retains coverage and browser artifacts even after failure. The [run guide](../testing-environment.ja.md) owns commands and diagnostic locations.
 
 ## The packages/api mock-db contract

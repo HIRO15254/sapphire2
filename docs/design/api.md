@@ -16,6 +16,8 @@ Every procedure except root `healthCheck` is authenticated (`UNAUTHORIZED` other
 | `PRECONDITION_FAILED` | Invalid lifecycle state (including append to an ended play or count add/undo outside active play); missing configured base asset for requested conversion; continuing an explicitly finished entry; rule operation requiring an absent linked master. |
 | `INTERNAL_SERVER_ERROR` | External service unavailable or malformed response, or an internal data-integrity failure; never an ownership substitute. |
 
+An HTTP request body on `/trpc/*` above 26,000,000 bytes is refused with `413` `PAYLOAD_TOO_LARGE` before any procedure runs; a batch fails as a whole ([input size limits](ai-extraction.md#input-size-limits)).
+
 HTTP error responses omit stack traces. `C-API-NO-STACK` An `INTERNAL_SERVER_ERROR` with a non-tRPC cause is returned as `Internal server error`; deliberate tRPC error messages without such a cause remain visible. MCP maps internal errors to generic text.
 
 Omitted update fields mean unchanged; `null` clears only nullable fields. Supplied arrays replace the entire collection, unless explicitly described otherwise. Validation applies to the resulting merged object where cross-field constraints require it.
@@ -605,7 +607,7 @@ Mark is idempotent per user/version and never duplicates a view on retries.
 
 ## 28. `aiExtract`
 
-Both **Excluded: extraction**: MCP clients can interpret images themselves. Inputs share `sources:{kind:'image',data:nonempty base64 string,mediaType:image/jpeg|image/png|image/gif|image/webp}[]`, length 1–5. These procedures return **untrusted extraction suggestions**, not persisted rules/payments; callers choose owned asset/game/tag ids before writing.
+Both **Excluded: extraction**: MCP clients can interpret images themselves. Inputs share `sources:{kind:'image',data:nonempty base64 string of at most 10,000,000 characters,mediaType:image/jpeg|image/png|image/gif|image/webp}[]`, length 1–5, whose `data` total at most 25,000,000 characters ([input size limits](ai-extraction.md#input-size-limits)). These procedures return **untrusted extraction suggestions**, not persisted rules/payments; callers choose owned asset/game/tag ids before writing.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |

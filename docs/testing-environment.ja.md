@@ -34,6 +34,7 @@ LinuxでブラウザーのOS依存も入れる場合は、後者を `bunx playwr
 | パスキー | `bun run test:e2e e2e/passkeys.spec.ts --project mobile` |
 | 未検出・重複割当 | `bun run check:test-discovery` |
 | 全workspace・script・基盤・E2Eの型（テストを含む） | `bun run check-types` |
+| 型検査の対象漏れ（check-typesの無いworkspace・どのprojectにも入らないTSファイル） | `bun run check:type-coverage` |
 | lint / 規約 | `bun run lint` / `bun run check:rules` |
 | Node/jsdomカバレッジ | `bun run test:coverage` |
 

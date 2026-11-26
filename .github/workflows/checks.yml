@@ -16,6 +16,7 @@ jobs:
       - run: bun run lint
       - run: bun run check:rules
       - run: bun run check:test-discovery
+      - run: bun run check:type-coverage
 
   unit:
     runs-on: ubuntu-latest
